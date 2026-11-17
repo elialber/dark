@@ -1,49 +1,7 @@
 # dark
 
-> TODO: descreva em uma ou duas frases o que o projeto faz.
+Ferramenta que instala e mantém o harness do Claude Code em um repositório, mede a saúde dele e indica o que mudar, com evidência.
 
-## Requisitos
+Fase atual: Fase 1, piloto manual. Ainda não há código para instalar.
 
-- Python 3.12+
-
-## Instalação
-
-```bash
-git clone git@github.com:elialber/dark.git
-cd dark
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-## Configuração
-
-Copie o arquivo de exemplo e preencha as variáveis:
-
-```bash
-cp .env.example .env
-```
-
-> TODO: liste as variáveis de ambiente necessárias.
-
-## Uso
-
-```bash
-# TODO: comando para rodar o projeto
-```
-
-## Testes
-
-```bash
-pytest
-```
-
-## Estrutura
-
-```
-dark/
-├── README.md
-└── .gitignore
-```
-
-> TODO: atualize conforme o projeto crescer.
+O estado do projeto, os goals e o diário estão em [pair/ESTADO.md](pair/ESTADO.md).

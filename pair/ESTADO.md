@@ -8,21 +8,31 @@ Uso individual: um desenvolvedor, seus repositórios, dados locais.
 
 ## Especificação
 
-https://claude.ai/artifact/RpYucLansUPuLZZabHts8E
+A referência será `docs/especificacao.md`, com as emendas de
+[docs/decisoes.md](../docs/decisoes.md).
 
-O link é privado: só abre para quem recebeu acesso do dono do documento.
+**Pendência:** o arquivo exportado da especificação ainda não foi entregue;
+`docs/especificacao.md` não existe.
+
+Nota histórica: a especificação nasceu em um documento privado,
+https://claude.ai/artifact/RpYucLansUPuLZZabHts8E, que só abre para quem
+recebeu acesso do dono.
 
 ## Fase atual
 
 Fase 1: piloto manual
 
+## Goals
+
+| Goal | Situação |
+|---|---|
+| [001 — Formato das transcrições](goals/001-formato-transcricoes.md) | Aceito pelo revisor no [lote 002](entrada/lote-002.md) |
+
 ## Decisões pendentes
 
-- Linguagem da CLI
+Nenhuma. A linguagem da CLI foi fechada: Python 3.12 ou mais recente
+([E8](../docs/decisoes.md)).
 
 ## Próximo passo
 
-Revisão do goal 001
-([goal](goals/001-formato-transcricoes.md) ·
-[relatório](diario/001.md) ·
-[documento](../docs/formato-transcricoes.md))
+Goal 002

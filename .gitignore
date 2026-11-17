@@ -53,3 +53,6 @@ coverage.xml
 Thumbs.db
 desktop.ini
 *:Zone.Identifier
+
+# Relatórios locais que não podem ser públicos
+local/
