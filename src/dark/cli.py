@@ -3,9 +3,12 @@
 Aqui ficam argumentos, relógio, git e disco. O cálculo é de
 `dark.auditoria`; o texto, de `dark.relatorio`.
 
-O git é usado só para leitura (`rev-list`, `check-ignore`). O comando não
+O git é usado só para leitura (`rev-list`, `check-ignore` e as consultas
+de `dark.historico`, que só aceita subcomandos de leitura). O comando não
 escreve nada dentro do repositório auditado por conta própria: o
 relatório vai para a saída padrão, ou para `--saida`.
+
+Sem caminho nem `--todos`, audita o repositório do diretório atual.
 """
 
 from __future__ import annotations
@@ -18,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 from functools import cache
 from pathlib import Path
 
-from dark import auditoria, leitor, relatorio
+from dark import auditoria, inventario, leitor, ligacao, relatorio
 
 _GIT_SO_LEITURA = {"GIT_OPTIONAL_LOCKS": "0"}
 
@@ -75,11 +78,38 @@ def _confirmar(pergunta: str) -> bool:
         return False
 
 
+def _inventario(repos: list[Path], args: argparse.Namespace) -> inventario.Inventario | None:
+    """Inventário de cada repositório, juntado; o escopo do usuário entra uma vez."""
+    existentes = [r for r in repos if r.is_dir()]
+    if not existentes:
+        return None
+    junto = inventario.Inventario()
+    vistos_p, vistos_pl, vistos_f = set(), set(), set()
+    for r in existentes:
+        inv = inventario.inventariar(r, args.config, gerenciado=args.gerenciado)
+        for p in inv.pecas:
+            chave = (p.tipo, p.escopo, p.nome, str(p.origem))
+            if chave not in vistos_p:
+                vistos_p.add(chave)
+                junto.pecas.append(p)
+        for pl in inv.plugins:
+            if (pl.nome, pl.ativo) not in vistos_pl:
+                vistos_pl.add((pl.nome, pl.ativo))
+                junto.plugins.append(pl)
+        for f in inv.falhas:
+            if (str(f.arquivo), f.mensagem) not in vistos_f:
+                vistos_f.add((str(f.arquivo), f.mensagem))
+                junto.falhas.append(f)
+    return junto
+
+
 def _auditar(args: argparse.Namespace) -> int:
-    if args.todos == (args.caminho is not None):
+    if args.todos and args.caminho is not None:
         print("dark auditar: informe o caminho de um repositório ou --todos, não os dois",
               file=sys.stderr)
         return 2
+    if not args.todos and args.caminho is None:
+        args.caminho = Path.cwd()
     try:
         ate = leitor.instante(args.ate) if args.ate else None
     except ValueError:
@@ -117,8 +147,17 @@ def _auditar(args: argparse.Namespace) -> int:
         desde = (ate or datetime.now(timezone.utc)) - timedelta(days=args.dias)
         sessoes = auditoria.do_periodo(sessoes, desde)
 
+    # Inventário: o do repositório auditado, ou o de cada repositório das sessões.
+    repos = [raiz] if raiz is not None else sorted(
+        {s.repositorio for s in sessoes if s.repositorio is not None}, key=str)
+    inv = _inventario(repos, args)
+    # Git: só os repositórios das chamadas de commit das sessões selecionadas.
+    validas = [s for s in sessoes if not s.so_comando_local]
+    lig = None if args.sem_git else ligacao.ligar(validas)
+
     resultado = auditoria.auditar(sessoes, falhas, repositorio=raiz, diretorios=diretorios,
-                                  desde=desde, ate=ate)
+                                  desde=desde, ate=ate, inventario=inv, ligacao=lig,
+                                  sem_git=args.sem_git)
     texto = relatorio.markdown(resultado)
     codigo = 1 if falhas and not sessoes else 0
 
@@ -146,7 +185,8 @@ def main(argv: list[str] | None = None) -> int:
         description="Lê as transcrições do Claude Code e gera um relatório em Markdown. "
                     "Não altera o repositório auditado.")
     a.add_argument("caminho", nargs="?", type=Path,
-                   help="repositório a auditar (qualquer pasta dentro dele)")
+                   help="repositório a auditar, qualquer pasta dentro dele "
+                        "(padrão: o diretório atual)")
     a.add_argument("--dias", type=int, default=None,
                    help="só sessões iniciadas nos últimos N dias (padrão: todo o histórico)")
     a.add_argument("--ate", default=None,
@@ -159,6 +199,10 @@ def main(argv: list[str] | None = None) -> int:
                    help="diretório de configuração (padrão: CLAUDE_CONFIG_DIR ou ~/.claude)")
     a.add_argument("--excluir-pasta", action="append", default=[],
                    help="ignora pastas de projeto cujo nome contém o texto (conferência)")
+    a.add_argument("--sem-git", action="store_true",
+                   help="não consulta o histórico git para ligar commits (mais rápido)")
+    a.add_argument("--gerenciado", type=Path, default=None,
+                   help="diretório de política gerenciada (conferência; padrão: o do sistema)")
     args = analisador.parse_args(argv)
     if args.comando == "auditar":
         return _auditar(args)

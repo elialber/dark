@@ -150,6 +150,7 @@ class Repositorio:
     executor: Executor = field(default=executor_padrao, repr=False)
     _indice: dict[str, CommitInfo] | None = field(default=None, repr=False)
     _amends_reflog: list[tuple[str, str]] | None = field(default=None, repr=False)
+    _arquivos: dict[str, frozenset[str]] | None = field(default=None, repr=False)
 
     def git(self, args: list[str], entrada: str | None = None, *,
             aceita: Iterable[int] = (0,), cwd: Path | None = None) -> Execucao:
@@ -526,13 +527,77 @@ def amend(repo: Repositorio, hash_: str) -> Amend:
     return Amend(Situacao.OK, c.hash, bool(subs), subs)
 
 
+@dataclass
+class Substituicao:
+    situacao: Situacao
+    hash: str | None = None
+    substitui: bool = False
+    originais: list[Substituto] = field(default_factory=list)   # intervalo: este menos o original
+    detalhe: str | None = None
+
+
+@_protegido(Substituicao)
+def substituidos(repo: Repositorio, hash_: str) -> Substituicao:
+    """O commit substituiu outro por amend? A pergunta inversa de `amend`.
+
+    Mesmas evidências: "reflog" (entrada "commit (amend)" cujo valor novo é
+    este commit) e "estrutura" (outro commit com os mesmos pais, mesmo autor e
+    mesma data de autor, feito antes ou no mesmo segundo). Serve para o
+    histórico arbitrar o amend de uma chamada de commit (E7, acréscimos).
+    """
+    sit, c = _resolver(repo, hash_)
+    if c is None:
+        return Substituicao(sit)
+    idx = _indice(repo)
+    evid: dict[str, list[str]] = {}
+    for antigo, novo in _amends_reflog(repo):
+        if novo == c.hash and antigo != c.hash:
+            evid.setdefault(antigo, []).append("reflog")
+    for d in idx.values():
+        if (d.hash != c.hash and d.pais == c.pais and d.autor == c.autor
+                and d.data_autor == c.data_autor and d.data_commit <= c.data_commit):
+            evid.setdefault(d.hash, []).append("estrutura")
+    originais = []
+    for h, ev in evid.items():
+        d = idx.get(h) or _resolver(repo, h)[1]
+        if d is None:
+            continue
+        originais.append(Substituto(h, ev, c.data_commit - d.data_commit))
+    originais.sort(key=lambda s: (s.intervalo, s.hash))
+    return Substituicao(Situacao.OK, c.hash, bool(originais), originais)
+
+
 # --- 4. reversão ---------------------------------------------------------------------
 
 _REVERTE = re.compile(r"This reverts commit ([0-9a-f]{7,64})")
 
 
+def _mapa_de_arquivos(repo: Repositorio) -> dict[str, frozenset[str]]:
+    """Arquivos alterados por todo commit sem merge do índice, numa só chamada.
+
+    Antes (goal 011) era um processo git por commit e por candidato; no
+    clone em disco montado, a auditoria de 95 commits levava 9 minutos
+    (goal 013). O resultado é o mesmo: lista em relação ao único pai, ou
+    tudo na raiz, sem detecção de renomeação.
+    """
+    if repo._arquivos is None:
+        saida = repo.git(["log", "--all", "--reflog", "--no-merges", "--no-renames",
+                          "--format=%x1e%H", "--name-only", "-z"]).saida
+        mapa = {}
+        for bloco in saida.split("\x1e"):
+            if not bloco.strip():
+                continue
+            h, _, resto = bloco.partition("\0")
+            mapa[h.strip()] = frozenset(filter(None, resto.lstrip("\n").split("\0")))
+        repo._arquivos = mapa
+    return repo._arquivos
+
+
 def _arquivos(repo: Repositorio, h: str) -> list[str]:
     """Arquivos alterados pelo commit em relação ao primeiro pai (todos, se raiz)."""
+    mapa = _mapa_de_arquivos(repo)
+    if h in mapa:
+        return sorted(mapa[h])
     r = repo.git(["diff-tree", "--no-commit-id", "-r", "--name-only", "-z", "--root", h])
     return sorted(set(filter(None, r.saida.split("\0"))))
 
@@ -541,10 +606,8 @@ def _tocam(repo: Repositorio, arquivos: list[str]) -> set[str]:
     """Commits sem merge, em qualquer ref ou reflog, que alteram algum dos arquivos."""
     if not arquivos:
         return set()
-    entrada = "--\n" + "".join(f":(literal){a}\n" for a in arquivos)
-    r = repo.git(["log", "--all", "--reflog", "--no-merges", "--full-history",
-                  "--format=%H", "--stdin"], entrada=entrada)
-    return set(r.saida.split())
+    alvo = set(arquivos)
+    return {h for h, fs in _mapa_de_arquivos(repo).items() if fs & alvo}
 
 
 _DIFF = ["--no-color", "--no-ext-diff", "--no-renames", "--full-index", "-p"]
@@ -570,19 +633,27 @@ def _reversoes(repo: Repositorio, c: CommitInfo) -> list[ReversaoEncontrada]:
             candidatos[h] = False
     if not candidatos:
         return []
-    inverso = None
-    if c.pais:
-        inverso = _patch_id(repo, repo.git(["diff", *_DIFF, c.hash, c.pais[0]]).saida)
+    calculado: list[str | None] = []
+
+    def inverso() -> str | None:
+        # Só calcula o patch inverso quando algum candidato precisa (goal 013).
+        if not calculado:
+            calculado.append(_patch_id(repo, repo.git(["diff", *_DIFF, c.hash, c.pais[0]]).saida)
+                             if c.pais else None)
+        return calculado[0]
+
     achados = []
     for h, pela_msg in candidatos.items():
         d = idx[h]
-        if inverso is None or len(d.pais) != 1:
+        if not c.pais or len(d.pais) != 1:
             conteudo = None
         elif not pela_msg and _arquivos(repo, h) != alvo:
             conteudo = False
+        elif inverso() is None:
+            conteudo = None
         else:
             pid = _patch_id(repo, repo.git(["diff", *_DIFF, d.pais[0], h]).saida)
-            conteudo = pid is not None and pid == inverso
+            conteudo = pid is not None and pid == inverso()
         if pela_msg or conteudo:
             achados.append(ReversaoEncontrada(h, pela_msg, conteudo,
                                               d.data_commit - c.data_commit, d.so_reflog))

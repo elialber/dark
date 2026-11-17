@@ -58,6 +58,120 @@ def peso_fixo(sessoes: Iterable[Sessao]) -> PesoFixo:
 
 
 # --------------------------------------------------------------------------
+# Repartição do peso fixo (E11, terceira versão)
+# --------------------------------------------------------------------------
+
+# Caracteres por token. Vem das duas partes medidas dos dois lados no
+# diário 010 (prompt de sistema 3,64; lista de skills 3,57). É estimativa:
+# os caracteres incluem o escape de JSON, e código tokeniza diferente de texto.
+FATOR_CARACTERES_POR_TOKEN = 3.6
+
+GRUPOS = ("plataforma", "harness", "pedido")
+
+# (grupo, parte), na ordem em que o relatório mostra.
+PARTES = (
+    ("plataforma", "prompt de sistema"),
+    ("plataforma", "ferramentas embutidas"),
+    ("plataforma", "outros anexos"),
+    ("harness", "ferramentas MCP carregadas"),
+    ("harness", "lista de skills"),
+    ("harness", "lista de subagentes"),
+    ("harness", "nomes de ferramentas adiadas"),
+    ("harness", "instruções de servidores MCP"),
+    ("harness", "instruções e memória"),
+    ("harness", "saída de hooks"),
+    ("pedido", "primeiro pedido"),
+)
+GRUPO_DA_PARTE = {parte: grupo for grupo, parte in PARTES}
+
+# Tipo de anexo -> parte. Anexo de tipo fora desta lista vai para "outros
+# anexos" (ambiente, data, modelo, contexto da sessão...), da plataforma.
+PARTE_DO_ANEXO = {
+    "skill_listing": "lista de skills",
+    "agent_listing_delta": "lista de subagentes",
+    "deferred_tools_delta": "nomes de ferramentas adiadas",
+    "deferred_tools_record": "nomes de ferramentas adiadas",
+    "mcp_instructions_delta": "instruções de servidores MCP",
+    "instructions": "instruções e memória",
+    "nested_memory": "instruções e memória",
+    "hook_success": "saída de hooks",
+    "hook_non_blocking_error": "saída de hooks",
+    "hook_cancelled": "saída de hooks",
+}
+
+
+@dataclass(frozen=True)
+class Reparticao:
+    """Peso fixo repartido por parte do primeiro pedido, em tokens estimados.
+
+    Só entram as sessões com o peso fixo medido e com a forma da requisição
+    gravada. O que o medido tem a mais que a soma das partes é o "não
+    explicado"; pode ser negativo, e fica como está.
+    """
+    fator: float
+    por_sessao: dict[str, dict[str, float]]    # sessão -> parte -> tokens estimados
+    medido: dict[str, int]                     # sessão -> peso fixo medido
+    sem_forma: list[str]                       # medido, mas sem a forma da requisição
+
+    def soma(self, parte: str) -> float:
+        return sum(p.get(parte, 0.0) for p in self.por_sessao.values())
+
+    def soma_grupo(self, grupo: str) -> float:
+        return sum(self.soma(parte) for g, parte in PARTES if g == grupo)
+
+    @property
+    def medido_total(self) -> int:
+        return sum(self.medido.values())
+
+    @property
+    def nao_explicado(self) -> float:
+        return self.medido_total - sum(self.soma(parte) for _, parte in PARTES)
+
+    def parcela(self, parte: str) -> float | None:
+        return self.soma(parte) / self.medido_total if self.medido_total else None
+
+    def parcela_grupo(self, grupo: str) -> float | None:
+        return self.soma_grupo(grupo) / self.medido_total if self.medido_total else None
+
+    @property
+    def parcela_nao_explicada(self) -> float | None:
+        return self.nao_explicado / self.medido_total if self.medido_total else None
+
+    def resumo(self, parte: str) -> Resumo:
+        return resumir(p.get(parte, 0.0) for p in self.por_sessao.values())
+
+    def resumo_grupo(self, grupo: str) -> Resumo:
+        return resumir(sum(v for k, v in p.items() if GRUPO_DA_PARTE[k] == grupo)
+                       for p in self.por_sessao.values())
+
+    def resumo_nao_explicado(self) -> Resumo:
+        return resumir(self.medido[s] - sum(p.values()) for s, p in self.por_sessao.items())
+
+
+def reparticao(sessoes: Iterable[Sessao],
+               fator: float = FATOR_CARACTERES_POR_TOKEN) -> Reparticao:
+    por_sessao, medido, sem_forma = {}, {}, []
+    for s in sessoes:
+        if s.contexto_inicial is None or s.partes_iniciais is None:
+            continue
+        p = s.partes_iniciais
+        if p.sistema is None:
+            sem_forma.append(s.id)
+            continue
+        caracteres: Counter = Counter({
+            "prompt de sistema": p.sistema,
+            "ferramentas embutidas": p.ferramentas or 0,
+            "ferramentas MCP carregadas": p.ferramentas_mcp or 0,
+            "primeiro pedido": p.pedido or 0,
+        })
+        for tipo, tamanho in p.anexos.items():
+            caracteres[PARTE_DO_ANEXO.get(tipo, "outros anexos")] += tamanho
+        por_sessao[s.id] = {parte: caracteres[parte] / fator for _, parte in PARTES}
+        medido[s.id] = s.contexto_inicial
+    return Reparticao(fator, por_sessao, medido, sem_forma)
+
+
+# --------------------------------------------------------------------------
 # Peso morto
 # --------------------------------------------------------------------------
 

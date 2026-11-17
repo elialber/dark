@@ -129,6 +129,39 @@ BLOCOS_CONHECIDOS = {
     "user": {"text", "image", "tool_result"},
 }
 
+# Tamanho de anexo (E11, terceira versão): soma dos textos do anexo, sem o
+# `type` e sem as chaves que repetem o que outra chave já traz (a lista de
+# nomes ao lado do texto renderizado, por exemplo). Em anexo de hook, só o
+# `content`, que é o que o modelo recebe.
+_ANEXO_IGNORA = {
+    "skill_listing": {"names", "digests"},
+    "agent_listing_delta": {"addedTypes", "builtInTypes", "builtInPluginTypes",
+                            "removedTypes"},
+    "deferred_tools_delta": {"addedNames", "removedNames", "readdedNames", "surfacedNames",
+                             "wireHiddenNames", "pendingMcpServers", "failedMcpServers"},
+    "mcp_instructions_delta": {"addedNames", "removedNames"},
+    **{h: {"hookName", "hookEvent", "toolUseID", "stdout", "stderr", "command"}
+       for h in ("hook_success", "hook_non_blocking_error", "hook_cancelled")},
+}
+# Anexos que repetem o que já foi contado em outro lugar.
+_ANEXO_FORA = {"prompt_snapshot"}
+
+
+def _texto_total(valor: object) -> int:
+    if isinstance(valor, str):
+        return len(valor)
+    if isinstance(valor, dict):
+        return sum(_texto_total(v) for v in valor.values())
+    if isinstance(valor, list):
+        return sum(_texto_total(v) for v in valor)
+    return 0
+
+
+def tamanho_do_anexo(anexo: dict) -> int:
+    ignora = _ANEXO_IGNORA.get(anexo.get("type"), set()) | {"type"}
+    return sum(_texto_total(v) for k, v in anexo.items() if k not in ignora)
+
+
 _HOOKS = {
     "hook_success": "sucesso",
     "hook_non_blocking_error": "erro_sem_bloqueio",
@@ -190,6 +223,9 @@ class Commit:
     silencioso: bool          # -q ou --quiet: o hash não aparece na saída
     quantidade: int = 1       # commits no mesmo comando
     aproximado: bool = False  # o comando não pôde ser analisado; detecção por padrão
+    # gitOperation.commit.kind, guardado à parte: não entra em `amend`, porque
+    # dá falso positivo com `--amend` dentro de heredoc (E7, acréscimos).
+    kind_registrado: str | None = None
 
 
 @dataclass
@@ -277,6 +313,7 @@ class Disponivel:
     skills: set[str] = field(default_factory=set)
     tipos_subagente: set[str] = field(default_factory=set)
     ferramentas: set[str] = field(default_factory=set)
+    tipos_embutidos: set[str] = field(default_factory=set)   # builtInTypes do anúncio
 
     @property
     def servidores_mcp(self) -> set[str]:
@@ -316,6 +353,21 @@ class Subagente:
         return _soma(r.tokens for r in self.respostas if not r.copiada)
 
 
+@dataclass(frozen=True)
+class PartesIniciais:
+    """Tamanhos, em caracteres, das partes do primeiro pedido (E11, terceira versão).
+
+    Só tamanhos; nenhum conteúdo. `sistema` e as ferramentas vêm da forma da
+    requisição (`api-request-shape`) e ficam None quando ela não foi gravada.
+    `anexos` vai do tipo do anexo ao tamanho do texto que o modelo recebe.
+    """
+    sistema: int | None
+    ferramentas: int | None          # definições das ferramentas que não são MCP
+    ferramentas_mcp: int | None      # definições de ferramentas MCP carregadas (não adiadas)
+    anexos: dict[str, int]
+    pedido: int | None               # o primeiro pedido humano
+
+
 @dataclass
 class Sessao:
     id: str
@@ -343,6 +395,19 @@ class Sessao:
     disponivel: Disponivel = field(default_factory=Disponivel)
     contexto_inicial: int | None = None   # tokens de entrada da 1ª resposta; None em fork
     comandos: list[str] = field(default_factory=list)   # /comandos digitados, sem a barra
+    comandos_locais: int = 0             # registros system/local_command
+    partes_iniciais: PartesIniciais | None = None
+
+    @property
+    def so_comando_local(self) -> bool:
+        """Sessão sem resposta de modelo cujos pedidos são todos comandos locais.
+
+        É o rastro de `claude -p /context` e afins: não entra nos indicadores
+        (lote 006).
+        """
+        return (self.comandos_locais > 0
+                and not any(not r.sintetica for r in self.respostas)
+                and len(self.pedidos) <= len(self.comandos))
 
     @property
     def tokens_principal(self) -> Tokens:
@@ -625,6 +690,13 @@ class _Arquivo:
         self.disponivel = Disponivel()
         self.contexto_inicial: int | None = None
         self.comandos: list[str] = []
+        self.comandos_locais = 0
+        # Primeiro pedido (só no arquivo principal): o que chega antes da
+        # primeira resposta do modelo.
+        self.antes_da_resposta = subagente_id is None
+        self.forma_inicial: dict | None = None
+        self.anexos_iniciais: Counter = Counter()
+        self.pedido_inicial: int | None = None
         self._pedido_corrente: str | None = None
         self._ler()
 
@@ -728,6 +800,32 @@ class _Arquivo:
         forma = reg.get("shape")
         if isinstance(forma, dict):
             self.disponivel.ferramentas |= self._nomes(forma.get("tools"))
+            if (self.antes_da_resposta and self.forma_inicial is None
+                    and reg.get("agentId") is None):
+                self.forma_inicial = forma
+
+    def partes_iniciais(self) -> PartesIniciais:
+        sistema = ferramentas = ferramentas_mcp = None
+        if self.forma_inicial is not None:
+            bruto = self.forma_inicial.get("system")
+            if isinstance(bruto, str):
+                sistema = len(bruto)
+            elif isinstance(bruto, list):
+                sistema = sum(len(b["text"]) for b in bruto
+                              if isinstance(b, dict) and isinstance(b.get("text"), str))
+            else:
+                sistema = 0
+            ferramentas = ferramentas_mcp = 0
+            lista = self.forma_inicial.get("tools")
+            for f in lista if isinstance(lista, list) else []:
+                tamanho = len(json.dumps(f, ensure_ascii=False))
+                nome = f.get("name") if isinstance(f, dict) else None
+                if isinstance(nome, str) and servidor_mcp(nome):
+                    ferramentas_mcp += tamanho
+                else:
+                    ferramentas += tamanho
+        return PartesIniciais(sistema, ferramentas, ferramentas_mcp,
+                              dict(self.anexos_iniciais), self.pedido_inicial)
 
     # -- user --------------------------------------------------------------
 
@@ -753,6 +851,8 @@ class _Arquivo:
                 p.modo_permissao = modo
             else:
                 self.pedidos[chave] = Pedido(chave, ts, tamanho, reg.get("promptSource"), modo)
+            if self.antes_da_resposta and self.pedido_inicial is None:
+                self.pedido_inicial = tamanho
             self.pedido_no_uuid[uuid] = chave
             self._pedido_corrente = chave
         if "toolUseResult" not in reg and not reg.get("isMeta"):
@@ -853,6 +953,8 @@ class _Arquivo:
             if self.contexto_inicial is None and not sintetica and not copiada:
                 self.contexto_inicial = (tokens.entrada + tokens.cache_criacao
                                          + tokens.cache_leitura)
+            if not sintetica and not copiada:
+                self.antes_da_resposta = False
         elif tokens.saida > resposta.tokens.saida:
             # Em subagentes o usage dos primeiros blocos é parcial; vale o final.
             resposta.tokens = tokens
@@ -884,6 +986,8 @@ class _Arquivo:
         tipo = self._exigir(anexo, "type", str, "attachment.attachment.")
         if tipo not in ANEXOS_CONHECIDOS:
             self.desc.tipos[f"attachment/{tipo}"] += 1
+        if self.antes_da_resposta and tipo not in _ANEXO_FORA:
+            self.anexos_iniciais[tipo] += tamanho_do_anexo(anexo)
         if tipo.startswith("hook_"):
             codigo = anexo.get("exitCode")
             self.hooks.append(EventoHook(
@@ -894,8 +998,9 @@ class _Arquivo:
         elif tipo == "skill_listing":
             self.disponivel.skills |= self._nomes(anexo.get("names"))
         elif tipo == "agent_listing_delta":
-            self.disponivel.tipos_subagente |= (self._nomes(anexo.get("addedTypes"))
-                                                | self._nomes(anexo.get("builtInTypes")))
+            embutidos = self._nomes(anexo.get("builtInTypes"))
+            self.disponivel.tipos_subagente |= self._nomes(anexo.get("addedTypes")) | embutidos
+            self.disponivel.tipos_embutidos |= embutidos
         elif tipo == "deferred_tools_delta":
             self.disponivel.ferramentas |= self._nomes(anexo.get("addedNames"))
         elif tipo == "deferred_tools_record":
@@ -910,6 +1015,8 @@ class _Arquivo:
         subtipo = reg.get("subtype")
         if subtipo not in SUBTIPOS_DE_SISTEMA:
             self.desc.tipos[f"system/{subtipo}"] += 1
+        if subtipo == "local_command":
+            self.comandos_locais += 1
         if subtipo == "stop_hook_summary":
             self.hooks.append(EventoHook(
                 "parada", ts, evento="Stop", tool_use_id=reg.get("toolUseID"),
@@ -960,8 +1067,8 @@ def _commit_da(chamada: Chamada) -> Commit | None:
         if isinstance(registrado, dict):
             sha = registrado.get("sha") if isinstance(registrado.get("sha"), str) else None
             tipo = registrado.get("kind")
-    return Commit(sha, analise.amend or tipo == "amended", analise.silencioso,
-                  analise.quantidade, analise.aproximado)
+    return Commit(sha, analise.amend, analise.silencioso, analise.quantidade,
+                  analise.aproximado, tipo if isinstance(tipo, str) else None)
 
 
 def _ler_meta(caminho: Path) -> dict:
@@ -999,7 +1106,9 @@ def ler_sessao(principal: Path, subagentes: Iterable[Path] | None = None, *,
                desconhecidos=desc, linhas=a.linhas, linhas_cortadas=a.cortadas,
                disponivel=a.disponivel,
                contexto_inicial=None if a.copiada_de else a.contexto_inicial,
-               comandos=a.comandos)
+               comandos=a.comandos, comandos_locais=a.comandos_locais)
+    if s.contexto_inicial is not None:
+        s.partes_iniciais = a.partes_iniciais()
     s.respostas_sem_pedido = sum(1 for r in s.respostas if r.pedido_id is None and not r.copiada)
 
     cache: dict[str, Path | None] = {}

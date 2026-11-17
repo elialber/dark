@@ -8,15 +8,16 @@ Fase atual: Fase 2 concluída; Fase 3 (evals) iniciada. A primeira entrega de us
 
 ```bash
 .venv/bin/pip install -e .
+dark auditar                                   # o repositório do diretório atual
 dark auditar <caminho-do-repositório>          # ou: python -m dark auditar <caminho>
 dark auditar <caminho> --dias 7 --saida local/auditoria.md
 ```
 
-Lê as transcrições do Claude Code (`CLAUDE_CONFIG_DIR` ou `~/.claude`), junta as sessões do repositório (por diretório e pelo commit inicial) e imprime um relatório em Markdown: o que chama atenção, peso fixo, peso morto, custo, intervenções, hooks e commits. Não escreve nada no repositório auditado; o git é usado só para leitura.
+Lê as transcrições do Claude Code (`CLAUDE_CONFIG_DIR` ou `~/.claude`), junta as sessões do repositório (por diretório e pelo commit inicial) e imprime um relatório em Markdown: o que chama atenção, peso fixo (com a repartição estimada entre plataforma, harness e pedido), peso morto (com a origem de cada peça: projeto, usuário, plugin ou plataforma), o que está instalado, custo, intervenções, hooks e commits (ligados aos commits do repositório por hash ou por janela de horário), e um apêndice com as listas completas. Não escreve nada no repositório auditado; o git é usado só para leitura.
 
 O relatório traz nomes reais de skills, ferramentas e servidores. Ele é para ficar na máquina: se `--saida` cair dentro de um repositório git sem estar ignorado, o comando avisa antes de gravar.
 
-Opções: `--dias N` (sessões iniciadas nos últimos N dias), `--ate <instante>` (corte), `--todos` (todas as sessões, de qualquer repositório), `--saida <arquivo>`. Para conferência: `--config <dir>` e `--excluir-pasta <texto>`.
+Opções: `--dias N` (sessões iniciadas nos últimos N dias), `--ate <instante>` (corte), `--todos` (todas as sessões, de qualquer repositório), `--saida <arquivo>`, `--sem-git` (não consulta o histórico git; a ligação dos commits pode levar minutos em disco montado, como o do Windows no WSL). Para conferência: `--config <dir>`, `--gerenciado <dir>` e `--excluir-pasta <texto>`.
 
 O estado do projeto, os goals e o diário estão em [pair/ESTADO.md](pair/ESTADO.md).
 

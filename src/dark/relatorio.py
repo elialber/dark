@@ -16,6 +16,7 @@ from datetime import datetime
 
 from dark import indicadores as ind
 from dark import leitor
+from dark import origem as org
 from dark.auditoria import MODOS_SEM_REJEICAO, Achado, Auditoria
 
 TITULO = "Auditoria do harness"
@@ -28,7 +29,32 @@ SECOES = {
     "intervencoes": "Intervenções",
     "hooks": "Hooks",
     "commits": "Commits",
+    "instalado": "O que está instalado",
+    "apendice": "Apêndice",
 }
+
+# Quantos nomes uma lista mostra no corpo; o resto vai para o apêndice.
+PRIMEIROS = 5
+
+NOMES_DE_ORIGEM = {
+    "projeto": "projeto",
+    "usuario": "usuário",
+    "plugin": "plugin",
+    "gerenciado": "gerenciado",
+    "conta": "plataforma, da conta",
+    "embutida": "plataforma, embutida",
+    "sem_arquivo": "sem arquivo encontrado",
+}
+
+TIPOS_DO_INVENTARIO = {
+    "instrucao": "Instrução",
+    "skill": "Skill",
+    "subagente": "Subagente",
+    "hook": "Hook",
+    "mcp": "Servidor MCP",
+    "permissao": "Permissões",
+}
+ESCOPOS_DO_INVENTARIO = ("projeto", "usuario", "plugin", "gerenciado")
 
 CATEGORIAS = {
     "skills": "Skills",
@@ -90,6 +116,19 @@ def como_ler(texto: str) -> str:
     return f"*Como ler:* {texto}"
 
 
+def plural(k: int, um: str, varios: str) -> str:
+    return f"{n(k)} {um if k == 1 else varios}"
+
+
+def primeiros(nomes, limite: int = PRIMEIROS) -> str:
+    """Os primeiros nomes, em ordem, e quantos ficaram para o apêndice."""
+    nomes = sorted(nomes)
+    texto = codigo(nomes[:limite])
+    if len(nomes) > limite:
+        texto += f" e mais {n(len(nomes) - limite)} (lista completa no {link('apendice')})"
+    return texto
+
+
 # --------------------------------------------------------------------------
 # Seções
 # --------------------------------------------------------------------------
@@ -122,15 +161,14 @@ def _cabecalho(a: Auditoria) -> list[str]:
     if a.falhas:
         linhas.append(f"- Falhas de leitura: {len(a.falhas)} arquivo(s) não lido(s)")
         linhas += [f"  - {f}" for f in a.falhas]
+    if a.excluidas_comando_local:
+        linhas.append(f"- Sessões de comando local, excluídas: {n(a.excluidas_comando_local)} "
+                      f"(sem resposta de modelo; só comandos como `/context`)")
     if a.desconhecidos.tipos or a.desconhecidos.campos:
         linhas.append(f"- Formato desconhecido (contado, não é erro): "
                       f"{sum(a.desconhecidos.tipos.values())} registro(s) de tipo "
                       f"desconhecido, {sum(a.desconhecidos.campos.values())} campo(s) "
-                      f"desconhecido(s)")
-        for nome, qtd in sorted(a.desconhecidos.tipos.items()):
-            linhas.append(f"  - tipo `{nome}`: {n(qtd)}")
-        for nome, qtd in sorted(a.desconhecidos.campos.items()):
-            linhas.append(f"  - campo `{nome}`: {n(qtd)}")
+                      f"desconhecido(s); detalhe no {link('apendice')}")
     if not a.sessoes:
         linhas += ["", "Nenhuma sessão encontrada para este repositório no período. "
                    "Repositório sem histórico é um estado normal; o relatório passa a "
@@ -147,8 +185,9 @@ def _cabecalho(a: Auditoria) -> list[str]:
 def frase(x: Achado, a: Auditoria) -> str:
     v = x.valores
     if x.regra.startswith("peso_morto."):
+        qual = " com arquivo" if v.get("so_com_arquivo") else ""
         texto = (f"{CATEGORIAS[v['categoria']]}: {n(v['nunca_usados'])} de "
-                 f"{n(v['disponiveis'])} disponíveis sem nenhum uso no período.")
+                 f"{n(v['disponiveis'])} disponíveis{qual} sem nenhum uso no período.")
     elif x.regra == "peso_fixo":
         texto = (f"Mediana de {n(v['mediana'])} tokens carregados antes de qualquer "
                  f"trabalho, em {n(v['sessoes'])} sessões (de {n(v['minimo'])} a "
@@ -176,14 +215,30 @@ def _atencao(a: Auditoria) -> list[str]:
         linhas += [frase(x, a) for x in a.achados]
     else:
         linhas.append("Nenhuma regra disparou.")
-    linhas += ["", como_ler(
-        "cada linha sai de uma regra fixa e só diz um fato com número; não é "
-        "nota nem recomendação. A seção indicada traz o detalhe e o limite.")]
+    if a.plataforma is not None:
+        p = a.plataforma
+        linhas += ["", "Custo fixo de plataforma, fora da contagem acima (anunciado sem "
+                   "arquivo, vem da conta ou do Claude Code): "
+                   f"{plural(p['skills'], 'skill', 'skills')}, "
+                   f"{plural(p['tipos_subagente'], 'tipo de subagente', 'tipos de subagente')}, "
+                   f"{plural(p['ferramentas'], 'ferramenta', 'ferramentas')} e "
+                   f"{plural(p['servidores_mcp'], 'servidor MCP', 'servidores MCP')}. "
+                   f"→ {link('peso-morto')}"]
+    texto = ("cada linha sai de uma regra fixa e só diz um fato com número; não é "
+             "nota nem recomendação. A seção indicada traz o detalhe e o limite.")
+    if a.plataforma is not None:
+        texto += (" As linhas de peso morto contam só o que tem arquivo, isto é, o que "
+                  "você pode mudar (E16).")
+    linhas += ["", como_ler(texto)]
     return linhas
 
 
 def _resumo(r: ind.Resumo) -> str:
     return f"mediana {n(r.mediana)} · mínimo {n(r.minimo)} · máximo {n(r.maximo)}"
+
+
+def _resumo_sem_minimo(r: ind.Resumo) -> str:
+    return f"mediana {n(r.mediana)} · máximo {n(r.maximo)}"
 
 
 def _peso_fixo(a: Auditoria) -> list[str]:
@@ -201,11 +256,48 @@ def _peso_fixo(a: Auditoria) -> list[str]:
         for semana, r in a.peso_fixo_semanal:
             linhas.append(f"| {semana} | {n(r.n)} | {n(r.mediana)} | {n(r.minimo)} | "
                           f"{n(r.maximo)} |")
+    linhas += _reparticao(a)
     linhas += ["", como_ler(
         "é o `usage` da primeira resposta de cada sessão (E11): instruções, "
         "ferramentas, skills anunciadas e o primeiro pedido, que também entra e "
-        "varia. A repartição por peça ainda não está disponível. Inclui cache: "
-        "é tamanho de contexto, não custo em dinheiro.")]
+        "varia. Inclui cache: é tamanho de contexto, não custo em dinheiro. A "
+        "repartição é estimativa: mede em caracteres as partes do primeiro pedido "
+        "gravadas na transcrição e converte em tokens por um fator fixo.")]
+    return linhas
+
+
+GRUPOS_TITULO = {"plataforma": "Plataforma", "harness": "Harness", "pedido": "Pedido"}
+
+
+def _reparticao(a: Auditoria) -> list[str]:
+    r = a.reparticao
+    if r is None or not r.medido:
+        return ["", "Repartição: nenhuma sessão com a forma da requisição gravada."]
+    fator = n(r.fator)
+    linhas = ["", f"Repartição estimada, em {n(len(r.medido))} sessões com a forma da "
+              f"requisição gravada ({fator} caracteres por token; é estimativa):", "",
+              "| Grupo / parte | Tokens estimados, mediana por sessão | Parcela do peso fixo |",
+              "|---|---:|---:|"]
+    for grupo in ind.GRUPOS:
+        linhas.append(f"| **{GRUPOS_TITULO[grupo]}** | **{n(round(r.resumo_grupo(grupo).mediana))}** "
+                      f"| **{pct(r.soma_grupo(grupo), r.medido_total)}** |")
+        for g, parte in ind.PARTES:
+            if g == grupo and grupo != "pedido":
+                linhas.append(f"| {parte} | {n(round(r.resumo(parte).mediana))} | "
+                              f"{pct(r.soma(parte), r.medido_total)} |")
+    linhas.append(f"| **Não explicado** | **{n(round(r.resumo_nao_explicado().mediana))}** "
+                  f"| **{pct(r.nao_explicado, r.medido_total)}** |")
+    if r.sem_forma:
+        linhas += ["", f"Sessões com peso fixo e sem a forma da requisição, fora da "
+                   f"repartição: {n(len(r.sem_forma))}."]
+    linhas += ["", f"Plataforma é o prompt de sistema, as ferramentas embutidas e os anexos "
+               f"do próprio Claude Code (ambiente, data, modelo). Harness é o que vem da "
+               f"configuração: listas de skills e de subagentes, nomes das ferramentas "
+               f"adiadas, ferramentas e instruções de servidores MCP, instruções e "
+               f"memória, saída de hooks. O fator de {fator} caracteres por token vem do "
+               f"diário 010; caracteres incluem o escape de JSON. O não explicado é o "
+               f"medido menos a soma das partes: marcação das mensagens, diferença de "
+               f"tokenização e o que a transcrição não grava."]
     return linhas
 
 
@@ -218,11 +310,28 @@ def _nunca_usadas_ferramentas(c: ind.Categoria) -> list[str]:
                                  if leitor.servidor_mcp(x))
     linhas = []
     if comuns:
-        linhas.append(f"  - nunca usadas: {codigo(comuns)}")
+        linhas.append(f"  - nunca usadas: {primeiros(comuns)}")
     if por_servidor_nunca:
-        linhas.append("  - nunca usadas, MCP por servidor: " + ", ".join(
-            f"`{s}` {k} de {por_servidor_todas[s]}"
-            for s, k in sorted(por_servidor_nunca.items())))
+        itens = [f"`{s}` {k} de {por_servidor_todas[s]}"
+                 for s, k in sorted(por_servidor_nunca.items())]
+        texto = ", ".join(itens[:PRIMEIROS])
+        if len(itens) > PRIMEIROS:
+            texto += (f" e mais {n(len(itens) - PRIMEIROS)} servidores "
+                      f"(lista completa no {link('apendice')})")
+        linhas.append("  - nunca usadas, MCP por servidor: " + texto)
+    return linhas
+
+
+def _por_origem(a: Auditoria, chave: str) -> list[str]:
+    grupos = a.nunca_usados_por_origem.get(chave, {})
+    if not grupos:
+        return []
+    partes = [f"{NOMES_DE_ORIGEM[o]} {n(len(grupos[o]))}" for o in org.ORIGENS if o in grupos]
+    linhas = [f"  - nunca usados, por origem: {', '.join(partes)}"]
+    com_arquivo = [x for o in org.ORIGENS if o in org.COM_ARQUIVO for x in grupos.get(o, [])]
+    if com_arquivo and chave != "ferramentas":
+        linhas.append(f"  - com arquivo (você pode mudar): {primeiros(com_arquivo)}; "
+                      f"caminhos no {link('apendice')}")
     return linhas
 
 
@@ -234,21 +343,73 @@ def _peso_morto(a: Auditoria) -> list[str]:
         c: ind.Categoria = getattr(a.peso_morto, chave)
         linhas.append(f"- **{titulo}**: disponíveis {n(len(c.disponiveis))} · usados "
                       f"{n(len(c.usados))} · nunca usados {n(len(c.nunca_usados))}")
-        linhas.append(f"  - por sessão: disponíveis {_resumo(c.resumo_disponiveis)}; "
-                      f"usados {_resumo(c.resumo_usados)}")
+        linhas.append(f"  - por sessão: disponíveis {_resumo_sem_minimo(c.resumo_disponiveis)}; "
+                      f"usados {_resumo_sem_minimo(c.resumo_usados)}")
+        linhas += _por_origem(a, chave)
         if chave == "ferramentas":
             linhas += _nunca_usadas_ferramentas(c)
         elif c.nunca_usados:
-            linhas.append(f"  - nunca usados: {codigo(c.nunca_usados)}")
+            linhas.append(f"  - nunca usados: {primeiros(c.nunca_usados)}")
         if c.usados_fora_da_lista:
             linhas.append(f"  - usados sem constar em nenhuma lista: "
-                          f"{codigo(c.usados_fora_da_lista)}")
+                          f"{primeiros(c.usados_fora_da_lista)}")
+    if a.nao_anunciados is not None:
+        skills, tipos = a.nao_anunciados["skills"], a.nao_anunciados["tipos_subagente"]
+        ocultas = sum(1 for p in skills if p.descricao and not p.descricao.invocavel_pelo_modelo)
+        linhas += ["", f"Instaladas e não anunciadas: "
+                   f"{plural(len(skills), 'skill', 'skills')} ({n(ocultas)} com "
+                   f"`disable-model-invocation`) e "
+                   f"{plural(len(tipos), 'tipo de subagente', 'tipos de subagente')}; não "
+                   f"pesam na lista mostrada ao modelo; continuam acessíveis por `/comando` "
+                   f"e ocupam espaço em disco."]
+    texto = ("\"nunca usado\" vale só para o período acima; uma peça de uso raro "
+             "parece morta. Uso inclui o que os subagentes chamaram; skill conta por "
+             "chamada, por atribuição ou por `/comando`. O disponível é o que foi "
+             "anunciado na sessão principal. Hooks e regras de instrução não entram: "
+             "não há lista do disponível nas transcrições.")
+    if a.origem_de is not None:
+        texto += (" A origem cruza o anúncio com o inventário de agora (E16): o que tem "
+                  "arquivo é de projeto, usuário, plugin ou gerenciado; sem arquivo, com "
+                  "prefixo, é da conta; sem prefixo, embutido no Claude Code. Uma peça "
+                  "apagada depois do período aparece como sem arquivo ou embutida.")
+    linhas += ["", como_ler(texto)]
+    return linhas
+
+
+def _instalado(a: Auditoria) -> list[str]:
+    i = a.instalado
+    linhas = ["## O que está instalado", ""]
+    if i is None:
+        linhas += ["Inventário não disponível (repositório inexistente nesta máquina).", "",
+                   como_ler("o inventário lê os arquivos do repositório e do diretório do "
+                            "usuário; sem eles não há o que contar.")]
+        return linhas
+    cab = " | ".join(NOMES_DE_ORIGEM[e] for e in ESCOPOS_DO_INVENTARIO)
+    linhas += [f"| Tipo | {cab} | Total |",
+               "|---|" + "---:|" * (len(ESCOPOS_DO_INVENTARIO) + 1)]
+    for tipo, titulo in TIPOS_DO_INVENTARIO.items():
+        valores = [i.contagem[(tipo, e)] for e in ESCOPOS_DO_INVENTARIO]
+        linhas.append(f"| {titulo} | " + " | ".join(n(v) for v in valores)
+                      + f" | {n(sum(valores))} |")
+    ins = i.instrucoes
+    linhas += [
+        "",
+        f"- Instruções carregadas no início: {plural(ins.arquivos, 'arquivo', 'arquivos')}, "
+        f"{n(ins.caracteres)} caracteres (cerca de "
+        f"{n(round(ins.caracteres / ind.FATOR_CARACTERES_POR_TOKEN))} tokens), "
+        f"{plural(ins.itens, 'item', 'itens')} de lista, {n(ins.com_motivo)} com motivo "
+        f"(estimativa).",
+        f"- Peças locais (pessoais, fora do controle de versão): {n(i.locais)} · "
+        f"sob demanda (carregam só ao tocar a pasta): {n(i.sob_demanda)}",
+        f"- Plugins: {n(i.plugins_ativos)} ativos de {n(i.plugins)} instalados",
+    ]
+    if i.falhas:
+        linhas.append(f"- Arquivos de configuração que não puderam ser lidos: {n(i.falhas)}")
     linhas += ["", como_ler(
-        "\"nunca usado\" vale só para o período acima; uma peça de uso raro "
-        "parece morta. Uso inclui o que os subagentes chamaram; skill conta por "
-        "chamada, por atribuição ou por `/comando`. O disponível é o que foi "
-        "anunciado na sessão principal. Hooks e regras de instrução não entram: "
-        "não há lista do disponível nas transcrições.")]
+        "é o estado de agora, lido dos arquivos (repositório, diretório do usuário, "
+        "plugins ativos e política gerenciada), não do período. \"Com motivo\" é "
+        "estimativa: conta itens com `Motivo:`, `porque`, `para evitar` e afins, e "
+        "erra nos dois sentidos. O tamanho em tokens usa o mesmo fator do peso fixo.")]
     return linhas
 
 
@@ -344,6 +505,7 @@ def _commits(a: Auditoria) -> list[str]:
         if c.aproximadas:
             linhas.append(f"- Detectadas por padrão, sem análise do comando: "
                           f"{n(c.aproximadas)}")
+        linhas += _ligacao(a)
         if c.silenciosas:
             linhas += [
                 "", "Efeito das chamadas silenciosas: com `-q` o git não imprime o "
@@ -355,24 +517,88 @@ def _commits(a: Auditoria) -> list[str]:
     linhas += ["", como_ler(
         "conta comandos `git commit` analisados, incluindo os de subagentes; "
         "dentro de `bash -c` ou `eval` não aparecem. Sem hash registrado não quer "
-        "dizer que o commit não existe, só que a transcrição não diz qual foi.")]
+        "dizer que o commit não existe, só que a transcrição não diz qual foi. A "
+        "ligação pela janela usa o repositório do diretório da chamada (E3): "
+        "comando que faz `cd` para outro repositório fica sem ligação. O amend é "
+        "o do comando; quando o commit foi ligado, o histórico git decide (E7).")]
     return linhas
 
 
-def _ainda_nao(a: Auditoria) -> list[str]:
-    return ["## Ainda não disponível", "",
-            "- O que está instalado no repositório (skills, hooks, regras, servidores "
-            "MCP configurados).",
-            "- A repartição do contexto inicial por peça.",
-            "- O retrabalho: commits refeitos ou revertidos depois da sessão.",
-            "", como_ler(
-                "essas partes estão em desenvolvimento em paralelo e entram no "
-                "relatório quando forem juntadas.")]
+def _ligacao(a: Auditoria) -> list[str]:
+    if a.sem_git:
+        return ["- Ligação aos commits do repositório: consulta ao git pulada (`--sem-git`)."]
+    lig = a.ligacao
+    if lig is None:
+        return []
+    f = lig.por_forma()
+    linhas = [f"- Ligação aos commits: com hash: {n(f['hash'])} · ligadas por janela: "
+              f"{n(f['janela'])} · ambíguas: {n(f['ambigua'])} · sem ligação: "
+              f"{n(f['sem_ligacao'])}"]
+    motivos = lig.sem_ligacao_por_motivo()
+    if motivos:
+        linhas.append("  - sem ligação, por motivo: " + ", ".join(
+            f"{m} {n(k)}" for m, k in sorted(motivos.items(), key=lambda kv: (-kv[1], kv[0]))))
+    linhas.append(f"- Amends: {n(lig.amends)} (pelo comando: {n(lig.amends_comando)}; "
+                  f"o git confirmou {n(lig.amends_confirmados)} e não confirmou "
+                  f"{n(lig.amends_nao_confirmados)}; achados só pelo git: "
+                  f"{n(lig.amends_so_pelo_git)})")
+    if lig.amends_kind:
+        linhas.append(f"  - o `kind` gravado pelo Claude Code diz amend em "
+                      f"{n(lig.amends_kind)}; guardado à parte, não entra na conta "
+                      f"(dá falso positivo com `--amend` dentro de heredoc)")
+    ligados = lig.commits_ligados
+    linhas.append(f"- Dos {n(len(ligados))} commits ligados: revertidos depois: "
+                  f"{n(len(lig.revertidos))} · refeitos por amend depois: "
+                  f"{n(len(lig.substituidos))}")
+    return linhas
+
+
+def _apendice(a: Auditoria) -> list[str]:
+    linhas = ["## Apêndice", ""]
+    vazio = True
+    for chave, titulo in CATEGORIAS.items():
+        c: ind.Categoria = getattr(a.peso_morto, chave)
+        if not c.nunca_usados:
+            continue
+        vazio = False
+        linhas += [f"### {titulo} nunca usados ({n(len(c.nunca_usados))})", ""]
+        for nome in sorted(c.nunca_usados):
+            o = a.origem(chave, nome)
+            if o is None:
+                linhas.append(f"- `{nome}`")
+            else:
+                caminho = f" — `{o.caminho}`" if o.caminho else ""
+                linhas.append(f"- `{nome}` ({NOMES_DE_ORIGEM[o.origem]}){caminho}")
+        linhas.append("")
+    if a.nao_anunciados:
+        pecas = [*a.nao_anunciados["skills"], *a.nao_anunciados["tipos_subagente"]]
+        if pecas:
+            vazio = False
+            linhas += [f"### Instalados e não anunciados ({n(len(pecas))})", ""]
+            linhas += [f"- `{p.nome}` ({p.tipo}, {NOMES_DE_ORIGEM[p.escopo]}) — `{p.origem}`"
+                       for p in pecas]
+            linhas.append("")
+    if a.desconhecidos.tipos or a.desconhecidos.campos:
+        vazio = False
+        linhas += ["### Formato desconhecido", ""]
+        for nome, qtd in sorted(a.desconhecidos.tipos.items()):
+            linhas.append(f"- tipo `{nome}`: {n(qtd)}")
+        for nome, qtd in sorted(a.desconhecidos.campos.items()):
+            linhas.append(f"- campo `{nome}`: {n(qtd)}")
+        linhas.append("")
+    if vazio:
+        linhas += ["Nada a detalhar.", ""]
+    linhas.append(como_ler(
+        "listas completas do que o corpo resume. Formato desconhecido interessa a quem "
+        "mantém o leitor: tipos e campos que o leitor contou e não interpretou (E1)."))
+    return linhas
 
 
 def markdown(a: Auditoria) -> str:
     partes = [_cabecalho(a)]
     if a.sessoes:
-        partes += [_atencao(a), _peso_fixo(a), _peso_morto(a), _custo(a),
-                   _intervencoes(a), _hooks(a), _commits(a), _ainda_nao(a)]
+        partes += [_atencao(a), _peso_fixo(a), _peso_morto(a)]
+        if a.instalado is not None:
+            partes.append(_instalado(a))
+        partes += [_custo(a), _intervencoes(a), _hooks(a), _commits(a), _apendice(a)]
     return "\n\n".join("\n".join(p) for p in partes) + "\n"

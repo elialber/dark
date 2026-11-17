@@ -11,13 +11,17 @@ auditoria e devolve um achado (com números, sem frase) ou nada.
 from __future__ import annotations
 
 import re
+from collections import Counter
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
 from dark import indicadores as ind
+from dark import origem as org
+from dark.inventario import Inventario
 from dark.leitor import Desconhecidos, Falha, Sessao
+from dark.ligacao import LigacaoCommits
 
 # Modos em que o usuário não é consultado antes da ferramenta rodar: a
 # rejeição de ferramenta, um dos sinais de intervenção, não tem como
@@ -107,6 +111,42 @@ class Achado:
     valores: dict
 
 
+@dataclass(frozen=True)
+class ResumoInstrucoes:
+    arquivos: int
+    caracteres: int
+    itens: int
+    com_motivo: int
+    motivo_estimado: bool = True
+
+
+@dataclass(frozen=True)
+class Instalado:
+    """O que o inventário achou, em contagens (goal 013, parte 4)."""
+    contagem: Counter                 # (tipo, escopo) -> peças
+    locais: int
+    sob_demanda: int
+    plugins_ativos: int
+    plugins: int
+    falhas: int
+    instrucoes: ResumoInstrucoes      # só as que carregam no início
+
+
+def instalado(inv: Inventario) -> Instalado:
+    instrucoes = [p for p in inv.pecas
+                  if p.tipo == "instrucao" and not p.sob_demanda and p.instrucao]
+    return Instalado(
+        contagem=Counter((p.tipo, p.escopo) for p in inv.pecas),
+        locais=sum(p.local for p in inv.pecas),
+        sob_demanda=sum(p.sob_demanda for p in inv.pecas),
+        plugins_ativos=sum(p.ativo for p in inv.plugins), plugins=len(inv.plugins),
+        falhas=len(inv.falhas),
+        instrucoes=ResumoInstrucoes(
+            arquivos=len(instrucoes), caracteres=sum(p.caracteres for p in instrucoes),
+            itens=sum(p.instrucao.itens for p in instrucoes),
+            com_motivo=sum(p.instrucao.com_motivo for p in instrucoes)))
+
+
 @dataclass
 class Auditoria:
     repositorio: Path | None          # None: todas as sessões (--todos)
@@ -129,6 +169,34 @@ class Auditoria:
     achados: list[Achado] = field(default_factory=list)
     desde: datetime | None = None     # recorte pedido (--dias)
     ate: datetime | None = None       # recorte pedido (--ate)
+    excluidas_comando_local: int = 0
+    reparticao: ind.Reparticao | None = None
+    # Sem inventário, os campos de origem ficam None e as regras contam tudo.
+    origens: org.Origens | None = None
+    origem_de: dict[str, dict[str, org.Origem]] | None = None   # nomes do peso morto
+    plataforma: dict[str, int] | None = None     # anunciados de origem plataforma
+    instalado: Instalado | None = None
+    nao_anunciados: dict[str, list] | None = None
+    ligacao: LigacaoCommits | None = None
+    sem_git: bool = False
+
+    def origem(self, categoria: str, nome: str) -> org.Origem | None:
+        if self.origem_de is None:
+            return None
+        return self.origem_de[categoria].get(nome, org.Origem("sem_arquivo"))
+
+    @property
+    def nunca_usados_por_origem(self) -> dict[str, dict[str, list[str]]]:
+        """Categoria -> origem -> nomes nunca usados (só com inventário)."""
+        if self.origem_de is None:
+            return {}
+        out: dict[str, dict[str, list[str]]] = {}
+        for cat in CATEGORIAS:
+            grupos: dict[str, list[str]] = {}
+            for nome in sorted(getattr(self.peso_morto, cat).nunca_usados):
+                grupos.setdefault(self.origem(cat, nome).origem, []).append(nome)
+            out[cat] = grupos
+        return out
 
     @property
     def pedidos_sem_rejeicao(self) -> int:
@@ -159,10 +227,23 @@ def _caros(sessoes: list[Sessao], custo: ind.Custo) -> list[PedidoCaro]:
             for (sid, pid), gasto in ordem[:QUANTOS_CAROS] if gasto.total]
 
 
+def _origem_de(origens: org.Origens) -> dict[str, dict[str, org.Origem]]:
+    """Origem pelo nome que o peso morto usa (skill sem prefixo de plugin)."""
+    skills: dict[str, org.Origem] = {}
+    for nome, o in sorted(origens.skills.items(), key=lambda kv: (not kv[1].mutavel, kv[0])):
+        skills.setdefault(ind.nome_de_skill(nome), o)
+    return {"skills": skills, "tipos_subagente": origens.tipos_subagente,
+            "ferramentas": origens.ferramentas, "servidores_mcp": origens.servidores_mcp}
+
+
 def auditar(sessoes: Iterable[Sessao], falhas: Iterable[Falha] = (), *,
             repositorio: Path | None = None, diretorios: Iterable[Path] = (),
-            desde: datetime | None = None, ate: datetime | None = None) -> Auditoria:
-    sessoes = list(sessoes)
+            desde: datetime | None = None, ate: datetime | None = None,
+            inventario: Inventario | None = None, ligacao: LigacaoCommits | None = None,
+            sem_git: bool = False) -> Auditoria:
+    todas = list(sessoes)
+    # Sessão de comando local (lote 006) não entra em nenhum indicador.
+    sessoes = [s for s in todas if not s.so_comando_local]
     desc = Desconhecidos()
     for s in sessoes:
         desc.somar(s.desconhecidos)
@@ -178,7 +259,17 @@ def auditar(sessoes: Iterable[Sessao], falhas: Iterable[Falha] = (), *,
         peso_fixo=ind.peso_fixo(sessoes), peso_fixo_semanal=_semanal(sessoes),
         peso_morto=ind.peso_morto(sessoes), custo=custo, caros=_caros(sessoes, custo),
         intervencoes=ind.intervencoes(sessoes), hooks=ind.hooks(sessoes),
-        commits=ind.commits(sessoes), desde=desde, ate=ate)
+        commits=ind.commits(sessoes), desde=desde, ate=ate,
+        excluidas_comando_local=len(todas) - len(sessoes),
+        reparticao=ind.reparticao(sessoes), ligacao=ligacao, sem_git=sem_git)
+    if inventario is not None:
+        a.origens = org.classificar(org.anunciados_de(sessoes), inventario.pecas,
+                                    inventario.plugins)
+        a.origem_de = _origem_de(a.origens)
+        a.plataforma = {cat: sum(n for o, n in a.origens.contagem(cat).items()
+                                 if o in org.PLATAFORMA) for cat in CATEGORIAS}
+        a.instalado = instalado(inventario)
+        a.nao_anunciados = a.origens.nao_anunciados
     a.achados = [x for regra in REGRAS if (x := regra(a)) is not None]
     return a
 
@@ -193,11 +284,16 @@ CATEGORIAS = ("skills", "tipos_subagente", "ferramentas", "servidores_mcp")
 def _regra_peso_morto(categoria: str) -> Callable[[Auditoria], Achado | None]:
     def regra(a: Auditoria) -> Achado | None:
         c: ind.Categoria = getattr(a.peso_morto, categoria)
-        if not c.nunca_usados:
+        nunca, disponiveis = c.nunca_usados, c.disponiveis
+        if a.origem_de is not None:
+            # Só conta o que o usuário pode mudar (E16).
+            nunca = {n for n in nunca if a.origem(categoria, n).mutavel}
+            disponiveis = {n for n in disponiveis if a.origem(categoria, n).mutavel}
+        if not nunca:
             return None
         return Achado(f"peso_morto.{categoria}", "peso-morto", {
-            "categoria": categoria, "nunca_usados": len(c.nunca_usados),
-            "disponiveis": len(c.disponiveis)})
+            "categoria": categoria, "nunca_usados": len(nunca),
+            "disponiveis": len(disponiveis), "so_com_arquivo": a.origem_de is not None})
     return regra
 
 
