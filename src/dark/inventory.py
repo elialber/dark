@@ -1,23 +1,23 @@
-"""Inventário estático do harness do Claude Code.
+"""Static inventory of the Claude Code harness.
 
-Lê a configuração (arquivos do repositório, do diretório do usuário, dos
-plugins ativos e da política gerenciada) e devolve a lista do que está
-instalado. Não lê transcrições e não importa `dark.leitor`: é a metade
-"o que existe" da auditoria.
+Reads the configuration (files from the repository, the user directory, the
+active plugins and the managed policy) and returns the list of what is
+installed. It does not read transcripts and does not import `dark.reader`:
+it is the "what exists" half of the audit.
 
-Limites (goal 009):
+Limits (goal 009):
 
-- somente leitura: todo acesso a disco é `Path.read_text`, `exists`,
-  `is_file`, `iterdir`, `rglob` ou `os.walk`;
-- segredos: arquivos de credenciais nunca são abertos; de servidores MCP e
-  de hooks guardam-se só os nomes das variáveis de ambiente e dos
-  cabeçalhos, e atribuições na linha de comando do hook viram `NOME=***`;
-- entradas injetáveis: repositório, diretório de configuração, `.claude.json`,
-  diretório gerenciado e ambiente são parâmetros;
-- só biblioteca padrão.
+- read-only: every disk access is `Path.read_text`, `exists`,
+  `is_file`, `iterdir`, `rglob` or `os.walk`;
+- secrets: credential files are never opened; for MCP servers and hooks
+  only the names of environment variables and headers are kept, and
+  assignments on the hook command line become `NAME=***`;
+- injectable inputs: repository, configuration directory, `.claude.json`,
+  managed directory and environment are parameters;
+- standard library only.
 
-Os locais de cada peça vêm da documentação oficial consultada em
-2026-11-17; a tabela está em pair/diario/009.md.
+The locations of each harness item come from the official documentation
+consulted on 2026-11-17; the table is in pair/diario/009.md.
 """
 
 from __future__ import annotations
@@ -42,45 +42,45 @@ DEFAULT_MANAGED = {
     "win32": Path("C:/Program Files/ClaudeCode"),
 }
 
-IMPORT_DEPTH = 4          # saltos de @import, segundo a documentação
+IMPORT_DEPTH = 4          # @import hops, according to the documentation
 IGNORED_DIRS = {"node_modules", "venv", "__pycache__", "dist", "build"}
 
 
 # --------------------------------------------------------------------------
-# Modelo
+# Model
 # --------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class ReadFailure:
-    """Arquivo que não pôde ser lido ou interpretado. O resto segue (E12)."""
+    """File that could not be read or parsed. The rest carries on (E12)."""
     file: Path
     message: str
 
 
 @dataclass(frozen=True)
 class Description:
-    """Skill e subagente: o que vai para a lista anunciada, separado do corpo."""
-    chars: int                  # description (+ when_to_use, se houver)
-    body_chars: int            # depois do cabeçalho
+    """Skill and subagent: what goes into the announced list, apart from the body."""
+    chars: int                  # description (+ when_to_use, if present)
+    body_chars: int            # after the frontmatter
     body_lines: int
-    model_invocable: bool = True   # falso com disable-model-invocation
+    model_invocable: bool = True   # false with disable-model-invocation
 
 
 @dataclass(frozen=True)
 class InstructionDetail:
-    item_count: int                       # itens de lista fora de blocos de código
-    with_reason: int                  # estimativa: ver _MOTIVO
+    item_count: int                       # list items outside code blocks
+    with_reason: int                  # estimate: see _REASON
     estimated_reason: bool = True
-    imports: list[str] = field(default_factory=list)   # @caminhos, como escritos
+    imports: list[str] = field(default_factory=list)   # @paths, as written
     imported_by: Path | None = None
 
 
 @dataclass(frozen=True)
 class HookDetail:
-    event: str | None               # None: hook declarado em cabeçalho, não analisado
-    matcher: str | None               # matcher; None quando ausente, "" ou "*"
+    event: str | None               # None: hook declared in frontmatter, not parsed
+    matcher: str | None               # matcher; None when absent, "" or "*"
     kind: str | None                 # command, http, mcp_tool, prompt, agent
-    command: str | None              # command (com valores mascarados), url, servidor/ferramenta
+    command: str | None              # command (with masked values), url, server/tool
     variables: list[str] = field(default_factory=list)
     headers: list[str] = field(default_factory=list)
     parsed: bool = True
@@ -88,7 +88,7 @@ class HookDetail:
 
 @dataclass(frozen=True)
 class McpDetail:
-    transport: str                  # stdio, http, sse, ws, sdk ou "desconhecido"
+    transport: str                  # stdio, http, sse, ws, sdk or "unknown"
     variables: list[str] = field(default_factory=list)
     headers: list[str] = field(default_factory=list)
 
@@ -103,15 +103,15 @@ class PermissionsDetail:
 
 @dataclass(frozen=True)
 class HarnessItem:
-    kind: str                        # um de TIPOS
-    scope: str                      # um de ESCOPOS
+    kind: str                        # one of TYPES
+    scope: str                      # one of SCOPES
     name: str
     source: Path
-    chars: int                  # do arquivo; em hook, MCP e permissão, do trecho JSON
+    chars: int                  # of the file; for hook, MCP and permission, of the JSON snippet
     lines: int
     plugin: str | None = None
-    local: bool = False              # variante pessoal: *.local.*, ~/.claude.json, memória
-    on_demand: bool = False        # aninhada ou com `paths`: não carrega no início
+    local: bool = False              # personal variant: *.local.*, ~/.claude.json, memory
+    on_demand: bool = False        # nested or with `paths`: not loaded at startup
     description: Description | None = None
     instruction: InstructionDetail | None = None
     hook: HookDetail | None = None
@@ -121,10 +121,10 @@ class HarnessItem:
 
 @dataclass(frozen=True)
 class Plugin:
-    name: str                        # nome@marketplace
+    name: str                        # name@marketplace
     install_scope: str
     path: Path | None
-    active: bool                      # instalado para este repositório e habilitado
+    active: bool                      # installed for this repository and enabled
 
 
 @dataclass
@@ -139,23 +139,23 @@ def as_dict(inv: Inventory) -> dict:
 
 
 # --------------------------------------------------------------------------
-# Caminhos
+# Paths
 # --------------------------------------------------------------------------
 
 def config_dir(environment: Mapping[str, str] | None = None) -> Path:
-    """Diretório de configuração do Claude Code, respeitando CLAUDE_CONFIG_DIR."""
+    """Claude Code configuration directory, honouring CLAUDE_CONFIG_DIR."""
     environment = os.environ if environment is None else environment
     defined = environment.get("CLAUDE_CONFIG_DIR")
     return Path(defined).expanduser() if defined else Path.home() / ".claude"
 
 
 def project_dir(repo: Path) -> str:
-    """Nome da pasta do projeto sob <config>/projects/."""
+    """Name of the project folder under <config>/projects/."""
     return re.sub(r"[^A-Za-z0-9]", "-", str(repo))
 
 
 def _main_root(repo: Path) -> Path:
-    """Em um worktree, a raiz do repositório principal (a memória é dele)."""
+    """In a worktree, the root of the main repository (the memory belongs to it)."""
     git = repo / ".git"
     if git.is_file():
         try:
@@ -191,7 +191,7 @@ def _lines(text: str) -> int:
 
 
 # --------------------------------------------------------------------------
-# Cabeçalho YAML mínimo (só o que skills, subagentes e regras usam)
+# Minimal YAML frontmatter (only what skills, subagents and rules use)
 # --------------------------------------------------------------------------
 
 class FrontmatterError(ValueError):
@@ -208,10 +208,10 @@ def _unquoted(value: str) -> str:
 
 
 def header(text: str) -> tuple[dict[str, object], str]:
-    """Separa o cabeçalho `---` do corpo. Chaves de primeiro nível apenas.
+    """Splits the `---` frontmatter from the body. Top-level keys only.
 
-    Valores: texto simples, entre aspas, bloco `|` ou `>`, lista com `-`.
-    Mapa aninhado vira o texto bruto do bloco (só a presença interessa).
+    Values: plain text, quoted, `|` or `>` block, `-` list.
+    A nested map becomes the raw text of the block (only its presence matters).
     """
     lines = text.splitlines(keepends=True)
     if not lines or lines[0].strip() != "---":
@@ -241,7 +241,7 @@ def header(text: str) -> tuple[dict[str, object], str]:
             parts = [s.strip() for s in following]
             fields[key] = ("\n" if rest[0] == "|" else " ").join(parts).strip()
         elif rest:
-            if following:        # escalar simples continuado em várias linhas
+            if following:        # plain scalar continued over several lines
                 rest = " ".join([rest] + [s.strip() for s in following])
             if rest.startswith("[") and rest.endswith("]"):
                 fields[key] = [_unquoted(x) for x in rest[1:-1].split(",") if x.strip()]
@@ -257,15 +257,15 @@ def header(text: str) -> tuple[dict[str, object], str]:
 
 
 # --------------------------------------------------------------------------
-# Instruções: itens de lista, motivos e importações
+# Instructions: list items, reasons and imports
 # --------------------------------------------------------------------------
 
 _FENCE = re.compile(r"^\s*(```|~~~)")
 _ITEM = re.compile(r"^(\s*)(?:[-*+]|\d+[.)])\s+\S")
 
-# Regra heurística de "motivo declarado": o item (com as linhas de
-# continuação) traz um rótulo de motivo seguido de dois-pontos, ou uma
-# conjunção causal ou final. Em português e inglês.
+# Heuristic rule for "stated reason": the item (with its continuation
+# lines) carries a reason label followed by a colon, or a causal or
+# purpose conjunction. In Portuguese and English.
 _REASON = re.compile(
     r"\b(?:motivo|raz[aã]o|reason|why)\s*:"
     r"|\b(?:porque|pois|por causa d[eoa]s?|para que|para n[aã]o|para evitar|"
@@ -288,7 +288,7 @@ def _outside_code(text: str) -> Iterator[str]:
 
 
 def count_items(text: str) -> tuple[int, int]:
-    """(itens de lista, itens com motivo declarado). O segundo é estimativa."""
+    """(list items, items with a stated reason). The second is an estimate."""
     items: list[list[str]] = []
     indent_ = None
     for line in _outside_code(text):
@@ -306,7 +306,7 @@ def count_items(text: str) -> tuple[int, int]:
 
 
 def find_imports(text: str) -> list[str]:
-    """Caminhos `@...` fora de blocos e trechos de código."""
+    """`@...` paths outside code blocks and inline code."""
     findings = []
     for line in _outside_code(text):
         for m in _IMPORT.finditer(_INLINE_CODE.sub("", line)):
@@ -317,20 +317,20 @@ def find_imports(text: str) -> list[str]:
 
 
 # --------------------------------------------------------------------------
-# Coleta
+# Collection
 # --------------------------------------------------------------------------
 
 _INLINE_SECRET = re.compile(
-    r"(?P<antes>(?:^|[\s;&|(]))(?P<nome>[A-Za-z_][A-Za-z0-9_]*)=(?P<valor>\"[^\"]*\"|'[^']*'|[^\s;&|]*)")
+    r"(?P<before>(?:^|[\s;&|(]))(?P<name>[A-Za-z_][A-Za-z0-9_]*)=(?P<value>\"[^\"]*\"|'[^']*'|[^\s;&|]*)")
 
 
 def mask_command(command: str) -> tuple[str, list[str]]:
-    """Troca valores de `NOME=valor` por `NOME=***`; devolve também os nomes."""
+    """Replaces values of `NAME=value` with `NAME=***`; also returns the names."""
     names: list[str] = []
 
     def substitute(m: re.Match) -> str:
-        names.append(m.group("nome"))
-        return f"{m.group('antes')}{m.group('nome')}=***"
+        names.append(m.group("name"))
+        return f"{m.group('before')}{m.group('name')}=***"
 
     return _INLINE_SECRET.sub(substitute, command), names
 
@@ -346,7 +346,7 @@ class _Collector:
         self.inv = Inventory()
         self._seen_instructions: set[Path] = set()
 
-    # --- leitura -----------------------------------------------------------
+    # --- reading -----------------------------------------------------------
 
     def failure(self, file: Path, message: str) -> None:
         self.inv.failures.append(ReadFailure(file, message))
@@ -383,7 +383,7 @@ class _Collector:
     def item(self, **fields) -> None:
         self.inv.items.append(HarnessItem(**fields))
 
-    # --- instruções -----------------------------------------------------------
+    # --- instructions -----------------------------------------------------------
 
     def instruction(self, path: Path, name: str, scope: str, *, local=False,
                   on_demand=False, follow_imports=True, depth=0,
@@ -395,7 +395,7 @@ class _Collector:
         if text is None:
             return
         self._seen_instructions.add(key)
-        if path.parent.name != "memory":     # regras têm cabeçalho `paths`
+        if path.parent.name != "memory":     # rules have `paths` frontmatter
             try:
                 fields, _ = header(text)
             except FrontmatterError as error:
@@ -455,7 +455,7 @@ class _Collector:
         if memory.is_file():
             self.instruction(memory, "memory/MEMORY.md", "project", local=True, follow_imports=False)
 
-    # --- skills e subagentes -------------------------------------------------------
+    # --- skills and subagents -------------------------------------------------------
 
     def _described(self, path: Path, kind: str, default_name: str, scope: str, *,
                   prefix: str = "", plugin: str | None = None, on_demand=False) -> None:
@@ -516,7 +516,7 @@ class _Collector:
             self.skills_in(folder / ".claude" / "skills", "project",
                            prefix=_relative(folder, self.repo) + ":", on_demand=True)
 
-    # --- configurações: hooks e permissões ------------------------------------------
+    # --- settings: hooks and permissions ------------------------------------------
 
     def settings_files(self) -> list[tuple[Path, str, bool]]:
         files = [(self.managed / "managed-settings.json", "managed", False)]
@@ -574,7 +574,7 @@ class _Collector:
                     hook=HookDetail(event, matcher, kind, command, variables, headers))
 
     def enabled_plugins(self) -> dict[str, bool]:
-        """Hooks e permissões de cada arquivo; devolve enabledPlugins já mesclado."""
+        """Hooks and permissions of each file; returns enabledPlugins already merged."""
         enabled: dict[str, bool] = {}
         order = {"user": 0, "project": 1, "managed": 3}
         loaded = []
@@ -604,7 +604,7 @@ class _Collector:
                 enabled.update({k: v is True for k, v in ep.items()})
         return enabled
 
-    # --- servidores MCP --------------------------------------------------------------
+    # --- MCP servers --------------------------------------------------------------
 
     def servers(self, data: object, source: Path, scope: str, *, local=False,
                    plugin=None) -> None:
@@ -733,7 +733,7 @@ def _recursive_md(folder: Path) -> list[Path]:
 
 
 def _subdirs(repo: Path) -> Iterator[Path]:
-    """Subdiretórios do repositório, sem ocultos e sem pastas de dependências."""
+    """Repository subdirectories, without hidden ones and without dependency folders."""
     for current, dirs, _ in os.walk(repo):
         dirs[:] = sorted(d for d in dirs if not d.startswith(".") and d not in IGNORED_DIRS)
         if Path(current) != repo:
@@ -741,18 +741,18 @@ def _subdirs(repo: Path) -> Iterator[Path]:
 
 
 # --------------------------------------------------------------------------
-# Ponto de entrada
+# Entry point
 # --------------------------------------------------------------------------
 
 def take_inventory(repo: Path, config: Path | None = None, *,
                 claude_json: Path | None = None, managed: Path | None = None,
                 environment: Mapping[str, str] | None = None) -> Inventory:
-    """Inventário do harness que vale para `repo`.
+    """Inventory of the harness that applies to `repo`.
 
-    `config` padrão: CLAUDE_CONFIG_DIR de `ambiente` (ou do processo), senão
-    ~/.claude. `claude_json` padrão: `<config>/.claude.json` se existir; com a
-    pasta padrão `.claude`, o arquivo ao lado dela. `gerenciado` padrão: o
-    diretório de política do sistema operacional.
+    Default `config`: CLAUDE_CONFIG_DIR from `environment` (or the process),
+    otherwise ~/.claude. Default `claude_json`: `<config>/.claude.json` if it
+    exists; with the default `.claude` folder, the file next to it. Default
+    `managed`: the operating system's policy directory.
     """
     repo = Path(repo)
     config = Path(config) if config is not None else config_dir(environment)
@@ -785,7 +785,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--nomes", dest="names", action="store_true",
                             help="imprime também nomes e falhas (não publique a saída)")
     args = parser.parse_args(argv)
-    # Rótulos impressos: os valores internos em inglês, o texto em português.
+    # Printed labels: internal values in English, text in Portuguese.
     scope_label = {"project": "projeto", "user": "usuario", "plugin": "plugin",
                    "managed": "gerenciado"}
     kind_label = {"instruction": "instrucao", "skill": "skill", "subagent": "subagente",

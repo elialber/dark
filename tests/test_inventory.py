@@ -1,12 +1,12 @@
-"""Testes do inventário estático do harness.
+"""Tests for the static harness inventory.
 
-Os arquivos sintéticos ficam em tests/fixtures/inventory/ com nomes
-neutros: `dot-x` no lugar de `.x` e `CLAUDE.md.fixture` no lugar de
-`CLAUDE.md`. Guardados com os nomes reais, eles seriam harness de verdade
-deste repositório (o Claude Code carrega CLAUDE.md aninhado e
-.claude/skills de subdiretório). A função `montar` copia cada árvore para
-um diretório temporário, restaura os nomes e troca `{REPO}`, `{CONFIG}` e
-a pasta `MEMORIA` pelos caminhos da cópia.
+The synthetic files live in tests/fixtures/inventory/ with neutral
+names: `dot-x` instead of `.x` and `CLAUDE.md.fixture` instead of
+`CLAUDE.md`. Stored under their real names they would be real harness of
+this repository (Claude Code loads nested CLAUDE.md and subdirectory
+.claude/skills). The `mount` function copies each tree into a
+temporary directory, restores the names and replaces `{REPO}`, `{CONFIG}` and
+the `MEMORIA` folder with the paths of the copy.
 """
 
 import dataclasses
@@ -51,7 +51,7 @@ def _copy(source: Path, destination: Path) -> None:
 
 
 def mount(case: str, tmp_path: Path) -> tuple[Path, Path, Path]:
-    """Copia o caso para tmp_path; devolve (repo, config, gerenciado)."""
+    """Copies the case into tmp_path; returns (repo, config, managed)."""
     base = tmp_path / case
     _copy(FIXTURES / case, base)
     repo, config, managed = base / "repo", base / "config", base / "managed"
@@ -83,10 +83,10 @@ def _single(inv: Inventory, kind: str, name: str):
     return found[0]
 
 
-# --- uma peça de cada tipo, em cada escopo ---------------------------------------
+# --- one harness item of each kind, in each scope --------------------------------
 
 EXPECTED = [
-    # (tipo, nome, escopo, plugin, local, sob_demanda)
+    # (kind, name, scope, plugin, local, on_demand)
     ("instruction", "CLAUDE.md", "managed", None, False, False),
     ("instruction", "CLAUDE.md", "user", None, False, False),
     ("instruction", "rules/general.md", "user", None, False, False),
@@ -119,7 +119,7 @@ EXPECTED = [
 
 
 @pytest.mark.parametrize("kind,name,scope,plugin,local,on_demand", EXPECTED)
-def test_peca_de_cada_tipo_em_cada_escopo(complete, kind, name, scope, plugin, local,
+def test_item_of_each_kind_in_each_scope(complete, kind, name, scope, plugin, local,
                                           on_demand):
     found = [p for p in complete.items
                if p.kind == kind and p.name == name and p.scope == scope]
@@ -134,7 +134,7 @@ def test_peca_de_cada_tipo_em_cada_escopo(complete, kind, name, scope, plugin, l
     assert p.chars > 0 and p.lines > 0
 
 
-def test_hooks_de_cada_escopo(complete):
+def test_hooks_of_each_scope(complete):
     hooks = {(h.scope, h.local, h.hook.event): h for h in complete.items if h.kind == "hook"}
     assert set(hooks) == {
         ("managed", False, "UserPromptSubmit"),
@@ -143,7 +143,7 @@ def test_hooks_de_cada_escopo(complete):
         ("project", False, "Stop"),
         ("project", True, "PostToolUse"),
         ("plugin", False, "PreToolUse"),
-        ("user", False, None),            # declarado no cabeçalho de uma skill
+        ("user", False, None),            # declared in a skill header
     }
     pre = hooks[("project", False, "PreToolUse")].hook
     assert (pre.matcher, pre.kind) == ("Bash", "command")
@@ -162,7 +162,7 @@ def test_hooks_de_cada_escopo(complete):
     assert header.name == "skill-with-hook" and header.hook.parsed is False
 
 
-def test_permissoes_de_cada_escopo(complete):
+def test_permissions_of_each_scope(complete):
     perms = {(p.scope, p.local, p.source.name): p.permissions
              for p in complete.items if p.kind == "permission"}
     assert set(perms) == {
@@ -180,24 +180,24 @@ def test_permissoes_de_cada_escopo(complete):
     assert perms[("managed", False, "10-extra.json")].ask == 1
 
 
-# --- instruções ----------------------------------------------------------------------
+# --- instructions --------------------------------------------------------------------
 
-def test_instrucao_conta_itens_e_motivos(complete):
+def test_instruction_counts_items_and_reasons(complete):
     i = next(p for p in complete.items
              if p.kind == "instruction" and p.name == "CLAUDE.md" and p.scope == "project")
     d = i.instruction
-    assert d.item_count == 6                 # 4 com marcador, 2 numerados; bloco de código fora
+    assert d.item_count == 6                 # 4 bulleted, 2 numbered; code block excluded
     assert d.with_reason == 3            # "Motivo:", "porque", "para que"
     assert d.estimated_reason is True
     assert d.imports == ["docs/imported.md"]
 
 
-def test_instrucao_sem_motivo(complete):
+def test_instruction_without_reason(complete):
     i = next(p for p in complete.items if p.name == "CLAUDE.local.md")
     assert (i.instruction.item_count, i.instruction.with_reason) == (1, 0)
 
 
-def test_importacoes_seguem_ate_quatro_saltos(complete):
+def test_imports_follow_up_to_four_hops(complete):
     names = {p.name for p in complete.items if p.kind == "instruction"}
     assert {"@docs/imported.md", "@docs/level2.md", "@docs/level3.md",
             "@docs/level4.md"} <= names
@@ -208,15 +208,15 @@ def test_importacoes_seguem_ate_quatro_saltos(complete):
     assert (imp.instruction.item_count, imp.instruction.with_reason) == (2, 1)
 
 
-def test_memoria_de_topico_e_claude_md_de_plugin_ficam_fora(complete):
+def test_topic_memory_and_plugin_claude_md_are_left_out(complete):
     provenances = {p.source.name for p in complete.items}
     assert "exemplo.md" not in provenances
     assert not any(p.kind == "instruction" and p.scope == "plugin" for p in complete.items)
 
 
-# --- skills e subagentes ----------------------------------------------------------------
+# --- skills and subagents ---------------------------------------------------------------
 
-def test_skill_com_descricao_curta_e_corpo_longo(complete):
+def test_skill_with_short_description_and_long_body(complete):
     s = _single(complete, "skill", "project-skill")
     assert s.description.chars == len("Faz uma coisa curta.")
     assert s.description.body_chars > 2000
@@ -224,7 +224,7 @@ def test_skill_com_descricao_curta_e_corpo_longo(complete):
     assert s.description.body_chars + s.description.chars < s.chars
 
 
-def test_descricao_em_bloco_dobrado_e_entre_aspas(complete):
+def test_description_in_folded_block_and_quoted(complete):
     a = _single(complete, "subagent", "project-agent")
     assert a.description.chars == len("Revisa mudanças de exemplo em duas linhas.")
     s = _single(complete, "skill", "user-skill")
@@ -233,7 +233,7 @@ def test_descricao_em_bloco_dobrado_e_entre_aspas(complete):
     assert _single(complete, "skill", "user-command").description.chars == 0
 
 
-def test_plugins_inativos_nao_entram_mas_sao_relatados(complete):
+def test_inactive_plugins_are_excluded_but_reported(complete):
     assert not any("inativa" in p.name for p in complete.items)
     state = {p.name: p.active for p in complete.plugins}
     assert state == {"example-plugin@example-market": True,
@@ -241,9 +241,9 @@ def test_plugins_inativos_nao_entram_mas_sao_relatados(complete):
                       "other-project-plugin@example-market": False}
 
 
-# --- servidores MCP e segredos -------------------------------------------------------
+# --- MCP servers and secrets ---------------------------------------------------------
 
-def test_servidor_mcp_guarda_transporte_e_nomes_de_variaveis(complete):
+def test_mcp_server_keeps_transport_and_variable_names(complete):
     m = {p.name: p.mcp for p in complete.items if p.kind == "mcp"}
     assert m["servidor-projeto"].transport == "stdio"
     assert m["servidor-projeto"].variables == ["CHAVE_PROJETO"]
@@ -255,13 +255,13 @@ def test_servidor_mcp_guarda_transporte_e_nomes_de_variaveis(complete):
     assert "servidor-de-outro-projeto" not in m
 
 
-def test_nenhum_valor_secreto_aparece_no_resultado(complete):
+def test_no_secret_value_appears_in_result(complete):
     everything = repr(complete) + json.dumps(inventory.as_dict(complete), ensure_ascii=False)
     for secret in SECRETS:
         assert secret not in everything, secret
 
 
-def test_arquivo_de_credenciais_nunca_e_aberto(tmp_path, monkeypatch):
+def test_credentials_file_is_never_opened(tmp_path, monkeypatch):
     repo, config, managed = mount("complete", tmp_path)
     opened = []
     original = Path.read_text
@@ -275,24 +275,24 @@ def test_arquivo_de_credenciais_nunca_e_aberto(tmp_path, monkeypatch):
     assert opened and ".credentials.json" not in opened
 
 
-# --- falhas, vazio, somente leitura ---------------------------------------------------
+# --- failures, empty, read-only -------------------------------------------------------
 
-def test_configuracao_malformada_relata_e_segue(tmp_path):
+def test_malformed_configuration_is_reported_and_skipped(tmp_path):
     inv = take_inventory("broken", tmp_path)
     failures = {(f.file.name, f.file.parent.name) for f in inv.failures}
-    assert ("settings.json", ".claude") in failures        # projeto, JSON cortado
-    assert ("settings.json", "config") in failures         # usuário, não é JSON
+    assert ("settings.json", ".claude") in failures        # project, truncated JSON
+    assert ("settings.json", "config") in failures         # user, not JSON
     assert (".claude.json", "config") in failures
-    assert (".mcp.json", "repo") in failures               # mcpServers não é objeto
+    assert (".mcp.json", "repo") in failures               # mcpServers is not an object
     assert ("SKILL.md", "skill-without-end") in failures
-    assert ("installed_plugins.json", "plugins") in failures   # pasta do plugin ausente
+    assert ("installed_plugins.json", "plugins") in failures   # plugin folder missing
     assert any(f.file.name == "nao-existe.md" for f in inv.failures)
     assert all(f.message for f in inv.failures)
     names = {p.name for p in inv.items}
     assert {"good-skill", "good-agent", "CLAUDE.md"} <= names
 
 
-def test_repositorio_sem_harness(tmp_path):
+def test_repository_without_harness(tmp_path):
     inv = take_inventory("empty", tmp_path)
     assert inv.items == [] and inv.failures == [] and inv.plugins == []
 
@@ -302,63 +302,63 @@ def _snapshot(root: Path) -> dict:
             for p in root.rglob("*") if p.is_file()}
 
 
-def test_somente_leitura(tmp_path):
+def test_read_only(tmp_path):
     repo, config, managed = mount("complete", tmp_path)
     before = _snapshot(tmp_path)
     inventory.take_inventory(repo, config, managed=managed, environment={})
     assert _snapshot(tmp_path) == before
 
 
-# --- entradas injetáveis -----------------------------------------------------------------
+# --- injectable inputs -------------------------------------------------------------------
 
-def test_diretorio_de_configuracao_respeita_variavel(tmp_path):
+def test_config_directory_honours_variable(tmp_path):
     assert inventory.config_dir({"CLAUDE_CONFIG_DIR": str(tmp_path)}) == tmp_path
     assert inventory.config_dir({}) == Path.home() / ".claude"
 
 
-def test_config_padrao_vem_do_ambiente(tmp_path):
+def test_default_config_comes_from_environment(tmp_path):
     repo, config, managed = mount("complete", tmp_path)
     inv = inventory.take_inventory(repo, managed=managed,
                                  environment={"CLAUDE_CONFIG_DIR": str(config)})
     assert any(p.name == "user-skill" for p in inv.items)
 
 
-def test_claude_json_fica_ao_lado_da_pasta_padrao(tmp_path):
-    home_dir = tmp_path / "casa"
+def test_claude_json_sits_next_to_default_folder(tmp_path):
+    home_dir = tmp_path / "home"
     (home_dir / ".claude").mkdir(parents=True)
     (home_dir / ".claude.json").write_text('{"mcpServers": {"servidor-ao-lado": {"command": "x"}}}',
                                        encoding="utf-8")
     empty = tmp_path / "repo"
     empty.mkdir()
-    inv = inventory.take_inventory(empty, home_dir / ".claude", managed=tmp_path / "nada",
+    inv = inventory.take_inventory(empty, home_dir / ".claude", managed=tmp_path / "nothing",
                                  environment={})
     assert [p.name for p in inv.items] == ["servidor-ao-lado"]
 
 
-def test_pasta_de_projeto_codifica_o_caminho():
+def test_project_folder_encodes_the_path():
     assert inventory.project_dir(Path("/mnt/c/Repos/Ex_1")) == "-mnt-c-Repos-Ex-1"
 
 
-def test_nao_importa_o_leitor():
+def test_does_not_import_the_reader():
     code = ("import sys; import dark.inventory; "
               "sys.exit(1 if 'dark.reader' in sys.modules else 0)")
     r = subprocess.run([sys.executable, "-c", code], env={**os.environ, "PYTHONPATH": str(SRC)})
     assert r.returncode == 0
 
 
-def test_pecas_sao_dataclasses_congeladas(complete):
+def test_items_are_frozen_dataclasses(complete):
     p = complete.items[0]
     assert dataclasses.is_dataclass(p)
     with pytest.raises(dataclasses.FrozenInstanceError):
-        p.name = "outro"
+        p.name = "other"
 
 
-# --- comando mínimo -----------------------------------------------------------------------
+# --- minimal command ----------------------------------------------------------------------
 
-def test_comando_imprime_contagens(tmp_path, capsys):
+def test_command_prints_counts(tmp_path, capsys):
     repo, config, managed = mount("complete", tmp_path)
     assert inventory.main([str(repo), "--config", str(config),
                             "--gerenciado", str(managed)]) == 0
     output = capsys.readouterr().out
     assert "skill" in output and "usuario" in output and "falhas: 0" in output
-    assert "project-skill" not in output            # nomes só com --nomes
+    assert "project-skill" not in output            # names only with --nomes

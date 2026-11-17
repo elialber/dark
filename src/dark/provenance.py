@@ -1,31 +1,31 @@
-"""Origem de cada peça anunciada (E16, goal 013).
+"""Provenance of each announced harness item (E16, goal 013).
 
-Cruza o que as sessões anunciaram ao modelo (skills, tipos de subagente,
-ferramentas e servidores MCP) com o inventário do que está instalado. Cada
-peça anunciada recebe uma origem:
+Cross-checks what the sessions announced to the model (skills, subagent
+types, tools and MCP servers) against the inventory of what is installed.
+Each announced item gets a provenance:
 
-- com arquivo: `projeto`, `usuario`, `plugin` ou `gerenciado`, o escopo da
-  peça do inventário que tem o mesmo nome; é o que o usuário pode mudar;
-- plataforma: `conta` (sincronizada da conta no claude.ai) ou `embutida`
-  (vem dentro do Claude Code);
-- `sem_arquivo`: anunciada, sem arquivo, e sem sinal de vir da plataforma
-  (removida depois, ou de um repositório que não existe mais).
+- with a file: `project`, `user`, `plugin` or `managed`, the scope of the
+  inventory item with the same name; this is what the user can change;
+- platform: `account` (synced from the claude.ai account) or `builtin`
+  (shipped inside Claude Code);
+- `no_file`: announced, without a file, and with no sign of coming from the
+  platform (removed later, or from a repository that no longer exists).
 
-Regras para o que não tem arquivo:
+Rules for what has no file:
 
-- skill: com prefixo (`algo:skill`) é da conta, a menos que o prefixo seja
-  o nome de um plugin instalado (então é `sem_arquivo`); sem prefixo, é
-  embutida;
-- tipo de subagente: embutido se o próprio anúncio o lista em
-  `builtInTypes`; senão, `sem_arquivo`;
-- servidor MCP: `claude_ai_*` é conector da conta; `plugin_<plugin>_<nome>`
-  casa com o servidor do plugin no inventário; o resto, `sem_arquivo`;
-- ferramenta: a que não é MCP é embutida; a MCP tem a origem do servidor.
+- skill: with a prefix (`something:skill`) it comes from the account, unless
+  the prefix is the name of an installed plugin (then it is `no_file`);
+  without a prefix, it is built-in;
+- subagent type: built-in if the announcement itself lists it in
+  `builtInTypes`; otherwise, `no_file`;
+- MCP server: `claude_ai_*` is an account connector; `plugin_<plugin>_<name>`
+  matches the plugin's server in the inventory; the rest, `no_file`;
+- tool: a non-MCP tool is built-in; an MCP tool has its server's provenance.
 
-Limite: o inventário é o estado de agora; o anúncio é do período. Uma
-skill sem prefixo que existia e foi apagada aparece como embutida.
+Limitation: the inventory is the current state; the announcement covers the
+period. A prefix-less skill that existed and was deleted shows up as built-in.
 
-Funções puras: recebem os nomes e as peças, não leem disco.
+Pure functions: they take the names and the items, they do not read disk.
 """
 
 from __future__ import annotations
@@ -48,12 +48,12 @@ CONNECTOR_PREFIX = "claude_ai_"
 
 @dataclass(frozen=True)
 class Provenance:
-    provenance: str                      # um de ORIGENS
-    path: Path | None = None      # arquivo da peça, quando há
+    provenance: str                      # one of PROVENANCES
+    path: Path | None = None      # the item's file, when there is one
 
     @property
     def mutable(self) -> bool:
-        """Só o que tem arquivo é tratado como algo que o usuário pode mudar."""
+        """Only what has a file is treated as something the user can change."""
         return self.provenance in WITH_FILE
 
     @property
@@ -74,7 +74,7 @@ class Announced:
 
 
 def announced_from(sessions: Iterable[Session]) -> Announced:
-    """União do que as sessões anunciaram (a lista da sessão principal)."""
+    """Union of what the sessions announced (the main session's list)."""
     a = Announced()
     for s in sessions:
         a.skills.update(s.available.skills)
@@ -90,7 +90,7 @@ class Provenances:
     subagent_types: dict[str, Provenance]
     tools: dict[str, Provenance]
     mcp_servers: dict[str, Provenance]
-    # Instaladas, carregadas no início e não anunciadas: não pesam na lista.
+    # Installed, loaded at startup and not announced: they add no weight to the list.
     not_announced: dict[str, list[HarnessItem]]
 
     def counts(self, category: str) -> Counter:
@@ -154,7 +154,7 @@ def classify(announced: Announced, items: Iterable[HarnessItem],
         tools[name] = servers[server] if server else Provenance("builtin")
 
     def not_announced(kind: str, announced_: set[str]) -> list[HarnessItem]:
-        """Uma peça por nome: a mesma skill em dois repositórios conta uma vez."""
+        """One item per name: the same skill in two repositories counts once."""
         by_name_: dict[str, HarnessItem] = {}
         for p in sorted(items, key=lambda p: (p.name, str(p.source))):
             if p.kind == kind and not p.on_demand and p.name not in announced_:
