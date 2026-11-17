@@ -1,0 +1,40 @@
+# Pair loop limits. Only the user edits this file; the loop's hooks block
+# any agent from changing it. Initial values, to recalibrate after the
+# first round.
+
+[round]
+cycles = 3                    # review -> execute cycles per round
+max_parallel_executors = 4    # executor sessions at the same time
+token_budget = 150_000_000    # all tokens (input, output, cache) of the round
+wall_clock_minutes = 600      # session time of the round; governs when
+                              # sessions do not report token usage
+
+[session.reviewer]
+max_turns = 200
+timeout_minutes = 60
+
+[session.executor]
+max_turns = 300
+timeout_minutes = 120
+
+[session]
+model = ""                    # empty: Claude Code default
+
+[git]
+base_branch = "main"
+remote = "origin"
+push = true
+
+[checks]
+test_command = ["python", "-m", "pytest", "-q"]
+
+[claude]
+command = ["claude"]
+config_dir = ""               # empty: the user's default; loop sessions are real work
+permission_mode = "bypassPermissions"
+persist_sessions = true
+setting_sources = ""          # empty: all; "project,local" leaves out user settings and plugins
+
+[paths]
+state_dir = "local/pairloop"  # ignored by git
+reports_dir = "pair/rodadas"
