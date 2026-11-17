@@ -6,7 +6,10 @@ Toda decisão futura entra neste arquivo.
 As entradas E1 a E8 são emendas à especificação, propostas pelo revisor
 externo no [lote 002](../pair/entrada/lote-002.md) depois da revisão do
 goal 001. As revisões de E1, E5, E6 e E7 e as entradas E9 a E11 vêm do
-[lote 003](../pair/entrada/lote-003.md), depois da revisão do goal 002. A base de cada uma está em
+[lote 003](../pair/entrada/lote-003.md), depois da revisão do goal 002. O
+[lote 004](../pair/entrada/lote-004.md), depois da revisão dos goals 004 e
+005, traz o complemento de E4, as novas versões de E6, E7 e E11, a exceção
+de E9 e as entradas E12 a E14. A base de cada uma está em
 [formato-transcricoes.md](formato-transcricoes.md).
 
 ## E1. Leitor isolado
@@ -62,6 +65,8 @@ aparece em mais de uma pasta e a sessão muda de diretório.
 
 ## E4. Tokens
 
+> **Complementada em 2026-11-17.** Ver a entrada seguinte.
+
 **Data:** 2026-11-17
 
 Um `usage` por `message.id`, somado ao uso dos arquivos de subagente.
@@ -70,6 +75,17 @@ primeira versão.
 
 **Motivo:** a soma ingênua infla 2,4 vezes e o `cost-state` diverge sem
 explicação.
+
+## E4, complemento. Unicidade global de `message.id`
+
+**Data:** 2026-11-17 ([lote 004](../pair/entrada/lote-004.md))
+
+A unicidade de `message.id` é global, não por arquivo. Resposta copiada
+por fork pertence à sessão de origem.
+
+**Motivo:** o lote não traz motivo explícito. A base é o experimento 4 de
+[experimentos-001.md](experimentos-001.md): o fork copia o histórico com os
+mesmos `message.id`. Leitura de quem registrou, não texto do revisor.
 
 ## E5. Intervenções por sinais estruturais
 
@@ -110,6 +126,8 @@ Execuções de hook são lidas dos registros `stop_hook_summary`,
 
 ## E6 revista. Aderência
 
+> **Revista de novo em 2026-11-17.** Vale a versão final, logo abaixo.
+
 **Data:** 2026-11-17 ([lote 003](../pair/entrada/lote-003.md))
 
 O que se mede é bloqueio e saída de hook, lidos de `permissionDecision`
@@ -119,6 +137,17 @@ goal 004 dizer se execução silenciosa deixa registro.
 
 **Motivo:** seção E do
 [documento de viabilidade](viabilidade-indicadores.md).
+
+## E6, versão final. Aderência por desfechos visíveis
+
+**Data:** 2026-11-17 ([lote 004](../pair/entrada/lote-004.md))
+
+O indicador de aderência mede desfechos visíveis de hook: bloqueio, falha
+sem bloqueio, tempo esgotado e saída. "O hook rodou em N de M chamadas"
+fica fora de forma definitiva.
+
+**Motivo:** hook silencioso não deixa registro (experimento 1 de
+[experimentos-001.md](experimentos-001.md)).
 
 ## E7. Ligação sessão a commit (hipótese)
 
@@ -136,6 +165,8 @@ puderem responder. (O lote não traz motivo explícito para esta emenda; este
 
 ## E7 revista. Sessão a commit por janela de horário
 
+> **Revista de novo em 2026-11-17.** Vale a terceira versão, logo abaixo.
+
 **Data:** 2026-11-17 ([lote 003](../pair/entrada/lote-003.md))
 
 Para cada chamada que executa `git commit`, o commit é o do repositório
@@ -145,6 +176,18 @@ commits.
 
 **Motivo:** 92 de 96 chamadas ligadas; branches apagadas fazem o commit
 sumir depois.
+
+## E7, terceira versão. Hash registrado, depois janela
+
+**Data:** 2026-11-17 ([lote 004](../pair/entrada/lote-004.md))
+
+Ordem de preferência para ligar chamada a commit:
+`gitOperation.commit.sha` quando existir; senão a janela de horário; se a
+janela devolver mais de um commit, registrar como ambíguo, sem escolher. A
+parcela de commits sem hash registrado é, ela própria, um achado da
+auditoria.
+
+**Motivo:** experimento 3 de [experimentos-001.md](experimentos-001.md).
 
 ## E8. Linguagem
 
@@ -156,6 +199,8 @@ Python 3.12 ou mais recente.
 (Langfuse, Graphify) são Python.
 
 ## E9. Unidade de medida
+
+> **Com exceção desde 2026-11-17.** Ver a entrada seguinte.
 
 **Data:** 2026-11-17 ([lote 003](../pair/entrada/lote-003.md))
 
@@ -169,6 +214,17 @@ humano anterior.
 para 1 com pedido humano (288 de 288) e os subagentes carregam o mesmo
 `promptId`. Leitura de quem registrou, não texto do revisor.
 
+## E9, exceção. Registros copiados por fork
+
+**Data:** 2026-11-17 ([lote 004](../pair/entrada/lote-004.md))
+
+Em arquivo de fork, registros copiados não contam como pedidos da sessão
+nova.
+
+**Motivo:** o lote não traz motivo explícito. A base é o experimento 4 de
+[experimentos-001.md](experimentos-001.md): o fork reescreve o `promptId`
+dos registros copiados. Leitura de quem registrou, não texto do revisor.
+
 ## E10. Coleta periódica
 
 **Data:** 2026-11-17 ([lote 003](../pair/entrada/lote-003.md))
@@ -181,6 +237,9 @@ sessões.
 
 ## E11. Peso fixo
 
+> **Revista em 2026-11-17.** Vale a versão nova, logo abaixo. O texto
+> original fica como registro.
+
 **Data:** 2026-11-17 ([lote 003](../pair/entrada/lote-003.md))
 
 O total vem do `usage` da primeira resposta da sessão. A decomposição por
@@ -191,3 +250,56 @@ outro caminho.
 [documento de viabilidade](viabilidade-indicadores.md): `api-request-shape`
 cobre cerca de um terço do contexto inicial. Leitura de quem registrou,
 não texto do revisor.
+
+## E11 revista. Peso fixo: total e repartição
+
+**Data:** 2026-11-17 ([lote 004](../pair/entrada/lote-004.md))
+
+Total pelo `usage` da primeira resposta. Repartição por `/context`,
+colhida na coleta (ela mede o estado do momento), com a parte não
+atribuída mostrada como tal. Medida por diferença fica para quando for
+preciso o peso exato de uma peça.
+
+**Motivo:** experimento 5 de [experimentos-001.md](experimentos-001.md).
+
+## E12. Falha isolada por sessão
+
+**Data:** 2026-11-17 ([lote 004](../pair/entrada/lote-004.md))
+
+Erro de formato em um arquivo não impede a leitura dos outros. A leitura
+devolve as sessões lidas e a lista de falhas (arquivo, linha, mensagem).
+
+**Motivo:** sondagem 1 da revisão do goal 005: uma sessão inválida derrubava
+a leitura de todas.
+
+## E13. Última linha cortada
+
+**Data:** 2026-11-17 ([lote 004](../pair/entrada/lote-004.md))
+
+Tolerada e contada, como o leitor já faz.
+
+**Motivo:** confirma a decisão tomada no goal 005 (a transcrição é escrita
+com a sessão em andamento; ver [diário 005](../pair/diario/005.md)).
+
+## E14. Armazenamento por lista explícita
+
+**Data:** 2026-11-17 ([lote 004](../pair/entrada/lote-004.md))
+
+Quando existir, a camada de armazenamento só aceita campos de um esquema
+declarado (números, identificadores, nomes de ferramenta e de skill,
+hashes). O modelo em memória pode carregar conteúdo; o que vai para o
+disco, não.
+
+**Motivo:** o leitor guarda a entrada das chamadas, e a regra "nunca o
+conteúdo" tem de ser garantida pela estrutura, não por cuidado.
+
+## Goal 003 cancelado
+
+**Data:** 2026-11-17 ([lote 004](../pair/entrada/lote-004.md))
+
+A auditoria manual é substituída pela auditoria por comando (goal 008, no
+próximo lote), em que o usuário informa o repositório na hora de rodar,
+sem que o nome entre em arquivo público.
+
+**Motivo:** as investigações 001, 002 e 004 já ensinaram o que a auditoria
+manual ensinaria, e o leitor existe.

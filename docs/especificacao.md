@@ -70,18 +70,27 @@ que o autor não havia notado.
 
 Registradas em [decisoes.md](decisoes.md), com data e motivo.
 
-- [E1. Leitor isolado](decisoes.md#e1-leitor-isolado) — revista; vale a entrada seguinte
+- [E1. Leitor isolado](decisoes.md#e1-leitor-isolado) — superada; vale a versão mais recente abaixo
 - [E1 revista. Leitor isolado e tolerante](decisoes.md#e1-revista-leitor-isolado-e-tolerante)
 - [E2. Agregados persistidos](decisoes.md#e2-agregados-persistidos)
 - [E3. Repositório pelo `cwd`](decisoes.md#e3-repositório-pelo-cwd)
 - [E4. Tokens](decisoes.md#e4-tokens)
-- [E5. Intervenções por sinais estruturais](decisoes.md#e5-intervenções-por-sinais-estruturais) — revista; vale a entrada seguinte
+- [E4, complemento. Unicidade global de `message.id`](decisoes.md#e4-complemento-unicidade-global-de-messageid)
+- [E5. Intervenções por sinais estruturais](decisoes.md#e5-intervenções-por-sinais-estruturais) — superada; vale a versão mais recente abaixo
 - [E5 revista. Intervenções](decisoes.md#e5-revista-intervenções)
-- [E6. Aderência pelas transcrições](decisoes.md#e6-aderência-pelas-transcrições) — revista; vale a entrada seguinte
-- [E6 revista. Aderência](decisoes.md#e6-revista-aderência)
-- [E7. Ligação sessão a commit (hipótese)](decisoes.md#e7-ligação-sessão-a-commit-hipótese) — revista; vale a entrada seguinte
-- [E7 revista. Sessão a commit por janela de horário](decisoes.md#e7-revista-sessão-a-commit-por-janela-de-horário)
+- [E6. Aderência pelas transcrições](decisoes.md#e6-aderência-pelas-transcrições) — superada; vale a versão mais recente abaixo
+- [E6 revista. Aderência](decisoes.md#e6-revista-aderência) — superada; vale a versão mais recente abaixo
+- [E6, versão final. Aderência por desfechos visíveis](decisoes.md#e6-versão-final-aderência-por-desfechos-visíveis)
+- [E7. Ligação sessão a commit (hipótese)](decisoes.md#e7-ligação-sessão-a-commit-hipótese) — superada; vale a versão mais recente abaixo
+- [E7 revista. Sessão a commit por janela de horário](decisoes.md#e7-revista-sessão-a-commit-por-janela-de-horário) — superada; vale a versão mais recente abaixo
+- [E7, terceira versão. Hash registrado, depois janela](decisoes.md#e7-terceira-versão-hash-registrado-depois-janela)
 - [E8. Linguagem](decisoes.md#e8-linguagem)
 - [E9. Unidade de medida](decisoes.md#e9-unidade-de-medida)
+- [E9, exceção. Registros copiados por fork](decisoes.md#e9-exceção-registros-copiados-por-fork)
 - [E10. Coleta periódica](decisoes.md#e10-coleta-periódica)
-- [E11. Peso fixo](decisoes.md#e11-peso-fixo)
+- [E11. Peso fixo](decisoes.md#e11-peso-fixo) — superada; vale a versão mais recente abaixo
+- [E11 revista. Peso fixo: total e repartição](decisoes.md#e11-revista-peso-fixo-total-e-repartição)
+- [E12. Falha isolada por sessão](decisoes.md#e12-falha-isolada-por-sessão)
+- [E13. Última linha cortada](decisoes.md#e13-última-linha-cortada)
+- [E14. Armazenamento por lista explícita](decisoes.md#e14-armazenamento-por-lista-explícita)
+- [Goal 003 cancelado](decisoes.md#goal-003-cancelado)
