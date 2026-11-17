@@ -28,12 +28,15 @@ Fase 1: piloto manual
 |---|---|
 | [001 — Formato das transcrições](goals/001-formato-transcricoes.md) | Aceito pelo revisor no [lote 002](entrada/lote-002.md) |
 | [002 — Viabilidade dos indicadores](goals/002-viabilidade-indicadores.md) | Concluído, aguarda revisão ([relatório](diario/002.md) · [documento](../docs/viabilidade-indicadores.md)) |
+| [003 — Auditoria manual](goals/003-auditoria-manual.md) | Bloqueado: aguarda escolha do repositório ([diário](diario/003.md)) |
 
 ## Decisões pendentes
 
-Nenhuma. A linguagem da CLI foi fechada: Python 3.12 ou mais recente
+- Qual repositório auditar no goal 003 (decisão do usuário).
+
+Fechada: a linguagem da CLI foi fechada: Python 3.12 ou mais recente
 ([E8](../docs/decisoes.md)).
 
 ## Próximo passo
 
-Goal 003
+Revisão do goal 002. O goal 003 espera o usuário indicar o repositório.
