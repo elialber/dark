@@ -90,6 +90,10 @@ Ao parar, nada é descartado: branches e worktrees ficam como estão. Se a
 parada foi por orçamento, o orquestrador escreve o relatório sem abrir
 nova sessão.
 
+Não faça commit na `main` com uma rodada aberta: o orquestrador não
+distingue o seu commit do de um agente e para a rodada por violação de
+limite. Mude a direção e os limites entre rodadas.
+
 Para interromper na hora, `Ctrl+C`. O estado fica salvo em
 `local/pairloop/round-NNN.json`; depois, `continuar` ou `encerrar`. Uma
 revisão que já deixou a saída commitada não é repetida.

@@ -87,8 +87,11 @@ and up to three parallel ones with exclusive files, taken from the
 roadmap queue in order, respecting the priority in `pair/DIRECAO.md`.
 Each batch:
 
-- stands on its own for a session with no context, and names the branch,
-  the worktree and the files it may create or change;
+- stands on its own for a session with no context, and names the branch
+  and the files it may create or change. Do not tell the executor to
+  create a branch or worktree: the orchestrator creates the worktree at
+  `../<repository directory>-<branch>`, from the base branch, before the
+  executor starts;
 - has a verifiable acceptance criterion, with a cross-check against an
   independent source when there are numbers;
 - has no criterion that depends on an answer from the user;
