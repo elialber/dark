@@ -457,6 +457,31 @@ def test_first_open_by_several_processes_at_once(db: Path):
         assert s.collections() == []
 
 
+def test_header_is_read_in_one_snapshot(db: Path, monkeypatch):
+    """Another process creating the schema between the header reads is not corruption.
+
+    Seen on Windows in the CI (goal 019): the application id was read before
+    the other process committed, the table count after.
+    """
+    from dark.store import core
+    original = core._tables
+    raced = []
+
+    def tables_after_a_concurrent_creation(con):
+        if not raced:
+            raced.append(True)
+            try:
+                open_store(db, timeout=0.2).close()
+            except st.StoreLocked:
+                pass             # the header snapshot holds the other creator back
+        return original(con)
+
+    monkeypatch.setattr(core, "_tables", tables_after_a_concurrent_creation)
+    with open_store(db, timeout=5) as s:
+        assert s.collections() == []
+    assert raced
+
+
 def test_batch_is_all_or_nothing(store):
     with pytest.raises(st.UnknownRepository):
         with store.batch():

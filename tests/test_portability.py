@@ -145,8 +145,9 @@ def test_command_output_is_utf8_on_a_non_utf8_stream(name, tmp_path, monkeypatch
     sys.stdout.flush()
     sys.stderr.flush()
     assert code == expected_code
-    assert out.getvalue().decode("utf-8") == expected.out
-    assert err.getvalue().decode("utf-8") == expected.err
+    # A text stream writes "\r\n" on Windows; capsys does not translate.
+    assert out.getvalue().decode("utf-8").replace("\r\n", "\n") == expected.out
+    assert err.getvalue().decode("utf-8").replace("\r\n", "\n") == expected.err
 
 
 def test_report_with_arrow_goes_through_redirected_output(monkeypatch):

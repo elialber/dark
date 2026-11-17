@@ -792,7 +792,7 @@ def test_without_argument_audits_repository_of_current_directory(tmp_path, repo,
     assert cli.main(["auditar", "--config", str(cfg), "--gerenciado",
                      str(tmp_path / "nothing")]) == 0
     output = capsys.readouterr().out
-    assert f"Repositório: `{repo}`" in output and "Sessões: 1" in output
+    assert f"Repositório: `{repo.as_posix()}`" in output and "Sessões: 1" in output
 
 
 def test_path_and_all_together_is_error(capsys):

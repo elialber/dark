@@ -340,7 +340,7 @@ def test_full_report_of_a_repository(tmp_path, capsys):
     cfg = config_pointing(tmp_path, repo)
     assert run_audit(repo, "--config", cfg) == 0
     output = capsys.readouterr().out
-    assert f"Repositório: `{repo}`" in output
+    assert f"Repositório: `{repo.as_posix()}`" in output     # forward slashes everywhere
     assert "Sessões: 2" in output                 # S1 and S6
     for s in SECTIONS:
         assert s in output
@@ -386,8 +386,8 @@ def test_two_directories_with_same_identity(tmp_path, capsys):
     assert run_audit(repo, "--config", cfg) == 0
     output = capsys.readouterr().out
     assert "Sessões: 4" in output                 # S1, S6 (proj) and S3, S4 (copy)
-    assert str(clone) in output.split("\n## ")[0]
-    assert str(other) not in output
+    assert clone.as_posix() in output.split("\n## ")[0]
+    assert other.as_posix() not in output
 
 
 def test_identity_is_initial_commit(tmp_path):
