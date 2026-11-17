@@ -229,6 +229,7 @@ class Pedido:
     timestamp: datetime
     tamanho: int                   # caracteres do texto; o texto não é guardado
     fonte: str | None              # promptSource
+    modo_permissao: str | None = None   # permissionMode no envio do pedido
     registros: int = 1             # mais de um só em arquivo de fork
     tokens: Tokens = field(default_factory=Tokens)
     tokens_subagentes: Tokens = field(default_factory=Tokens)
@@ -341,6 +342,7 @@ class Sessao:
     falhas: list[Falha] = field(default_factory=list)   # subagentes ilegíveis
     disponivel: Disponivel = field(default_factory=Disponivel)
     contexto_inicial: int | None = None   # tokens de entrada da 1ª resposta; None em fork
+    comandos: list[str] = field(default_factory=list)   # /comandos digitados, sem a barra
 
     @property
     def tokens_principal(self) -> Tokens:
@@ -451,8 +453,21 @@ _COMMIT_COM_VALOR = {"-m", "-F", "-C", "-c", "-t", "--message", "--file", "--aut
                      "--date", "--reuse-message", "--reedit-message", "--fixup",
                      "--squash", "--template", "--cleanup", "--pathspec-from-file"}
 _APROXIMADO = re.compile(
-    r"(?:^|[;&|(\n])\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*git\s+"
+    r"(?:^|[;&|(\n])\s*(?:(?:[A-Za-z_][A-Za-z0-9_]*=\S*|then|do|else|elif|if|while|until"
+    r"|\{|!|sudo|env|command|time)\s+)*git\s+"
     r"(?:-[Cc]\s+\S+\s+)*commit(?=\s|$)")
+# Palavras do shell depois das quais vem um comando (`if` e `while` também:
+# a condição é executada).
+_PALAVRAS_DO_SHELL = {"then", "do", "else", "elif", "if", "while", "until", "{", "!"}
+# Prefixos que executam o comando seguinte, com as opções que levam valor.
+_PREFIXOS: dict[str, set[str]] = {
+    "sudo": {"-u", "-g", "-C", "-D", "-h", "-p", "-r", "-t", "-U", "-T", "--user",
+             "--group", "--chdir", "--host", "--prompt", "--role", "--type",
+             "--other-user", "--command-timeout", "--close-from"},
+    "env": {"-u", "-C", "-S", "--unset", "--chdir", "--split-string"},
+    "command": set(),
+    "time": {"-o", "-f", "--output", "--format"},
+}
 
 
 @dataclass(frozen=True)
@@ -498,12 +513,35 @@ def _comandos_simples(comando: str) -> list[list[str]]:
     return simples
 
 
+def _inicio_do_comando(tokens: list[str]) -> int | None:
+    """Posição do comando de fato, depois de VAR=valor, palavra do shell e prefixo.
+
+    None quando o prefixo não executa o que vem depois (`command -v`).
+    """
+    i = 0
+    while i < len(tokens):
+        token = tokens[i]
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", token) or token in _PALAVRAS_DO_SHELL:
+            i += 1
+            continue
+        if token not in _PREFIXOS:
+            return i
+        com_valor = _PREFIXOS[token]
+        i += 1
+        while i < len(tokens) and tokens[i].startswith("-") and tokens[i] != "-":
+            if tokens[i] == "--":
+                i += 1
+                break
+            if token == "command" and tokens[i] in ("-v", "-V"):
+                return None
+            i += 2 if tokens[i] in com_valor else 1
+    return i
+
+
 def _e_git_commit(tokens: list[str]) -> list[str] | None:
     """Argumentos do `git commit`, se o comando simples for um."""
-    i = 0
-    while i < len(tokens) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", tokens[i]):
-        i += 1                                   # VAR=valor antes do comando
-    if i >= len(tokens) or tokens[i].rsplit("/", 1)[-1] != "git":
+    i = _inicio_do_comando(tokens)
+    if i is None or i >= len(tokens) or tokens[i].rsplit("/", 1)[-1] != "git":
         return None
     i += 1
     while i < len(tokens) and tokens[i].startswith("-"):     # opções globais do git
@@ -517,8 +555,10 @@ def analisar_commit(comando: str) -> AnaliseCommit | None:
     """Diz se um comando de shell executa `git commit`, e com que opções.
 
     Analisa o comando (encadeamentos, aspas, heredocs); não procura texto.
-    Um comando que só menciona a expressão não conta. Limite conhecido:
-    `git commit` dentro de `bash -c "..."` ou de `eval` não é visto.
+    Reconhece o commit depois de palavra do shell (`then`, `do`, `else`,
+    `{`, `!`...) e de prefixo (`sudo`, `env`, `command`, `time`). Um comando
+    que só menciona a expressão não conta. Limite conhecido: `git commit`
+    dentro de `bash -c "..."` ou de `eval` não é visto.
     """
     limpo = _sem_heredocs(comando)
     try:
@@ -551,6 +591,9 @@ def analisar_commit(comando: str) -> AnaliseCommit | None:
     return AnaliseCommit(quantidade, amend, silencioso) if quantidade else None
 
 
+_NOME_DO_COMANDO = re.compile(r"<command-name>\s*/?([^<\s]+)\s*</command-name>")
+
+
 class _Arquivo:
     """Lê um .jsonl (principal ou de subagente) e acumula o que achou."""
 
@@ -581,6 +624,7 @@ class _Arquivo:
         self.tipo_agente: str | None = None
         self.disponivel = Disponivel()
         self.contexto_inicial: int | None = None
+        self.comandos: list[str] = []
         self._pedido_corrente: str | None = None
         self._ler()
 
@@ -701,14 +745,18 @@ class _Arquivo:
                 self.desc.campos["user.promptId ausente em pedido humano"] += 1
             tamanho = len(conteudo) if isinstance(conteudo, str) else sum(
                 len(b.get("text", "")) for b in conteudo if isinstance(b, dict))
+            modo = reg.get("permissionMode") if isinstance(reg.get("permissionMode"), str) else None
             if chave in self.pedidos:          # fork: promptId reescrito nos copiados
                 p = self.pedidos[chave]
                 p.registros += 1
                 p.timestamp, p.tamanho, p.fonte = ts, tamanho, reg.get("promptSource")
+                p.modo_permissao = modo
             else:
-                self.pedidos[chave] = Pedido(chave, ts, tamanho, reg.get("promptSource"))
+                self.pedidos[chave] = Pedido(chave, ts, tamanho, reg.get("promptSource"), modo)
             self.pedido_no_uuid[uuid] = chave
             self._pedido_corrente = chave
+        if "toolUseResult" not in reg and not reg.get("isMeta"):
+            self._comando(conteudo)
         if "interruptedMessageId" in reg:
             self.intervencoes.append((Intervencao("interrupcao", ts), uuid))
         if reg.get("toolDenialKind") == "user-rejected":
@@ -723,6 +771,21 @@ class _Arquivo:
                     self.desc.tipos[f"user.content/{tipo_bloco}"] += 1
                 if tipo_bloco == "tool_result":
                     self._resultado(reg, bloco, uuid, ts)
+
+    def _comando(self, conteudo: str | list) -> None:
+        """/comando digitado: texto que começa por `<command-` e traz o nome.
+
+        Vale para skills e para comandos embutidos; quem separa é o cruzamento
+        com a lista de skills anunciadas (lote 005).
+        """
+        if isinstance(conteudo, list):
+            conteudo = next((b.get("text") for b in conteudo
+                             if isinstance(b, dict) and b.get("type") == "text"), None)
+        if not isinstance(conteudo, str) or not conteudo.lstrip().startswith("<command-"):
+            return
+        achado = _NOME_DO_COMANDO.search(conteudo)
+        if achado:
+            self.comandos.append(achado.group(1))
 
     def _resultado(self, reg: dict, bloco: dict, uuid: str, ts: datetime) -> None:
         tool_id = self._exigir(bloco, "tool_use_id", str, "user.message.content[].")
@@ -935,7 +998,8 @@ def ler_sessao(principal: Path, subagentes: Iterable[Path] | None = None, *,
                intervencoes=[i for i, _ in a.intervencoes], hooks=a.hooks,
                desconhecidos=desc, linhas=a.linhas, linhas_cortadas=a.cortadas,
                disponivel=a.disponivel,
-               contexto_inicial=None if a.copiada_de else a.contexto_inicial)
+               contexto_inicial=None if a.copiada_de else a.contexto_inicial,
+               comandos=a.comandos)
     s.respostas_sem_pedido = sum(1 for r in s.respostas if r.pedido_id is None and not r.copiada)
 
     cache: dict[str, Path | None] = {}
@@ -1091,12 +1155,16 @@ def main(argv: list[str] | None = None) -> int:
 
     sessoes = [s for s in leitura.sessoes if not fora(s.pasta_projeto)]
     falhas = [f for f in leitura.falhas if not fora(str(f.arquivo))]
+    if not sessoes and not falhas:
+        # Sem histórico não é erro (lote 005).
+        print("nenhuma sessão encontrada", file=sys.stderr)
+        return 0
     for nome, valor in agregados(sessoes).items():
         print(f"{nome}: {json.dumps(valor, ensure_ascii=False)}")
     print(f"falhas: {len(falhas)}")
     for falha in falhas:
         print(f"  {falha}")
-    return 0 if sessoes else 1
+    return 1 if falhas and not sessoes else 0
 
 
 if __name__ == "__main__":

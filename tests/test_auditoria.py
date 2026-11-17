@@ -301,7 +301,9 @@ def git(*args, cwd):
 def novo_repo(caminho: Path) -> Path:
     caminho.mkdir(parents=True)
     git("init", "-q", cwd=caminho)
-    (caminho / "a.txt").write_text("a")
+    # Conteúdo distinto: dois commits iniciais iguais no mesmo segundo teriam o
+    # mesmo hash, e a mesma identidade (limite da E15).
+    (caminho / "a.txt").write_text(caminho.name)
     git("add", "a.txt", cwd=caminho)
     git("commit", "-q", "-m", "inicial", cwd=caminho)
     return caminho
@@ -444,7 +446,7 @@ def test_ate_ilegivel(capsys):
 
 def test_excluir_pasta(capsys):
     assert cli.main(["auditar", "--todos", "--config", str(CONFIG),
-                     "--excluir-pasta", "-repo-beta"]) == 0
+                     "--excluir-pasta=-repo-beta"]) == 0
     assert "Sessões: 3" in capsys.readouterr().out
 
 

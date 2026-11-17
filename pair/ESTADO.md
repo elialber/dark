@@ -30,15 +30,19 @@ Fase 2: auditoria e placar
 | [005 — Leitor de transcrições](goals/005-leitor-transcricoes.md) | Aceito pelo revisor no [lote 004](entrada/lote-004.md), com as correções do goal 006 |
 | [006 — Correções do leitor](goals/006-correcoes-leitor.md) | Aceito pelo revisor no [lote 005](entrada/lote-005.md) |
 | [007 — Indicadores](goals/007-indicadores.md) | Aceito pelo revisor no [lote 005](entrada/lote-005.md) |
+| [008 — Auditoria](goals/008-auditoria.md) | Concluído, aguarda revisão ([relatório](diario/008.md) · comando `dark auditar`) |
 
 ## Decisões pendentes
 
-Nenhuma. As decisões dos goals 006 e 007 foram confirmadas no lote 005,
-duas delas alteradas pelo revisor ([docs/decisoes.md](../docs/decisoes.md)).
+Para o revisor confirmar: as decisões tomadas no goal 008, listadas no fim
+do [diário 008](diario/008.md).
+
+Critério de pronto da Fase 2: o usuário disse que 3 ou mais dos 8 itens
+de "O que chama atenção" eram desconhecidos para ele (diário 008).
 
 Os lotes paralelos (goals 009 a 012) correm nas branches `goal-009` a
 `goal-012`, em worktrees próprios. A junção fica para o lote 006.
 
 ## Próximo passo
 
-Goal 008: comando de auditoria ([lote 005](entrada/lote-005.md)).
+Revisão do goal 008. Depois, a junção dos lotes paralelos (lote 006).

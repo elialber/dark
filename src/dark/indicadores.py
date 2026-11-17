@@ -107,9 +107,16 @@ def _respostas(s: Sessao):
 
 
 def _skills_usadas(s: Sessao) -> set[str]:
+    """Chamada `Skill`, `attributionSkill` ou /comando com nome de skill anunciada.
+
+    O /comando só conta se o nome está na lista de skills da sessão: é isso
+    que deixa de fora os comandos embutidos (lote 005).
+    """
     usadas = {c.entrada.get("skill") for c in _chamadas(s) if c.nome == "Skill"}
     usadas |= {r.skill for r in _respostas(s)}
-    return {nome_de_skill(n) for n in usadas if isinstance(n, str) and n}
+    usadas = {nome_de_skill(n) for n in usadas if isinstance(n, str) and n}
+    anunciadas = {nome_de_skill(n) for n in s.disponivel.skills}
+    return usadas | ({nome_de_skill(c) for c in s.comandos} & anunciadas)
 
 
 def _tipos_usados(s: Sessao) -> set[str]:
@@ -179,6 +186,12 @@ class Sinais:
     rejeicoes_com_comentario: int = 0
     rejeicoes_sem_comentario: int = 0
     mensagens_no_meio: int = 0
+    por_modo: dict[str, int] = field(default_factory=dict)   # pedidos por modo de permissão
+
+    def contar_pedido(self, pedido: leitor.Pedido) -> None:
+        self.pedidos += 1
+        modo = pedido.modo_permissao or "?"
+        self.por_modo[modo] = self.por_modo.get(modo, 0) + 1
 
     @property
     def sinais(self) -> int:
@@ -207,15 +220,22 @@ class Intervencoes:
     resumo_pedidos: Resumo
     resumo_sinais: Resumo
 
+    @property
+    def por_modo(self) -> dict[str, int]:
+        """Pedidos por modo de permissão; "?" quando o registro não diz."""
+        return self.total.por_modo
+
 
 def intervencoes(sessoes: Iterable[Sessao]) -> Intervencoes:
     por_sessao, por_pedido = {}, {}
     sem_pedido, total = Sinais(), Sinais()
     for s in sessoes:
-        da_sessao = por_sessao[s.id] = Sinais(pedidos=len(s.pedidos))
-        total.pedidos += len(s.pedidos)
+        da_sessao = por_sessao[s.id] = Sinais()
         for p in s.pedidos:
-            por_pedido[(s.id, p.id)] = Sinais(pedidos=1)
+            da_sessao.contar_pedido(p)
+            total.contar_pedido(p)
+            por_pedido[(s.id, p.id)] = Sinais()
+            por_pedido[(s.id, p.id)].contar_pedido(p)
         for i in s.intervencoes:
             da_sessao.contar(i)
             total.contar(i)
@@ -386,8 +406,12 @@ def main(argv: list[str] | None = None) -> int:
     sessoes = [s for s in leitura.sessoes
                if not any(x in s.pasta_projeto for x in args.excluir_pasta)]
     if not sessoes:
-        print("nenhuma sessão lida", file=sys.stderr)
-        return 1
+        # Sem histórico não é erro; só falhas sem nenhuma sessão é (lote 005).
+        if leitura.falhas:
+            print(f"nenhuma sessão lida; falhas: {len(leitura.falhas)}", file=sys.stderr)
+            return 1
+        print("nenhuma sessão encontrada", file=sys.stderr)
+        return 0
     mostra = print
     mostra(f"sessoes: {len(sessoes)}  falhas: {len(leitura.falhas)}")
 
@@ -413,6 +437,7 @@ def main(argv: list[str] | None = None) -> int:
            f"rejeicoes={t.rejeicoes} (com_comentario={t.rejeicoes_com_comentario} "
            f"sem={t.rejeicoes_sem_comentario}) mensagens_no_meio={t.mensagens_no_meio} "
            f"sessoes_sem_sinal={it.sessoes_sem_sinal} sinais_sem_pedido={it.sem_pedido.sinais}")
+    mostra(f"  pedidos por modo de permissão: {dict(sorted(it.por_modo.items()))}")
     mostra(f"  pedidos por sessão: {_linha_resumo(it.resumo_pedidos)}")
     mostra(f"  sinais por sessão: {_linha_resumo(it.resumo_sinais)}")
     mostra(f"  pedidos com algum sinal: "

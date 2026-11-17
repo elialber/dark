@@ -9,6 +9,9 @@ description = "Instala, mede e mantém o harness do Claude Code em um repositór
 requires-python = ">=3.12"
 dependencies = []
 
+[project.scripts]
+dark = "dark.cli:main"
+
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 
