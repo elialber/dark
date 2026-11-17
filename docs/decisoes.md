@@ -14,7 +14,10 @@ depois da revisão dos goals 006 e 007, confirma as decisões tomadas nesses
 goals, altera duas delas e traz a entrada E15. O
 [lote 006](../pair/entrada/lote-006.md), depois da revisão dos goals 008 a
 012, confirma as decisões desses goals, traz a terceira versão da E11, os
-acréscimos à E7 e a entrada E16. A base de cada uma está em
+acréscimos à E7 e a entrada E16. O
+[lote 007](../pair/entrada/lote-007.md), depois da revisão do goal 013,
+confirma as decisões desse goal, muda o processo de aceite e traz as
+entradas E17 e E18. A base de cada uma está em
 [formato-transcricoes.md](formato-transcricoes.md).
 
 ## E1. Leitor isolado
@@ -822,3 +825,54 @@ Continuam como candidatos, sem caso gravado.
 
 **Motivo:** o aceite deles depende de dados reais, que um caso
 reproduzível não pode ter.
+
+## Decisões do goal 013
+
+**Data:** 2026-11-17 ([lote 007](../pair/entrada/lote-007.md))
+
+Confirmadas pelo revisor, como estão, as decisões da lista "Decisões
+tomadas aqui, para confirmar" do [diário 013](../pair/diario/013.md):
+skill e servidor MCP sem arquivo, tipo de subagente embutido,
+`gerenciado` como mutável, primeiro pedido, tamanho de anexo e de
+ferramenta, anexos de tipo não listado, saída de hook no primeiro pedido,
+parcela da repartição, comando com N commits, árbitro do amend, `cwd` que
+não existe mais, sessão de comando local, inventário em `--todos` e
+primeiros nomes no corpo. O texto de cada uma está no diário.
+
+**Motivo:** o lote não traz motivo explícito para as confirmadas; o
+motivo de cada uma é o registrado no diário 013.
+
+## Processo: goals não dependem de resposta do usuário na sessão
+
+**Data:** 2026-11-17 ([lote 007](../pair/entrada/lote-007.md))
+
+Critério de aceite que exige pergunta ao usuário deixa de ser usado. O
+uso real da ferramenta é feito pelo usuário quando ele quiser. Os
+critérios 4 e 5 do goal 013 ficam dispensados.
+
+**Motivo:** o usuário pulou os critérios 4 e 5 do goal 013; interromper
+a sessão para perguntar custa mais do que rende.
+
+## E17. Orçamento de evals (padrão do revisor, a recalibrar)
+
+**Data:** 2026-11-17 ([lote 007](../pair/entrada/lote-007.md))
+
+Primeira rodada com 5 casos, 2 condições (sem harness e com harness) e 3
+execuções por caso e condição. Teto de 5 milhões de tokens por execução e
+de 100 milhões por rodada; execução que estoura o teto é interrompida e
+conta como falha. Rodada completa só quando o harness ou o modelo mudar.
+Antes de fixar os tetos, uma rodada de calibração com uma execução por
+caso; os tetos passam a ser o dobro do observado. Mesmo modelo do
+trabalho real.
+
+**Motivo:** mediana de 1,35 milhão de tokens por pedido e cerca de 53
+milhões por dia no histórico medido.
+
+## E18. Idioma
+
+**Data:** 2026-11-17 ([lote 007](../pair/entrada/lote-007.md))
+
+Código e mensagens de commit em inglês; interface em português. Detalhe
+no [goal 014](../pair/goals/014-codigo-em-ingles.md).
+
+**Motivo:** decisão do usuário em 2026-11-17.
