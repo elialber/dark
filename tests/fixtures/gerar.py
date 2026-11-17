@@ -16,6 +16,7 @@ S1 = "aaaaaaaa-0000-4000-8000-000000000001"
 S3 = "aaaaaaaa-0000-4000-8000-000000000003"
 S4 = "aaaaaaaa-0000-4000-8000-000000000004"
 S5 = "aaaaaaaa-0000-4000-8000-000000000005"
+S6 = "aaaaaaaa-0000-4000-8000-000000000006"
 AGENTE = "agt0000000000001"
 
 
@@ -272,6 +273,53 @@ def sessao_de_bordas():
     a.gravar(AQUI / "config/projects/-repo-gama" / f"{S5}.jsonl")
 
 
+def sessao_de_indicadores():
+    """O que estava disponível, o contexto inicial e chamadas de git commit."""
+    a = Arquivo(S6, versao="2.1.326")
+    a.meta("mode", mode="normal")
+    a.meta("api-request-shape", timestamp="2026-01-03T09:00:00.000Z", shapeHash="h1",
+           version="2.1.326", shape={"system": [], "tools": [
+               {"name": "Bash"}, {"name": "Read"}, {"name": "Skill"}, {"name": "Agent"}]})
+    d = "2026-01-03T09:00:00.000Z"
+    a.anexo(d, "skill_listing", isInitial=True, skillCount=3, content="...",
+            names=["exemplo-skill", "plugin:outra-skill", "nunca-usada"])
+    a.anexo(d, "agent_listing_delta", addedTypes=["exemplo-revisor", "exemplo-ocioso"],
+            builtInTypes=["Explore"], removedTypes=[])
+    a.anexo(d, "deferred_tools_delta", removedNames=[], readdedNames=[], addedNames=[
+        "mcp__servidor-a__buscar", "mcp__servidor-b__listar", "WebFetch"])
+    a.anexo(d, "deferred_tools_record", entries=[{"name": "mcp__servidor-a__criar"}])
+
+    a.pedido("2026-01-03T09:00:01.000Z", "PI1", "Faça os commits.")
+    passos = [
+        ("msg_M30", uso(100, 5, 2000, 30000),
+         chamada("toolu_T30", "Skill", skill="plugin:outra-skill"),
+         {"success": True, "commandName": "plugin:outra-skill"}),
+        ("msg_M31", uso(1, 1),
+         chamada("toolu_T31", "mcp__servidor-a__buscar", query="x"), [{"type": "text"}]),
+        ("msg_M32", uso(1, 1),
+         chamada("toolu_T32", "Bash", command="git add -A && git commit -m 'primeiro'"),
+         {"stdout": "[main abc1234] primeiro", "gitOperation": {
+             "commit": {"sha": "abc1234", "kind": "committed", "branch": "main"}}}),
+        ("msg_M33", uso(1, 1),
+         chamada("toolu_T33", "Bash", command="git commit -q -m segundo"), {"stdout": ""}),
+        ("msg_M34", uso(1, 1),
+         chamada("toolu_T34", "Bash", command="git commit --amend --no-edit"),
+         {"stdout": "[main def5678] segundo", "gitOperation": {
+             "commit": {"sha": "def5678", "kind": "amended", "branch": "main"}}}),
+        ("msg_M35", uso(1, 1),
+         chamada("toolu_T35", "Bash", command='echo "git commit"'),
+         {"stdout": "git commit"}),
+    ]
+    for i, (mid, u, bloco, estruturado) in enumerate(passos):
+        m = a.resposta(f"2026-01-03T09:00:{10 + 2 * i}.000Z", mid, [bloco], u)
+        a.resultado(f"2026-01-03T09:00:{11 + 2 * i}.000Z", bloco["id"], m[0], "PI1",
+                    estruturado=estruturado)
+    a.pedido("2026-01-03T09:10:00.000Z", "PI2", "Resuma.")
+    a.resposta("2026-01-03T09:10:02.000Z", "msg_M36", [texto("Resumo.")], uso(2, 2),
+               stop="end_turn", attributionSkill="exemplo-skill")
+    a.gravar(AQUI / "config/projects/-repo-alfa" / f"{S6}.jsonl")
+
+
 def config_com_falha():
     """Uma pasta com sessão válida, sessão inválida e subagente inválido."""
     base = AQUI / "config-com-falha/projects/-repo-delta"
@@ -334,6 +382,7 @@ if __name__ == "__main__":
     sessao_principal()
     sessao_e_fork()
     sessao_de_bordas()
+    sessao_de_indicadores()
     config_com_falha()
     invalidos()
     print("fixtures geradas em", AQUI)

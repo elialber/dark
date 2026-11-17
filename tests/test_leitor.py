@@ -21,6 +21,7 @@ S1 = "aaaaaaaa-0000-4000-8000-000000000001"
 S3 = "aaaaaaaa-0000-4000-8000-000000000003"
 S4 = "aaaaaaaa-0000-4000-8000-000000000004"
 S5 = "aaaaaaaa-0000-4000-8000-000000000005"
+S6 = "aaaaaaaa-0000-4000-8000-000000000006"
 CONFIG_COM_FALHA = FIXTURES / "config-com-falha"
 
 
@@ -50,7 +51,7 @@ def test_diretorio_config_padrao_e_dot_claude_na_home():
 
 def test_localiza_arquivos_principais_e_de_subagente():
     achados = {a.principal.stem: a for a in leitor.localizar_sessoes(CONFIG)}
-    assert set(achados) == {S1, S3, S4, S5}
+    assert set(achados) == {S1, S3, S4, S5, S6}
     assert achados[S1].pasta_projeto == "-repo-alfa"
     assert [p.name for p in achados[S1].subagentes] == ["agent-agt0000000000001.jsonl"]
     assert achados[S3].subagentes == []
@@ -163,7 +164,7 @@ def test_chamadas_de_skill_e_de_subagente(s1):
 # --- armadilha: subagente com o sessionId da sessão-mãe ----------------------
 
 def test_subagente_fica_dentro_da_sessao_mae(sessoes, s1):
-    assert len(sessoes) == 4  # o arquivo do subagente não vira sessão
+    assert len(sessoes) == 5  # o arquivo do subagente não vira sessão
     (sub,) = s1.subagentes
     assert sub.id == "agt0000000000001"
     assert sub.tipo == "exemplo-revisor"
@@ -398,15 +399,15 @@ def test_fork_nao_conta_de_novo_o_historico_copiado(sessoes):
 
 def test_agregados_de_conferencia(sessoes):
     ag = leitor.agregados(sessoes.values())
-    assert ag["sessoes"] == 4
+    assert ag["sessoes"] == 5
     assert ag["subagentes"] == 1
-    assert ag["pedidos_humanos"] == 5
-    assert ag["resultados_ferramenta"] == 7
-    assert ag["chamadas_skill"] == 1
+    assert ag["pedidos_humanos"] == 7
+    assert ag["resultados_ferramenta"] == 13
+    assert ag["chamadas_skill"] == 2
     assert ag["chamadas_subagente"] == 1
-    assert ag["tokens_principal"] == 138 + 100 + 11 + 4
+    assert ag["tokens_principal"] == 138 + 100 + 11 + 4 + 32119
     assert ag["tokens_subagentes"] == 60
-    assert ag["tokens_total"] == 313
+    assert ag["tokens_total"] == 32432
     assert ag["respostas_repetidas_entre_sessoes"] == 0
     assert ag["versoes"] == 2
 
@@ -422,5 +423,79 @@ def test_corte_por_data_ignora_registros_posteriores():
 def test_comando_imprime_os_agregados(capsys):
     assert leitor.main(["--config", str(CONFIG)]) == 0
     saida = capsys.readouterr().out
-    assert "sessoes: 4" in saida and "313" in saida
+    assert "sessoes: 5" in saida and "32432" in saida
     assert "tipo-novo" in saida  # o relatório de desconhecidos aparece
+
+
+# --- extensões para os indicadores (goal 007) ----------------------------------
+
+def test_o_que_estava_disponivel_na_sessao(sessoes):
+    d = sessoes[S6].disponivel
+    assert d.skills == {"exemplo-skill", "plugin:outra-skill", "nunca-usada"}
+    assert d.tipos_subagente == {"exemplo-revisor", "exemplo-ocioso", "Explore"}
+    assert d.ferramentas == {
+        "Bash", "Read", "Skill", "Agent", "WebFetch", "mcp__servidor-a__buscar",
+        "mcp__servidor-b__listar", "mcp__servidor-a__criar"}
+    assert d.servidores_mcp == {"servidor-a", "servidor-b"}
+
+
+def test_sessao_sem_listas_tem_disponivel_vazio(s1):
+    assert s1.disponivel.skills == set() and s1.disponivel.ferramentas == set()
+
+
+def test_contexto_inicial_e_a_entrada_da_primeira_resposta(sessoes):
+    assert sessoes[S6].contexto_inicial == 100 + 2000 + 30000
+    assert sessoes[S1].contexto_inicial == 10 + 30 + 40
+
+
+def test_contexto_inicial_nao_existe_em_fork(sessoes):
+    # A primeira resposta própria de um fork já carrega o histórico copiado.
+    assert sessoes[S4].contexto_inicial is None
+
+
+def test_chamadas_de_commit_trazem_hash_e_amend(sessoes):
+    s6 = sessoes[S6]
+    commits = {c.id: c.commit for c in s6.chamadas if c.commit}
+    assert set(commits) == {"toolu_T32", "toolu_T33", "toolu_T34"}
+    assert (commits["toolu_T32"].hash, commits["toolu_T32"].amend) == ("abc1234", False)
+    assert commits["toolu_T33"].hash is None and commits["toolu_T33"].silencioso is True
+    assert (commits["toolu_T34"].hash, commits["toolu_T34"].amend) == ("def5678", True)
+    assert s6.chamada("toolu_T35").commit is None      # só menciona a expressão
+
+
+@pytest.mark.parametrize("comando, esperado", [
+    ("git commit -m 'x'", (1, False, False)),
+    ("git add -A && git commit -m 'x'", (1, False, False)),                 # &&
+    ("git add -A; git commit -m 'x'", (1, False, False)),                   # ;
+    ("git commit --amend --no-edit", (1, True, False)),                     # --amend
+    ("git commit -q -m 'x'", (1, False, True)),                             # -q
+    ("git commit -qm 'x'", (1, False, True)),
+    ("git commit --quiet -m 'x'", (1, False, True)),
+    ("git -C /repo/alfa commit -m 'x'", (1, False, False)),
+    ("GIT_AUTHOR_NAME=x git commit -m 'x'", (1, False, False)),
+    ("cd sub\ngit commit -m 'x'", (1, False, False)),
+    ("git commit -m 'a' && git commit --amend -m 'b'", (2, True, False)),
+    ("git commit -m \"$(cat <<'EOF'\nmensagem\n\nlinha dois\nEOF\n)\"", (1, False, False)),
+    ("git commit -m 'q -q'", (1, False, False)),                            # -q só no texto
+    ('echo "git commit"', None),                                            # só menciona
+    ("echo git commit", None),
+    ("git log --grep=commit", None),
+    ("git commit-tree abc", None),
+    ("grep -r 'git commit' docs", None),
+    ("ls", None),
+    ("", None),
+])
+def test_deteccao_de_git_commit_pelo_comando_analisado(comando, esperado):
+    achado = leitor.analisar_commit(comando)
+    if esperado is None:
+        assert achado is None
+    else:
+        assert (achado.quantidade, achado.amend, achado.silencioso) == esperado
+
+
+def test_comando_que_nao_da_para_analisar_cai_na_leitura_aproximada():
+    # Aspas desbalanceadas impedem a análise; a detecção fica marcada.
+    achado = leitor.analisar_commit("git commit -m 'sem fechar")
+    assert achado is not None and achado.aproximado is True
+    assert leitor.analisar_commit("git commit -m 'x'").aproximado is False
+    assert leitor.analisar_commit("echo 'git commit sem fechar") is None
