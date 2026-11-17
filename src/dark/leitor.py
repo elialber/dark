@@ -16,6 +16,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import shlex
 import sys
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping
@@ -180,6 +182,16 @@ class Resultado:
     negacao: str | None            # toolDenialKind
 
 
+@dataclass(frozen=True)
+class Commit:
+    """Chamada Bash que executa `git commit` (E7, terceira versão)."""
+    hash: str | None          # gitOperation.commit.sha; None se não ficou registrado
+    amend: bool
+    silencioso: bool          # -q ou --quiet: o hash não aparece na saída
+    quantidade: int = 1       # commits no mesmo comando
+    aproximado: bool = False  # o comando não pôde ser analisado; detecção por padrão
+
+
 @dataclass
 class Chamada:
     """Chamada de ferramenta (bloco tool_use), com o resultado quando existe."""
@@ -191,6 +203,7 @@ class Chamada:
     message_id: str
     pedido_id: str | None = None
     resultado: Resultado | None = None
+    commit: Commit | None = None
 
 
 @dataclass
@@ -257,6 +270,24 @@ class Desconhecidos:
         self.campos.update(outro.campos)
 
 
+@dataclass
+class Disponivel:
+    """O que foi anunciado ao modelo na sessão, com os nomes como vieram."""
+    skills: set[str] = field(default_factory=set)
+    tipos_subagente: set[str] = field(default_factory=set)
+    ferramentas: set[str] = field(default_factory=set)
+
+    @property
+    def servidores_mcp(self) -> set[str]:
+        return {s for s in map(servidor_mcp, self.ferramentas) if s}
+
+
+def servidor_mcp(ferramenta: str) -> str | None:
+    """Servidor de uma ferramenta MCP (`mcp__<servidor>__<ferramenta>`)."""
+    partes = ferramenta.split("__")
+    return partes[1] if len(partes) >= 3 and partes[0] == "mcp" else None
+
+
 @dataclass(frozen=True)
 class Falha:
     """Arquivo que não pôde ser lido (E12). Linha 0: falha ao abrir."""
@@ -308,6 +339,8 @@ class Sessao:
     linhas_cortadas: int = 0
     respostas_sem_pedido: int = 0
     falhas: list[Falha] = field(default_factory=list)   # subagentes ilegíveis
+    disponivel: Disponivel = field(default_factory=Disponivel)
+    contexto_inicial: int | None = None   # tokens de entrada da 1ª resposta; None em fork
 
     @property
     def tokens_principal(self) -> Tokens:
@@ -410,6 +443,114 @@ def instante(valor: str | datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
+# -- git commit ---------------------------------------------------------------
+
+_HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
+_GIT_COM_VALOR = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
+_COMMIT_COM_VALOR = {"-m", "-F", "-C", "-c", "-t", "--message", "--file", "--author",
+                     "--date", "--reuse-message", "--reedit-message", "--fixup",
+                     "--squash", "--template", "--cleanup", "--pathspec-from-file"}
+_APROXIMADO = re.compile(
+    r"(?:^|[;&|(\n])\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*git\s+"
+    r"(?:-[Cc]\s+\S+\s+)*commit(?=\s|$)")
+
+
+@dataclass(frozen=True)
+class AnaliseCommit:
+    quantidade: int
+    amend: bool
+    silencioso: bool
+    aproximado: bool = False
+
+
+def _sem_heredocs(comando: str) -> str:
+    """Tira o corpo dos heredocs: é texto, não comando."""
+    saida, fim = [], None
+    for linha in comando.split("\n"):
+        if fim is not None:
+            if linha.strip() == fim:
+                fim = None
+            continue
+        saida.append(linha)
+        achado = _HEREDOC.search(linha)
+        if achado:
+            fim = achado.group(2)
+    return "\n".join(saida)
+
+
+def _comandos_simples(comando: str) -> list[list[str]]:
+    """Divide em comandos simples; levanta ValueError se não der para analisar."""
+    lexico = shlex.shlex(comando, posix=True, punctuation_chars="();<>|&\n")
+    lexico.whitespace = " \t\r"
+    lexico.whitespace_split = True
+    lexico.commenters = ""
+    pontuacao = set("();<>|&\n")
+    simples, atual = [], []
+    for token in lexico:
+        if token and set(token) <= pontuacao:
+            if atual:
+                simples.append(atual)
+            atual = []
+        else:
+            atual.append(token)
+    if atual:
+        simples.append(atual)
+    return simples
+
+
+def _e_git_commit(tokens: list[str]) -> list[str] | None:
+    """Argumentos do `git commit`, se o comando simples for um."""
+    i = 0
+    while i < len(tokens) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", tokens[i]):
+        i += 1                                   # VAR=valor antes do comando
+    if i >= len(tokens) or tokens[i].rsplit("/", 1)[-1] != "git":
+        return None
+    i += 1
+    while i < len(tokens) and tokens[i].startswith("-"):     # opções globais do git
+        i += 2 if tokens[i] in _GIT_COM_VALOR else 1
+    if i < len(tokens) and tokens[i] == "commit":
+        return tokens[i + 1:]
+    return None
+
+
+def analisar_commit(comando: str) -> AnaliseCommit | None:
+    """Diz se um comando de shell executa `git commit`, e com que opções.
+
+    Analisa o comando (encadeamentos, aspas, heredocs); não procura texto.
+    Um comando que só menciona a expressão não conta. Limite conhecido:
+    `git commit` dentro de `bash -c "..."` ou de `eval` não é visto.
+    """
+    limpo = _sem_heredocs(comando)
+    try:
+        simples = _comandos_simples(limpo)
+    except ValueError:
+        n = len(_APROXIMADO.findall(limpo))
+        if not n:
+            return None
+        return AnaliseCommit(n, "--amend" in limpo,
+                             bool(re.search(r"\s(-q|--quiet)(\s|$)", limpo)), aproximado=True)
+    quantidade, amend, silencioso = 0, False, False
+    for tokens in simples:
+        args = _e_git_commit(tokens)
+        if args is None:
+            continue
+        quantidade += 1
+        i = 0
+        while i < len(args):
+            a = args[i]
+            if a == "--":
+                break
+            if a == "--amend":
+                amend = True
+            elif a == "--quiet" or re.fullmatch(r"-[A-Za-z]*q[A-Za-z]*", a):
+                silencioso = True
+            curta = re.fullmatch(r"-[A-Za-z]+", a)
+            if a in _COMMIT_COM_VALOR or (curta and a[-1] in "mFCct"):
+                i += 1                           # o próximo token é o valor da opção
+            i += 1
+    return AnaliseCommit(quantidade, amend, silencioso) if quantidade else None
+
+
 class _Arquivo:
     """Lê um .jsonl (principal ou de subagente) e acumula o que achou."""
 
@@ -438,6 +579,8 @@ class _Arquivo:
         self.hooks: list[EventoHook] = []
         self.primeiro_prompt_id: str | None = None
         self.tipo_agente: str | None = None
+        self.disponivel = Disponivel()
+        self.contexto_inicial: int | None = None
         self._pedido_corrente: str | None = None
         self._ler()
 
@@ -487,6 +630,8 @@ class _Arquivo:
             self.desc.tipos[tipo] += 1
             return
         self._conferir_campos(tipo, reg)
+        if tipo == "api-request-shape":
+            self._forma_da_requisicao(reg)
         if tipo not in _CONVERSA:
             return
         uuid = self._exigir(reg, "uuid", str, f"{tipo}.")
@@ -514,6 +659,31 @@ class _Arquivo:
             pai = reg["logicalParentUuid"]     # atravessa a compactação
         self.pais[uuid] = pai if isinstance(pai, str) else None
         getattr(self, f"_{tipo}")(reg, uuid, ts)
+
+    def _nomes(self, lista: object) -> set[str]:
+        """Nomes de uma lista de textos ou de objetos com `name`."""
+        if not isinstance(lista, list):
+            return set()
+        nomes = set()
+        for item in lista:
+            if isinstance(item, dict):
+                item = item.get("name")
+            if isinstance(item, str) and item:
+                nomes.add(item)
+        return nomes
+
+    def _forma_da_requisicao(self, reg: dict) -> None:
+        """Ferramentas não adiadas, da parte fixa da requisição."""
+        texto = reg.get("timestamp")
+        if self.ate is not None and isinstance(texto, str):
+            try:
+                if instante(texto) > self.ate:
+                    return
+            except ValueError:
+                pass
+        forma = reg.get("shape")
+        if isinstance(forma, dict):
+            self.disponivel.ferramentas |= self._nomes(forma.get("tools"))
 
     # -- user --------------------------------------------------------------
 
@@ -617,6 +787,9 @@ class _Arquivo:
                 copiada=copiada, sintetica=sintetica, skill=reg.get("attributionSkill"))
             self.primeiro_uuid[mid] = uuid
             self.reserva[mid] = self._pedido_corrente
+            if self.contexto_inicial is None and not sintetica and not copiada:
+                self.contexto_inicial = (tokens.entrada + tokens.cache_criacao
+                                         + tokens.cache_leitura)
         elif tokens.saida > resposta.tokens.saida:
             # Em subagentes o usage dos primeiros blocos é parcial; vale o final.
             resposta.tokens = tokens
@@ -655,6 +828,15 @@ class _Arquivo:
                 nome=anexo.get("hookName"),
                 codigo_saida=codigo if isinstance(codigo, int) else None,
                 tool_use_id=anexo.get("toolUseID"), subagente_id=self.subagente_id))
+        elif tipo == "skill_listing":
+            self.disponivel.skills |= self._nomes(anexo.get("names"))
+        elif tipo == "agent_listing_delta":
+            self.disponivel.tipos_subagente |= (self._nomes(anexo.get("addedTypes"))
+                                                | self._nomes(anexo.get("builtInTypes")))
+        elif tipo == "deferred_tools_delta":
+            self.disponivel.ferramentas |= self._nomes(anexo.get("addedNames"))
+        elif tipo == "deferred_tools_record":
+            self.disponivel.ferramentas |= self._nomes(anexo.get("entries"))
         elif tipo == "queued_command":
             origem = anexo.get("origin")
             if anexo.get("humanTurn") or (isinstance(origem, dict)
@@ -696,8 +878,27 @@ class _Arquivo:
             resposta.pedido_id = self.pedido_de(self.primeiro_uuid[mid]) or self.reserva[mid]
         for chamada in self.chamadas.values():
             chamada.pedido_id = self.respostas[chamada.message_id].pedido_id
+            chamada.commit = _commit_da(chamada)
         for intervencao, uuid in self.intervencoes:
             intervencao.pedido_id = self.pedido_de(uuid)
+
+
+def _commit_da(chamada: Chamada) -> Commit | None:
+    comando = chamada.entrada.get("command")
+    if chamada.nome != "Bash" or not isinstance(comando, str):
+        return None
+    analise = analisar_commit(comando)
+    if analise is None:
+        return None
+    sha, tipo = None, None
+    estruturado = chamada.resultado.estruturado if chamada.resultado else None
+    if isinstance(estruturado, dict) and isinstance(estruturado.get("gitOperation"), dict):
+        registrado = estruturado["gitOperation"].get("commit")
+        if isinstance(registrado, dict):
+            sha = registrado.get("sha") if isinstance(registrado.get("sha"), str) else None
+            tipo = registrado.get("kind")
+    return Commit(sha, analise.amend or tipo == "amended", analise.silencioso,
+                  analise.quantidade, analise.aproximado)
 
 
 def _ler_meta(caminho: Path) -> dict:
@@ -732,7 +933,9 @@ def ler_sessao(principal: Path, subagentes: Iterable[Path] | None = None, *,
                pedidos=list(a.pedidos.values()), respostas=list(a.respostas.values()),
                chamadas=list(a.chamadas.values()),
                intervencoes=[i for i, _ in a.intervencoes], hooks=a.hooks,
-               desconhecidos=desc, linhas=a.linhas, linhas_cortadas=a.cortadas)
+               desconhecidos=desc, linhas=a.linhas, linhas_cortadas=a.cortadas,
+               disponivel=a.disponivel,
+               contexto_inicial=None if a.copiada_de else a.contexto_inicial)
     s.respostas_sem_pedido = sum(1 for r in s.respostas if r.pedido_id is None and not r.copiada)
 
     cache: dict[str, Path | None] = {}

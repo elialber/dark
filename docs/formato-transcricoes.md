@@ -772,3 +772,5 @@ Esta seção lista o que mudou depois e onde está a evidência.
 | 2026-11-17 | Novo tipo de `attachment`: `hook_non_blocking_error`. Hook silencioso não deixa registro | [experimentos-001.md](experimentos-001.md), experimentos 1 e 2 |
 | 2026-11-17 | `toolUseResult.gitOperation` também tem a forma `commit` (`sha`, `kind`, `branch`), quando a saída do commit não é suprimida | [experimentos-001.md](experimentos-001.md), experimento 3 |
 | 2026-11-17 | Em modo não interativo, `entrypoint` é `sdk-cli` e não há `session_id` | [experimentos-001.md](experimentos-001.md) |
+| 2026-11-17 | `permissionDecision` com hook tem duas formas: `source: "hook"` (o hook decidiu) e `source` do usuário com `reasonCode: "hook:<evento>"` (leitura: o hook pediu confirmação). 3 de 13 bloqueios vêm sem `reasonCode` | [diário 006](../pair/diario/006.md) |
+| 2026-11-17 | A única resposta sintética do histórico tem `usage` com os contadores em zero | [diário 006](../pair/diario/006.md) |

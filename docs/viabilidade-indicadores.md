@@ -92,6 +92,16 @@ Resposta direta à pergunta do goal: **pelos registros sozinhos, o hash não
 cruzamento de horário contra o repositório local, é recuperável por
 completo em 13 de 17 e em parte nas outras 4.
 
+> **Correção de 2026-11-17 (goal 007).** As contagens acima vieram de uma
+> busca de texto por "git commit" no comando. Com o comando analisado
+> (goal 007), são **95 chamadas reais, não 99**: 4 eram falsos positivos
+> (um `echo`, um outro subcomando do git e dois textos dentro de heredoc,
+> um deles a chamada com erro). Consequências: chamadas com erro, 2 e não
+> 3; **todas as 95 usam `-q`**, e não "93 de 96" (as 3 sem `-q` eram falsos
+> positivos); 3 das 4 chamadas "sem commit na janela" eram esses falsos
+> positivos. Uma das 95 chamadas faz 3 commits no mesmo comando. Sessões
+> com commit (17), amends (7) e chamadas em subagente (6) não mudam.
+
 ### Conferência neste repositório
 
 Duas sessões deste repositório fizeram commit. A janela de horário
@@ -231,6 +241,12 @@ a lista do "disponível" existe em toda sessão. Para hooks e regras, não.
 | Ferramentas (todas) | 168 / 213 | 12 / 24 | 1 |
 | Ferramentas MCP | 126 / 174 | 6 / 15 | 8 |
 | Servidores MCP | 4 / 23 | 1 / 2 | 8 |
+
+> **Correção de 2026-11-17 (goal 007).** Na linha de skills, "sessões com
+> zero uso" é **13**, não 10. O 10 saiu de uma contagem que tratava
+> comandos embutidos como skills; a mediana e o máximo da mesma linha já
+> usavam o critério estrito. As demais células da tabela foram
+> reproduzidas pelo código dos indicadores.
 
 No conjunto das 29 sessões:
 

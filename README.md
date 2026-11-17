@@ -22,3 +22,9 @@ O leitor (`src/dark/leitor.py`) tem um comando mínimo de conferência, que só 
 .venv/bin/python -m dark.leitor            # usa CLAUDE_CONFIG_DIR ou ~/.claude
 .venv/bin/python -m dark.leitor --config tests/fixtures/config
 ```
+
+Os indicadores (`src/dark/indicadores.py`) são funções puras sobre o que o leitor devolve. O comando de conferência imprime só contagens; com `--nomes`, imprime também nomes de skills e ferramentas, e essa saída não deve ser publicada.
+
+```bash
+.venv/bin/python -m dark.indicadores --config tests/fixtures/config
+```
