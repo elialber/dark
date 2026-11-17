@@ -72,9 +72,9 @@ def inventariar(caso: str, tmp_path: Path) -> Inventario:
     return inventario.inventariar(repo, config, gerenciado=gerenciado, ambiente={})
 
 
-@pytest.fixture
-def completo(tmp_path):
-    return inventariar("completo", tmp_path)
+@pytest.fixture(scope="module")
+def completo(tmp_path_factory):
+    return inventariar("completo", tmp_path_factory.mktemp("inv"))
 
 
 def _uma(inv: Inventario, tipo: str, nome: str):
