@@ -403,7 +403,8 @@ def test_refuses_copy_inside_source_repo(repo, fake):
         with pytest.raises(runner.RunnerRefused):
             runner.run_once(repo["case"], "bare", 1, cfg, launcher)
         assert launcher.requests == []
-    assert _git(repo["src"], "status", "--porcelain") == "?? tmp/"
+    assert list((repo["src"] / "tmp").iterdir()) == []
+    assert _git(repo["src"], "status", "--porcelain", "--ignored") == ""
 
 
 def test_refuses_copy_under_a_directory_with_harness(repo, fake, tmp_path):

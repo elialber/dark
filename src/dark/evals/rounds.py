@@ -1,0 +1,151 @@
+"""A round of runs (cases × conditions × N) and its summary.
+
+Each record is appended to the output file as soon as its run ends, so an
+interrupted round, or one stopped at the round's token cap, keeps the
+partial result. The cap is checked before each run: the round may pass it
+by at most one run (whose own cap is the per-run limit).
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Callable, Iterable, Sequence
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from . import workspace
+from .case import Case
+from .runner import Launcher, RunConfig, RunnerRefused, _source_root, run_once
+
+DEFAULT_ROUND_TOKEN_CAP = 100_000_000      # E17
+
+# Printed labels for the internal end reasons.
+REASON_LABELS = {"completed": "concluiu", "time": "tempo", "budget": "orçamento",
+                 "turns": "turnos", "error": "erro"}
+
+
+@dataclass
+class RoundResult:
+    output: Path
+    records: list[dict] = field(default_factory=list)
+    tokens: int = 0
+    stopped_by_budget: bool = False
+
+
+def run_round(cases: Sequence[Case], conditions: Sequence[str], runs: int, config: RunConfig,
+              launcher: Launcher, output: Path, *,
+              round_token_cap: int = DEFAULT_ROUND_TOKEN_CAP,
+              on_record: Callable[[dict], None] | None = None) -> RoundResult:
+    source = _source_root(config.source_repo)
+    output = Path(output)
+    if workspace.is_inside(output, source):
+        raise RunnerRefused(f"arquivo de saída dentro do repositório de origem: {output}")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    res = RoundResult(output=output)
+    # Run index outermost: a round cut short still covers every case and condition.
+    for i in range(1, runs + 1):
+        for case in cases:
+            for condition in conditions:
+                if res.tokens >= round_token_cap:
+                    res.stopped_by_budget = True
+                    return res
+                d = run_once(case, condition, i, config, launcher).to_dict()
+                with output.open("a", encoding="utf-8") as f:
+                    f.write(json.dumps(d, ensure_ascii=False) + "\n")
+                res.records.append(d)
+                res.tokens += d.get("tokens") or 0
+                if on_record:
+                    on_record(d)
+    return res
+
+
+def load_records(path: Path) -> list[dict]:
+    return [json.loads(line) for line in Path(path).read_text(encoding="utf-8").splitlines()
+            if line.strip()]
+
+
+@dataclass
+class Group:
+    n: int = 0
+    passes: int = 0
+    tokens_total: int = 0
+    tokens_min: int | None = None
+    tokens_max: int | None = None
+    duration_min: float | None = None
+    duration_max: float | None = None
+    reasons: dict[str, int] = field(default_factory=dict)
+
+    @property
+    def rate(self) -> float:
+        return self.passes / self.n if self.n else 0.0
+
+    @property
+    def varied(self) -> bool:
+        return 0 < self.passes < self.n
+
+    def add(self, r: dict) -> None:
+        self.n += 1
+        self.passes += bool(r.get("passed"))
+        reason = r.get("end_reason") or "error"
+        self.reasons[reason] = self.reasons.get(reason, 0) + 1
+        t = r.get("tokens")
+        if isinstance(t, int):
+            self.tokens_total += t
+            self.tokens_min = t if self.tokens_min is None else min(self.tokens_min, t)
+            self.tokens_max = t if self.tokens_max is None else max(self.tokens_max, t)
+        d = r.get("duration_s")
+        if isinstance(d, (int, float)):
+            self.duration_min = d if self.duration_min is None else min(self.duration_min, d)
+            self.duration_max = d if self.duration_max is None else max(self.duration_max, d)
+
+
+@dataclass
+class Summary:
+    groups: dict[tuple[str, str], Group] = field(default_factory=dict)
+    conditions: dict[str, Group] = field(default_factory=dict)
+    total_tokens: int = 0
+    runs: int = 0
+
+
+def summarize(records: Iterable[dict]) -> Summary:
+    s = Summary()
+    for r in records:
+        key = (r.get("case"), r.get("condition"))
+        s.groups.setdefault(key, Group()).add(r)
+        s.conditions.setdefault(r.get("condition"), Group()).add(r)
+        s.total_tokens += r.get("tokens") or 0
+        s.runs += 1
+    return s
+
+
+def _fmt_tokens(n: int | None) -> str:
+    return "-" if n is None else f"{n:,}".replace(",", ".")
+
+
+def _fmt_range(lo, hi, fmt) -> str:
+    if lo is None:
+        return "-"
+    return fmt(lo) if lo == hi else f"{fmt(lo)} a {fmt(hi)}"
+
+
+def _reasons(g: Group) -> str:
+    return ", ".join(f"{REASON_LABELS.get(k, k)} {v}" for k, v in sorted(g.reasons.items()))
+
+
+def describe_summary(s: Summary) -> str:
+    lines = [f"{s.runs} execuções; {_fmt_tokens(s.total_tokens)} tokens no total", "",
+             "Por caso e condição (acertos/execuções):"]
+    for (case, cond), g in sorted(s.groups.items(), key=lambda kv: (str(kv[0][0]), str(kv[0][1]))):
+        variation = ("uma execução só, sem medida de variação" if g.n == 1 else
+                     "variou entre execuções" if g.varied else "igual em todas")
+        lines.append(
+            f"- {case} / {cond}: {g.passes}/{g.n} ({g.rate:.0%}); {variation}; "
+            f"tokens {_fmt_range(g.tokens_min, g.tokens_max, _fmt_tokens)} "
+            f"(soma {_fmt_tokens(g.tokens_total)}); "
+            f"duração {_fmt_range(g.duration_min, g.duration_max, lambda x: f'{x:.0f}s')}; "
+            f"término: {_reasons(g)}")
+    lines += ["", "Por condição:"]
+    for cond, g in sorted(s.conditions.items(), key=lambda kv: str(kv[0])):
+        lines.append(f"- {cond}: {g.passes}/{g.n} ({g.rate:.0%}) em {g.n} execuções; "
+                     f"tokens {_fmt_tokens(g.tokens_total)}")
+    return "\n".join(lines)

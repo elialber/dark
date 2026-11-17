@@ -1,0 +1,132 @@
+"""Record of one eval run: only numbers and identifiers.
+
+Each record is a JSON object, one per line (JSON Lines), with the schema
+below (JSON Schema 2020-12). No text of the conversation, of commands or of
+code goes in. `python -m dark.evals.runner_cli esquema` prints the schema.
+"""
+
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass
+
+SCHEMA_ID = "dark.eval_run/1"
+
+END_REASONS = ("completed", "time", "budget", "turns", "error")
+ERROR_STAGES = ("setup", "agent", "acceptance")
+CONDITIONS = ("bare", "project")
+
+_INT = {"type": "integer", "minimum": 0}
+_NULL_INT = {"type": ["integer", "null"], "minimum": 0}
+_NULL_STR = {"type": ["string", "null"]}
+_SHA = {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+
+RECORD_SCHEMA: dict = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": SCHEMA_ID,
+    "title": "Execução de um caso de eval",
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "schema": {"const": SCHEMA_ID},
+        "started_at": {"type": "string", "description": "ISO 8601, UTC"},
+        "case": {"type": "string"},
+        "condition": {"enum": list(CONDITIONS)},
+        "run": {"type": "integer", "minimum": 1},
+        "passed": {"type": "boolean"},
+        "end_reason": {"enum": list(END_REASONS)},
+        "error_stage": {"enum": [*ERROR_STAGES, None]},
+        "acceptance_code": {"type": ["integer", "null"]},
+        "duration_s": {"type": "number", "minimum": 0},
+        "agent_duration_s": {"type": ["number", "null"], "minimum": 0},
+        "turns": _NULL_INT,
+        "tokens": _NULL_INT,
+        "cost_usd_estimate": {"type": ["number", "null"], "minimum": 0},
+        "model": _NULL_STR,
+        "claude_code_version": _NULL_STR,
+        "lines_added": _NULL_INT,
+        "lines_removed": _NULL_INT,
+        "files_changed": _NULL_INT,
+        "tests_modified": {"type": ["boolean", "null"]},
+        "base_commit": _SHA,
+        "harness_commit": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40}$"},
+        "max_turns": _INT,
+        "max_tokens": _INT,
+        "timeout_s": {"type": "number", "minimum": 0},
+    },
+}
+RECORD_SCHEMA["required"] = list(RECORD_SCHEMA["properties"])
+
+
+class RecordError(ValueError):
+    pass
+
+
+@dataclass
+class RunRecord:
+    started_at: str
+    case: str
+    condition: str
+    run: int
+    passed: bool
+    end_reason: str
+    error_stage: str | None
+    acceptance_code: int | None
+    duration_s: float
+    agent_duration_s: float | None
+    turns: int | None
+    tokens: int | None
+    cost_usd_estimate: float | None
+    model: str | None
+    claude_code_version: str | None
+    lines_added: int | None
+    lines_removed: int | None
+    files_changed: int | None
+    tests_modified: bool | None
+    base_commit: str
+    harness_commit: str | None
+    max_turns: int
+    max_tokens: int
+    timeout_s: float
+
+    def to_dict(self) -> dict:
+        return {"schema": SCHEMA_ID, **asdict(self)}
+
+
+_PY_TYPES = {"integer": int, "number": (int, float), "string": str, "boolean": bool,
+             "null": type(None)}
+
+
+def _type_ok(value, types) -> bool:
+    for t in [types] if isinstance(types, str) else types:
+        if t in ("integer", "number") and isinstance(value, bool):
+            continue
+        if isinstance(value, _PY_TYPES[t]):
+            return True
+    return False
+
+
+def validate_record(d: dict) -> None:
+    """Checks the record against RECORD_SCHEMA (the subset of it the schema uses)."""
+    import re
+
+    if not isinstance(d, dict):
+        raise RecordError("registro não é um objeto")
+    props = RECORD_SCHEMA["properties"]
+    extra = set(d) - set(props)
+    if extra:
+        raise RecordError(f"campo não previsto: {', '.join(sorted(extra))}")
+    for key in RECORD_SCHEMA["required"]:
+        if key not in d:
+            raise RecordError(f"campo ausente: {key}")
+        rule, value = props[key], d[key]
+        if "const" in rule and value != rule["const"]:
+            raise RecordError(f"{key}: esperado {rule['const']!r}")
+        if "enum" in rule and value not in rule["enum"]:
+            raise RecordError(f"{key}: valor fora da lista")
+        if "type" in rule and not _type_ok(value, rule["type"]):
+            raise RecordError(f"{key}: tipo errado")
+        if "minimum" in rule and isinstance(value, (int, float)) and not isinstance(value, bool) \
+                and value < rule["minimum"]:
+            raise RecordError(f"{key}: abaixo do mínimo")
+        if "pattern" in rule and isinstance(value, str) and not re.match(rule["pattern"], value):
+            raise RecordError(f"{key}: formato inválido")
