@@ -943,3 +943,62 @@ fica aceita como está. O que o esquema pede e nenhum módulo calcula ainda
 trabalho do comando de coleta.
 
 **Motivo:** decisão do revisor no lote 008.
+
+## Goal 019: dependência de `sh` na validação de casos
+
+**Data:** 2026-11-17 ([goal 019](../pair/goals/019-portability-fixes.md))
+
+O comando de aceite em texto continua rodando com `sh -c`, em todo
+sistema. No Windows, o `sh` é procurado no `PATH` e, se não estiver, ao
+lado do git (`<Git>\cmd\git.exe` → `<Git>\bin\sh.exe` ou
+`<Git>\usr\bin\sh.exe`), que é onde a instalação padrão do Git for Windows
+o deixa. Sem nenhum, o caso sai como "comando não roda", com a mensagem
+do que instalar e a alternativa de escrever o comando em lista, que roda
+sem shell. Em Linux e macOS nada muda.
+
+**Motivo:** o git já é requisito, e o Git for Windows traz o `sh`; trocar
+de shell por sistema (`cmd`, PowerShell) faria o mesmo caso significar
+coisas diferentes em cada máquina.
+
+## Goal 019: saída dos comandos em UTF-8
+
+**Data:** 2026-11-17 ([goal 019](../pair/goals/019-portability-fixes.md))
+
+Todo comando passa a saída padrão e a de erro para UTF-8 quando elas não
+estão em UTF-8 (no Windows, saída redirecionada ou em pipe). Se o usuário
+definiu `PYTHONIOENCODING`, a escolha dele vale. Toda saída de processo
+lida como texto é decodificada como UTF-8 (`encoding="utf-8"`), nunca
+pela localidade; um teste percorre o código e falha com chamada nova sem
+`encoding`.
+
+**Motivo:** o relatório é UTF-8 (o `--saida` já gravava assim) e o git
+escreve UTF-8; a página de código do Windows não tem `→`.
+
+## Goal 019: avisos de retenção, versão e skill embutida
+
+**Data:** 2026-11-17 ([goal 019](../pair/goals/019-portability-fixes.md))
+
+- **Retenção (S7.2):** `cleanupPeriodDays` é lido da política gerenciada
+  (`managed-settings.json`, depois `managed-settings.d/`) e, sem ela, de
+  `remote-settings.json` e do `settings.json` do usuário; vale o primeiro
+  inteiro positivo. Sem valor, 30 dias. O cabeçalho mostra o valor quando
+  definido e avisa quando `--dias` começa antes do limite, contado a
+  partir de agora (é quando o Claude Code apaga), não do `--ate`.
+- **Versão (S2.1):** o intervalo testado é uma constante do leitor,
+  `reader.TESTED_VERSIONS = ("2.1.295", "2.1.326")`, o da amostra do
+  goal 001. Sessão com qualquer versão fora dele entra no aviso.
+- **Skill embutida pela regra (S3.3):** o cabeçalho lista as skills
+  classificadas como embutidas só por não terem arquivo nem prefixo; a
+  classificação não mudou.
+
+**Motivo:** os três itens que o diário 015 aponta como mais perigosos
+degradam sem aviso; o lote 008 pede que passem a avisar.
+
+## Goal 019: caminhos no relatório
+
+**Data:** 2026-11-17 ([goal 019](../pair/goals/019-portability-fixes.md))
+
+O relatório escreve todo caminho com barra normal (`as_posix`), em
+qualquer sistema, como o inventário já fazia com os nomes.
+
+**Motivo:** o mesmo relatório misturava as duas barras no Windows (S1.2).

@@ -41,7 +41,7 @@ Fase 2 concluída; Fase 3 (evals) iniciada pelo goal 012
 | [016 — Motor do scaffold](goals/016-scaffold-engine.md) | Aceito no [lote 008](entrada/lote-008.md) e incorporado à `main` |
 | [017 — Armazenamento de agregados](goals/017-aggregate-store.md) | Aceito no [lote 008](entrada/lote-008.md) e incorporado à `main` |
 | 018 — Laço de par | Em andamento em outra sessão, branch `goal-018` |
-| [019 — Correções de portabilidade](goals/019-portability-fixes.md) | Em andamento |
+| [019 — Correções de portabilidade](goals/019-portability-fixes.md) | Concluído, aguarda revisão ([diário](diario/019.md)) |
 | 020 — Executor de evals | Em andamento em outra sessão, branch `goal-020` |
 
 ## Decisões pendentes
@@ -52,7 +52,11 @@ foram apagadas, locais e remotas, e os worktrees removidos.
 
 ## Próximo passo
 
-Revisão do goal 014. O código está em inglês e a interface em português
-(E18); o mapa dos nomes antigos, usados nos diários até o 013, está em
-[docs/glossario.md](../docs/glossario.md). O diário 014 lista sugestões
-de correção anotadas e não feitas.
+Revisão do goal 019. Os seis jobs do workflow passam na `main` (Linux,
+macOS e Windows, Python 3.12 e 3.13; run `44202929352`); nenhum item que
+impedia o uso em Windows está em aberto em
+[docs/portabilidade.md](../docs/portabilidade.md). O relatório ganhou três
+avisos (retenção, versão fora do intervalo testado, skill embutida pela
+regra). O diário 019 lista o que não foi exercitado com dados reais em
+Windows e macOS, com recomendações, e um defeito do armazenamento achado
+pelo CI e corrigido. Os goals 018 e 020 seguem em outras sessões.
