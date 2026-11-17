@@ -36,13 +36,19 @@ Fase 2 concluída; Fase 3 (evals) iniciada pelo goal 012
 | [011 — Histórico git](goals/011-historico-git.md) | Aceito no [lote 006](entrada/lote-006.md) e incorporado à `main` |
 | [012 — Casos de eval](goals/012-casos-de-eval.md) | Aceito no [lote 006](entrada/lote-006.md) e incorporado à `main` |
 | [013 — Auditoria integrada](goals/013-auditoria-integrada.md) | Aceito pelo revisor no [lote 007](entrada/lote-007.md); critérios 4 e 5 (uso real) dispensados |
-| [014 — Código em inglês](goals/014-codigo-em-ingles.md) | Concluído, aguarda revisão ([diário](diario/014.md)) |
+| [014 — Código em inglês](goals/014-codigo-em-ingles.md) | Aceito pelo revisor no [lote 008](entrada/lote-008.md) |
+| [015 — Portabilidade](goals/015-portabilidade.md) | Aceito no [lote 008](entrada/lote-008.md) e incorporado à `main` |
+| [016 — Motor do scaffold](goals/016-scaffold-engine.md) | Aceito no [lote 008](entrada/lote-008.md) e incorporado à `main` |
+| [017 — Armazenamento de agregados](goals/017-aggregate-store.md) | Aceito no [lote 008](entrada/lote-008.md) e incorporado à `main` |
+| 018 — Laço de par | Em andamento em outra sessão, branch `goal-018` |
+| [019 — Correções de portabilidade](goals/019-portability-fixes.md) | Em andamento |
+| 020 — Executor de evals | Em andamento em outra sessão, branch `goal-020` |
 
 ## Decisões pendentes
 
-Nenhuma. As decisões do goal 013 foram confirmadas no
-[lote 007](entrada/lote-007.md). As branches `goal-009` a `goal-012`
-foram apagadas, locais e remotas.
+Nenhuma. As decisões dos goals 014, 016 e 017 foram confirmadas no
+[lote 008](entrada/lote-008.md). As branches `goal-015` a `goal-017`
+foram apagadas, locais e remotas, e os worktrees removidos.
 
 ## Próximo passo
 

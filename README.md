@@ -65,4 +65,8 @@ Os casos de eval (`src/dark/evals/`, formato em [evals/README.md](evals/README.m
 .venv/bin/python -m dark.evals validar --repo . evals/cases/goal-005-leitor.toml
 ```
 
+Dois pacotes ainda sem uso pelo `dark auditar`: o motor do scaffold (`src/dark/scaffold/`, aplica e reverte módulos de harness com manifesto; conferência com `python -m dark.scaffold inspecionar|aplicar|reverter`) e o armazenamento de agregados (`src/dark/store/`, números por sessão e por semana em SQLite, fora das transcrições).
+
+Portabilidade: os testes rodam em Linux, macOS e Windows (`.github/workflows/tests.yml`); no Windows há defeitos conhecidos, em correção no goal 019 (ver [docs/portabilidade.md](docs/portabilidade.md)).
+
 > **Atenção.** Validar um caso executa o comando de aceite, isto é, código do repositório avaliado, em cada commit indicado. Use só em repositórios seus. O venv de desenvolvimento tem o `dark` instalado em modo editável e pode vazar para a cópia validada em commits sem `pyproject.toml` (ver `evals/README.md`).

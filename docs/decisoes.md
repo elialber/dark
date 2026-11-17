@@ -876,3 +876,70 @@ Código e mensagens de commit em inglês; interface em português. Detalhe
 no [goal 014](../pair/goals/014-codigo-em-ingles.md).
 
 **Motivo:** decisão do usuário em 2026-11-17.
+
+## Decisões dos goals 014, 016 e 017
+
+**Data:** 2026-11-17 ([lote 008](../pair/entrada/lote-008.md))
+
+Confirmadas pelo revisor, como estão:
+
+- [Diário 014](../pair/diario/014.md): o diário não tem uma seção com o
+  título "para confirmar". As decisões tomadas nele são as da seção
+  "Onde a separação entre valor interno e texto exigiu código novo"
+  (tabelas de rótulos na camada de apresentação: `PART_TITLES`,
+  `GROUP_TITLES`, `AGGREGATE_LABELS`, `INTERVENTION_LABELS`,
+  `HOOK_LABELS`, `KIND_LABELS`, `REASON_TEXT`) e a troca dos dois campos
+  inventados dos arquivos sintéticos (`value`, `datum`), descrita em
+  "Observações". São essas as registradas como confirmadas.
+- [Diário 016](../pair/diario/016.md), "Decisões de projeto, para
+  confirmar", itens 1 a 15: texto emendado, inserção no fim, posse e
+  repasse, necessidade compartilhada, dono único de arquivo criado
+  inteiro, edição do usuário, "já aplicado" e "já presente", caminhos,
+  codificação, segredos, versão fixada, contrato de módulo, formato do
+  plano, nome do manifesto e códigos de saída.
+- [Diário 017](../pair/diario/017.md), "Decisões tomadas aqui, para
+  confirmar", itens 1 a 17: registros próprios, nenhum texto livre, nomes
+  como vêm, tempo em segundos UTC, semana pelo início no fuso pedido,
+  sessão de comando local guardada e fora das consultas, idempotência por
+  chave natural, um retrato por dia, identidade por qualquer commit
+  inicial, tabela de nomes de peças, ligação ambígua sem hash, "passou a
+  ficar sem uso", sequência sem uso, journal padrão, conferência na
+  abertura, migração com cópia e local do arquivo.
+
+**Motivo:** o lote não traz motivo explícito; o de cada uma está no
+diário correspondente.
+
+## Portabilidade: estado medido no goal 015
+
+**Data:** 2026-11-17 ([lote 008](../pair/entrada/lote-008.md))
+
+macOS passa em todos os testes. Windows tem 25 falhas: 3 são defeitos do
+código que impedem o uso (codificação da saída no terminal, S6.6;
+encerramento de grupo de processos, S5.2; codificação da saída do git,
+S6.5), 3 são cosméticas (barra invertida em caminho no relatório, S1.2) e
+19 são só dos testes. A correção é o goal 019. Levantamento completo em
+[portabilidade.md](portabilidade.md).
+
+**Motivo:** exigência do usuário de usar a ferramenta em outros
+ambientes; medido pelo workflow do goal 015.
+
+## Limite conhecido do motor do scaffold
+
+**Data:** 2026-11-17 ([lote 008](../pair/entrada/lote-008.md))
+
+Se um módulo cria um arquivo acrescentando uma linha e outro módulo pede
+o mesmo arquivo inteiro, reverter o primeiro apaga o arquivo de que o
+segundo precisa. Tem de ser corrigido antes do primeiro módulo real.
+
+**Motivo:** apontado pelo revisor na leitura do goal 016.
+
+## O que o armazenamento não guarda
+
+**Data:** 2026-11-17 ([lote 008](../pair/entrada/lote-008.md))
+
+A lista "Calculado hoje, não guardado" do [diário 017](../pair/diario/017.md)
+fica aceita como está. O que o esquema pede e nenhum módulo calcula ainda
+("Pedido pelo esquema, sem módulo que calcule", no mesmo diário) é
+trabalho do comando de coleta.
+
+**Motivo:** decisão do revisor no lote 008.
