@@ -34,6 +34,7 @@ class StreamTally:
         self.version: str | None = None
         self.turns: int | None = None
         self.result_subtype: str | None = None
+        self.result_is_error: bool = False
         self.cost_usd: float | None = None
         self.events = 0
 
@@ -77,6 +78,8 @@ class StreamTally:
         elif kind == "result":
             if isinstance(ev.get("subtype"), str):
                 self.result_subtype = ev["subtype"]
+            # An API failure (e.g. 401) comes as subtype "success" with is_error.
+            self.result_is_error = ev.get("is_error") is True
             if isinstance(ev.get("num_turns"), int):
                 self.turns = ev["num_turns"]
             cost = ev.get("total_cost_usd")

@@ -130,6 +130,13 @@ elif mode == "greedy":
         assistant(f"g{i}", usage(400000, 0))
         time.sleep(0.05)
     sys.exit(0)
+elif mode == "autherror":
+    # What claude 2.1.325 prints when the API rejects the credential (401).
+    emit({"type": "assistant", "is_api_error_message": True, "api_error_status": 401,
+          "message": {"id": "e1", "content": [], "usage": usage(0, 0)}})
+    emit({"type": "result", "subtype": "success", "is_error": True, "num_turns": 1,
+          "api_error_status": 401, "total_cost_usd": 0, "result": "SECRET TEXT"})
+    sys.exit(1)
 elif mode == "turns":
     assistant("m1", usage(10, 1))
     result("error_max_turns", turns=2)
@@ -289,6 +296,13 @@ def test_agent_that_ends_with_error(repo, fake):
     assert rec.end_reason == "error"
     assert rec.passed is False
     assert rec.model == "fake-model-1"
+
+
+def test_api_error_reported_as_success_subtype_is_an_error(repo, fake):
+    rec = run(repo, FakeLauncher(fake, "autherror"))
+    assert rec.end_reason == "error"
+    assert rec.error_stage == "agent"
+    assert rec.passed is False
 
 
 def test_token_cap_stops_the_agent(repo, fake):

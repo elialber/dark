@@ -233,6 +233,10 @@ def run_once(case: Case, condition: str, run_index: int, config: RunConfig,
             reason = "time"
         else:
             reason = _SUBTYPE_REASON.get(tally.result_subtype or "", "error")
+            # claude 2.1.325 ends an API failure with subtype "success",
+            # is_error true and exit code 1.
+            if reason == "completed" and (tally.result_is_error or outcome.exit_code != 0):
+                reason = "error"
         if reason == "completed" and tally.tokens > limits.max_tokens:
             reason = "budget"          # E17: over the cap counts as a failure
         rec.update(end_reason=reason, error_stage="agent" if reason == "error" else None,
