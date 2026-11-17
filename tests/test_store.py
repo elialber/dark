@@ -81,8 +81,10 @@ def store(db: Path):
 def test_default_data_dir_per_platform(tmp_path: Path):
     home = tmp_path / "home"
     assert st.default_data_dir(env={}, system="Linux", home=home) == home / ".local/share/dark"
-    assert st.default_data_dir(env={"XDG_DATA_HOME": "/xdg"}, system="Linux",
-                               home=home) == Path("/xdg/dark")
+    # An absolute path of the host: on Windows "/xdg" has no drive and is not absolute.
+    xdg = tmp_path / "xdg"
+    assert st.default_data_dir(env={"XDG_DATA_HOME": str(xdg)}, system="Linux",
+                               home=home) == xdg / "dark"
     assert st.default_data_dir(env={"XDG_DATA_HOME": "relative"}, system="Linux",
                                home=home) == home / ".local/share/dark"
     assert st.default_data_dir(env={}, system="Darwin",
