@@ -9,7 +9,9 @@ resultado dos testes por sistema está no [diário 015](../pair/diario/015.md).
 O ambiente de construção é um só: uma máquina, Linux sob WSL2, Claude Code
 em linha de comando, versões 2.1.295 a 2.1.326, repositórios no disco Linux
 e no disco do Windows montado em `/mnt/c`. Este documento lista o que o
-código supõe sobre esse ambiente. Não corrige nada.
+código supõe sobre esse ambiente. O levantamento não corrigiu nada; as
+correções são do [goal 019](../pair/goals/019-portability-fixes.md), e a
+situação de cada item depois dele está no campo "Situação".
 
 ## Como ler
 
@@ -27,6 +29,9 @@ Cada suposição tem quatro campos:
   *cosmético*.
 - **Proposta:** *configurável*, *detectar em tempo de execução* ou
   *degradar com aviso*. Quando faz sentido, mais de uma.
+- **Situação (goal 019):** *resolvido* (com o commit), *com aviso* (o
+  relatório passa a dizer o limite; com o commit) ou *em aberto* (com o
+  motivo).
 
 Quando a leitura do código não basta para saber o efeito, o item diz
 "não verificado". A lista do que ficou sem verificação está no diário.
@@ -67,6 +72,8 @@ futuros.
   pasta real. A regra fica como último recurso, com aviso quando a pasta
   calculada não existe e há sessões do repositório. Uma função só, em um
   módulo.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ### S1.2 Barra como separador ao analisar texto
 
@@ -92,6 +99,11 @@ futuros.
 - **Proposta:** detectar: comparar o nome sem extensão, com `PureWindowsPath`
   e `PurePosixPath`; usar `Path.is_absolute()` e `drive` na validação do
   caso.
+- **Situação (goal 019):** resolvido no relatório (`50d4ba1`):
+  `report.path_text` escreve todo caminho com barra normal, em qualquer
+  sistema. Em aberto, pelo mesmo motivo dos outros itens que só degradam:
+  o reconhecimento de `git.exe` no leitor, a verificação de caminho
+  absoluto do caso e o `@caminho` com barra invertida no inventário.
 
 ### S1.3 Maiúsculas e minúsculas, letra de unidade
 
@@ -117,6 +129,8 @@ futuros.
 - **Proposta:** detectar: normalizar dos dois lados (`os.path.normcase`,
   barra única, letra de unidade) antes de comparar; no `.claude.json`,
   comparar contra todas as chaves normalizadas.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ### S1.4 Links simbólicos
 
@@ -136,6 +150,8 @@ futuros.
     resolvido). Não verificado em que forma o Claude Code grava o `cwd`.
 - **Proposta:** detectar: resolver os dois lados quando o caminho existe,
   e guardar as duas formas quando não existe.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ### S1.5 Discos montados e tamanho do repositório
 
@@ -160,6 +176,8 @@ futuros.
   o `.gitignore`), com `os.walk` como reserva; configurável: pastas
   ignoradas extras. Degradar com aviso quando a leitura passar de um
   tempo.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ### S1.6 Diretório do usuário e diretório de configuração
 
@@ -178,6 +196,8 @@ futuros.
     enquanto o inventário acha a configuração. Degrada, sem aviso.
 - **Proposta:** uma função só, que expande `~` e variáveis; degradar com
   aviso quando o diretório não existe ou não tem `projects/`.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ### S1.7 Diretório da política gerenciada
 
@@ -197,6 +217,9 @@ futuros.
 - **Proposta:** detectar: `%ProgramFiles%` no Windows; degradar com aviso
   quando o relatório roda em máquina com sinais de gerenciamento e o
   inventário não achou política.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019. A letra `C:`
+  continua fixa em `inventory.DEFAULT_MANAGED`.
 
 ---
 
@@ -229,6 +252,11 @@ futuros.
   lido e o intervalo testado, e quais indicadores ficaram sem dado por
   versão. Detectar: uma tabela de "a partir de que versão existe cada
   campo", alimentada pelas próprias transcrições.
+- **Situação (goal 019):** com aviso (`50d4ba1`): o cabeçalho do relatório
+  diz quantas sessões vêm de versão fora do intervalo testado
+  (`reader.TESTED_VERSIONS`, 2.1.295 a 2.1.326) e quais versões. A
+  renomeação de campo obrigatório já aparecia como falha de leitura. Em
+  aberto: dizer quais indicadores ficaram sem dado por versão.
 
 ### S2.2 Pontos de entrada além da linha de comando
 
@@ -246,6 +274,8 @@ futuros.
 - **Proposta:** detectar: contar sessões por `entrypoint` no cabeçalho do
   relatório; separar `sdk-*` dos indicadores de pessoa; degradar com
   aviso para valor nunca visto.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ### S2.3 Locais de configuração por sistema
 
@@ -263,6 +293,8 @@ futuros.
 - **Proposta:** configurável: aceitar mais de um `--config` e juntar as
   sessões; detectar: no WSL, sugerir o diretório do Windows quando
   existir.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ### S2.4 O comando `/context` (módulo `contexto`)
 
@@ -282,6 +314,9 @@ futuros.
     `python -m dark.contexto`.
 - **Proposta:** detectar: `shutil.which("claude")`, que acha `.cmd` no
   Windows; degradar com aviso já existe para o texto.
+- **Situação (goal 019):** resolvido (`7db668a`): o executável é resolvido
+  com `shutil.which`, que acha `claude.cmd` no Windows; a saída é lida
+  como UTF-8. Não exercitado com o Claude Code real no Windows.
 
 ---
 
@@ -305,6 +340,8 @@ futuros.
 - **Proposta:** degradar com aviso: quando houver anexo ou bloco
   desconhecido, o relatório diz quantos caracteres ficaram em "outros
   anexos" por tipo, e quantos blocos não foram lidos.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ### S3.2 Chaves de anexo que repetem conteúdo
 
@@ -316,6 +353,8 @@ futuros.
   sentidos (diário 013, parte mais frágil 2).
 - **Proposta:** detectar: calibrar contra o `usage` da primeira resposta
   (S3.5) e avisar quando a soma das partes passar do medido.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ### S3.3 "Sem arquivo e sem prefixo é embutida"
 
@@ -333,6 +372,11 @@ futuros.
   embutidos vistos (a lista anunciada numa sessão sem nenhuma skill
   instalada é a referência); fora dessa lista, `sem_arquivo`. Degradar
   com aviso: mostrar quantas foram classificadas pela regra.
+- **Situação (goal 019):** com aviso (`50d4ba1`): o cabeçalho lista as
+  skills classificadas como embutidas só pela regra "sem arquivo e sem
+  prefixo" (as cinco primeiras; com mais, a lista completa vai para o
+  Apêndice) e diz que uma skill do usuário apagada no período cai na mesma
+  regra. A classificação não mudou.
 
 ### S3.4 Prefixos que marcam origem na conta
 
@@ -349,6 +393,8 @@ futuros.
   - Plugin removido depois: as skills dele, com prefixo, viram "da conta".
 - **Proposta:** configurável (lista de prefixos); degradar com aviso
   quando a contagem `sem_arquivo` ou `conta` for alta em relação ao total.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ### S3.5 Fator de 3,6 caracteres por token
 
@@ -364,6 +410,8 @@ futuros.
   caracteres do primeiro pedido pelos tokens de entrada da primeira
   resposta (os dois já são lidos); usar a mediana do período e mostrar o
   valor usado.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ### S3.6 Modos de permissão que suprimem rejeições
 
@@ -382,6 +430,8 @@ futuros.
 - **Proposta:** degradar com aviso para modo nunca visto; detectar: usar
   as permissões do inventário (`DetalhePermissoes`) como contexto da
   taxa.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ### S3.7 Prefixos de comando reconhecidos antes de `git commit`
 
@@ -402,6 +452,8 @@ futuros.
   `git config --get-regexp alias.` do repositório); detectar: commit na
   janela de uma chamada de ferramenta qualquer, não só de `Bash`,
   aparece como "commit sem chamada reconhecida".
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ### S3.8 Outras listas e limites
 
@@ -419,6 +471,8 @@ futuros.
   estão nos itens citados.
 - **Proposta:** configurável, quando houver arquivo de configuração do
   `dark`; até lá, nada.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ---
 
@@ -439,6 +493,8 @@ futuros.
 - **Proposta:** configurável (padrões por repositório); detectar: escolher
   padrões pela linguagem dominante dos arquivos; degradar com aviso
   quando a mineração não achar nenhum arquivo de teste.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ### S4.2 Comando de aceite
 
@@ -452,6 +508,8 @@ futuros.
   Degrada: o caso fica preso ao sistema de quem escreveu.
 - **Proposta:** configurável: permitir comando por sistema no caso; o
   diário 012 já anotou o problema do venv editável.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ### S4.3 Versão do git
 
@@ -466,6 +524,8 @@ futuros.
   detalhe só no apêndice.
 - **Proposta:** detectar: `git --version` uma vez; degradar com aviso no
   cabeçalho do relatório.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ### S4.4 Remoto, branch padrão
 
@@ -480,6 +540,8 @@ futuros.
 - **Proposta:** detectar: `git remote` e `git symbolic-ref
   refs/remotes/<remoto>/HEAD` para cada remoto; configurável
   (`--branch-padrao`, que a função já aceita como parâmetro).
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ### S4.5 Histórico disponível
 
@@ -502,6 +564,8 @@ futuros.
   "sem ligação"; falta dizer "clone raso" e "reflog vazio"). Detectar:
   `git rev-parse --is-shallow-repository`. A ligação feita na coleta
   (E2, E10) resolve o caso do squash.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ### S4.6 Repositório da sessão pelo `cwd`
 
@@ -516,6 +580,8 @@ futuros.
   outro repositório fica no do `cwd` (limite da E3).
 - **Proposta:** detectar: `git rev-parse --git-common-dir`, quando o
   caminho existe, no lugar da leitura do arquivo.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ---
 
@@ -538,6 +604,13 @@ futuros.
 - **Proposta:** detectar: procurar `sh` com `shutil.which`; no Windows,
   procurar o `bash` do Git; sem nenhum, degradar com aviso e pedir comando
   em lista. Configurável: campo `shell` no caso.
+- **Situação (goal 019):** resolvido (`b76532d`). Decisão: o comando em
+  texto continua rodando com `sh -c`. No Windows, o `sh` é procurado no
+  `PATH` e, se não estiver, ao lado do git (`<Git>\cmd\git.exe` →
+  `<Git>\bin\sh.exe`), que é a instalação padrão do Git for Windows. Sem
+  nenhum, o caso sai como "comando não roda" com a mensagem do que
+  instalar, ou de escrever o comando em lista. Em Linux e macOS, nada
+  muda.
 
 ### S5.2 Encerramento do grupo de processos
 
@@ -558,6 +631,12 @@ futuros.
 - **Proposta:** detectar o sistema: no Windows, criar com
   `CREATE_NEW_PROCESS_GROUP` e encerrar a árvore (`taskkill /T /F /PID`
   ou objeto de job); degradar com aviso se a limpeza do temporário falhar.
+- **Situação (goal 019):** resolvido (`b76532d`): no Windows o processo
+  nasce com `CREATE_NEW_PROCESS_GROUP` e, no estouro, a árvore é encerrada
+  com `taskkill /T /F`, e o filho direto com `kill`. Em POSIX continua
+  `killpg`. Se o diretório temporário não puder ser apagado (arquivo ainda
+  em uso), a validação tenta de novo e, persistindo, termina com aviso em
+  vez de exceção.
 
 ### S5.3 Limites de tempo
 
@@ -573,6 +652,8 @@ futuros.
   de outra ferramenta) trava o `dark auditar` sem limite.
 - **Proposta:** configurável (limites); degradar com aviso: limite por
   chamada de git, e o repositório que estourar vira `ERRO` com motivo.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ### S5.4 Executáveis pelo `PATH`
 
@@ -584,6 +665,8 @@ futuros.
   dois. Degrada, com a situação `GIT_AUSENTE` já relatada.
 - **Proposta:** detectar com `shutil.which` e dizer no cabeçalho qual
   executável foi usado.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ---
 
@@ -598,6 +681,8 @@ futuros.
   "um vírgula dois".
 - **Proposta:** configurável, junto com o idioma do relatório, quando
   houver.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019 (cosmético).
 
 ### S6.2 Datas e fuso
 
@@ -610,6 +695,8 @@ futuros.
   pode surpreender.
 - **Proposta:** configurável: mostrar também no fuso local
   (`datetime.astimezone()`), mantendo UTC no cálculo.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019 (cosmético).
 
 ### S6.3 Texto do `/context` em inglês
 
@@ -622,6 +709,9 @@ futuros.
   Degrada com aviso (`SaidaInvalida`). Não verificado se o Claude Code
   tem saída traduzida.
 - **Proposta:** degradar com aviso (já existe).
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019; o aviso já
+  existia.
 
 ### S6.4 Codificação de arquivos
 
@@ -640,6 +730,8 @@ futuros.
   - Quebra de linha CRLF: tratada (`splitlines`, `rstrip("\r\n")`).
 - **Proposta:** detectar: ler com `utf-8-sig`; reconhecer BOM de UTF-16;
   degradar com aviso quando houver caracteres de substituição.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ### S6.5 Codificação da saída dos processos
 
@@ -665,6 +757,11 @@ futuros.
     caracteres de substituição. Cosmético.
 - **Proposta:** detectar: passar `encoding="utf-8", errors="replace"` em
   todas as chamadas ao git (o git escreve UTF-8 por padrão).
+- **Situação (goal 019):** resolvido (`7db668a`): toda leitura de saída de
+  processo em modo texto passa `encoding="utf-8"` (`cli._git`,
+  `evals/git`, `context_usage`); `git_history` já fazia isso. Um teste
+  (`test_process_output_is_never_decoded_with_the_locale`) percorre o
+  código e falha se aparecer chamada nova sem `encoding`.
 
 ### S6.6 Codificação do terminal
 
@@ -684,6 +781,13 @@ futuros.
 - **Proposta:** detectar: `sys.stdout.reconfigure(encoding="utf-8")`
   quando a saída não é terminal, ou trocar os caracteres fora de
   `cp1252`; degradar com aviso.
+- **Situação (goal 019):** resolvido (`7db668a`): todo comando (`dark`,
+  `dark.reader`, `dark.indicators`, `dark.inventory`,
+  `dark.context_usage`, `dark.evals`, `dark.scaffold`) passa a saída
+  padrão e a de erro para UTF-8 quando elas não estão em UTF-8
+  (`dark.console.utf8_output`), salvo se o usuário definiu
+  `PYTHONIOENCODING`. Terminal UTF-8 e console do Windows ficam como
+  estão.
 
 ### S6.7 Resposta da confirmação
 
@@ -692,6 +796,8 @@ futuros.
 - **Em outro ambiente:** cosmético; quem responde "y" recebe "nada foi
   gravado".
 - **Proposta:** configurável com o idioma; aceitar também "y" e "yes".
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019 (cosmético).
 
 ---
 
@@ -714,6 +820,8 @@ futuros.
   juntar por identidade de repositório (E15 já permite caminhos
   diferentes); degradar com aviso: o cabeçalho diz de que máquina e de
   quais diretórios vieram as sessões.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ### S7.2 Limpeza automática das transcrições
 
@@ -728,6 +836,11 @@ futuros.
 - **Proposta:** detectar: ler `cleanupPeriodDays` do `settings.json` do
   inventário e avisar quando `--dias` passar dele ou quando a sessão mais
   antiga estiver perto do limite. A coleta (E2, E10) resolve de vez.
+- **Situação (goal 019):** com aviso (`50d4ba1`): o relatório lê
+  `cleanupPeriodDays` (política gerenciada, depois configurações do
+  usuário), mostra o valor quando definido e avisa quando o recorte pedido
+  (`--dias`) começa antes do limite de retenção. Sem `--dias`, a linha
+  "Alcance" continua dizendo que sessões antigas podem ter sido apagadas.
 
 ### S7.3 O repositório auditado está na mesma máquina
 
@@ -742,6 +855,8 @@ futuros.
 - **Proposta:** configurável: mapa de caminhos (prefixo de lá → prefixo
   daqui); detectar: reconhecer `cwd` de outro sistema com
   `PureWindowsPath`.
+- **Situação (goal 019):** em aberto: degrada e não está entre os três
+  mais perigosos do diário 015; fora do escopo do goal 019.
 
 ---
 
@@ -766,21 +881,28 @@ teste do CI no Windows falhou por esse motivo.
 1. **S6.6** (confirmado): `dark auditar` com a saída redirecionada ou em
    pipe quebra com `UnicodeEncodeError` (o `→` do relatório). Contorno:
    `--saida` ou `PYTHONUTF8=1`. É o caminho principal da ferramenta.
+   **Resolvido** (`7db668a`).
 2. **S5.2** (confirmado): validação de caso com estouro de tempo levanta
    `AttributeError` (`os.killpg`), e o diretório temporário fica preso
-   pelo processo que não morreu.
+   pelo processo que não morreu. **Resolvido** (`b76532d`).
 3. **S5.1**: validação de caso com comando em texto falha sem `sh` no
    `PATH`. No executor do GitHub o `sh` existe (é o do Git); numa
-   instalação padrão do Git, não.
+   instalação padrão do Git, não. **Resolvido** (`b76532d`): acha o `sh`
+   do Git for Windows ou diz o que instalar.
 4. **S6.5** (confirmado, em parte): a mineração entrega o assunto do
    commit com acentos trocados (`cálculo` vira `cÃ¡lculo`). Com certos
    caracteres (`Á`, por exemplo), o mesmo defeito vira
-   `UnicodeDecodeError`; esse caso não foi exercitado.
+   `UnicodeDecodeError`; esse caso não foi exercitado. **Resolvido**
+   (`7db668a`).
 5. **S2.4**: `python -m dark.contexto` não acha o `claude` instalado pelo
-   npm (`claude.cmd`).
+   npm (`claude.cmd`). **Resolvido** (`7db668a`), sem teste com o Claude
+   Code real no Windows.
+
+Depois do goal 019, nenhum item desta lista está em aberto. A situação
+medida no CI está no [diário 019](../pair/diario/019.md).
 
 Das outras 22 falhas do Windows, 3 mostram a barra invertida nos
-caminhos do relatório (S1.2, cosmético). As 19 restantes são dos testes,
+caminhos do relatório (S1.2, cosmético; **resolvido** em `50d4ba1`). As 19 restantes são dos testes,
 não do código: montam JSON com caminho do Windows sem escapar a barra
 invertida, usam caminho do Windows dentro de comando de `sh`, usam
 caminho POSIX como chave de dicionário ou criam arquivo com `*` no nome.
@@ -791,11 +913,14 @@ Detalhe no diário.
 Em ordem de dano provável, do maior para o menor:
 
 1. **S7.2**: a limpeza automática corta o histórico em 30 dias, e o
-   relatório não diz.
+   relatório não diz. **Com aviso** (`50d4ba1`).
 2. **S3.3**: skill de usuário apagada vira embutida e sai de "O que chama
-   atenção".
+   atenção". **Com aviso** (`50d4ba1`).
 3. **S2.1**: versão fora do intervalo: indicadores somem sem aviso
-   específico, ou todas as sessões viram falha.
+   específico, ou todas as sessões viram falha. **Com aviso** (`50d4ba1`).
+
+Os itens 4 a 14 seguem em aberto: o goal 019 pediu só os três primeiros.
+A exceção é a parte de S1.2 que toca o relatório, corrigida.
 4. **S7.1 / S2.3**: histórico repartido entre máquinas, ou entre Windows
    e WSL, tratado como completo.
 5. **S3.7**: commits feitos por prefixo, alias ou script não reconhecidos
