@@ -1,5 +1,5 @@
-"""Evals: formato do caso, validação e mineração de candidatos.
+"""Evals: case format, validation and mining of candidates.
 
-Nada aqui executa o agente. A validação executa o comando de aceite do
-repositório avaliado, numa cópia temporária.
+Nothing here runs the agent. Validation runs the acceptance command of the
+evaluated repository, in a temporary copy.
 """

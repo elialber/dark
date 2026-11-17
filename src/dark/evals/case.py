@@ -1,7 +1,7 @@
-"""Formato de um caso de eval: um arquivo TOML por caso.
+"""Format of an eval case: one TOML file per case.
 
-Leitura com tomllib; escrita com um gerador mínimo, só para os tipos que o
-formato usa (texto, inteiro, lista de textos).
+Read with tomllib; written with a minimal generator, only for the types the
+format uses (string, integer, list of strings).
 """
 
 from __future__ import annotations
@@ -22,10 +22,10 @@ class CaseFormatError(ValueError):
 
 @dataclass
 class Acceptance:
-    # Texto roda pelo shell (sh -c); lista roda direto, sem shell.
+    # A string runs through the shell (sh -c); a list runs directly, without a shell.
     command: str | list[str]
     files: list[str] = field(default_factory=list)
-    # Commit de onde vêm os arquivos; vazio quer dizer commit_solucao.
+    # Commit the files come from; empty means the solution commit.
     files_from: str | None = None
     timeout_s: int = DEFAULT_TIMEOUT
 
@@ -44,7 +44,7 @@ class Case:
     notes: str = ""
 
 
-# --- leitura -----------------------------------------------------------------
+# --- reading -----------------------------------------------------------------
 
 _FIELDS = {"id", "source", "base_commit", "prompt", "acceptance", "solution_commit", "notes"}
 _REQUIRED = ("id", "source", "base_commit", "prompt", "acceptance")
@@ -132,10 +132,10 @@ def load(path: Path) -> Case:
         raise CaseFormatError(f"{path}: {e}") from e
 
 
-# --- escrita -----------------------------------------------------------------
+# --- writing -----------------------------------------------------------------
 
 def _str(s: str) -> str:
-    """Texto TOML básico (entre aspas), com escape completo."""
+    """Basic TOML string (in quotes), fully escaped."""
     output = []
     for ch in s:
         if ch == "\\":
@@ -154,7 +154,7 @@ def _str(s: str) -> str:
 
 
 def _long_str(s: str) -> str:
-    """Texto de várias linhas, legível, quando é seguro; senão o básico."""
+    """Readable multi-line string when it is safe; otherwise the basic one."""
     if "\n" not in s:
         return _str(s)
     if '"""' in s or "\\" in s or s.endswith('"') or any(

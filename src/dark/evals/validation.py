@@ -1,11 +1,11 @@
-"""Validação de um caso: o aceite falha na base e passa na solução.
+"""Validation of a case: the acceptance fails on the base and passes on the solution.
 
-Trabalha num clone em diretório temporário. O repositório de origem não é
-alterado: nem arquivos, nem refs, nem a lista de worktrees. O clone é
-apagado ao terminar, com sucesso ou não.
+Works in a clone in a temporary directory. The source repository is not
+changed: not its files, not its refs, not its worktree list. The clone is
+deleted at the end, on success or not.
 
-ATENÇÃO: a validação executa o comando de aceite, isto é, código do
-repositório avaliado. Use só em repositórios seus.
+WARNING: validation runs the acceptance command, that is, code from the
+evaluated repository. Use it only on your own repositories.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from pathlib import Path
 from .case import Case
 from .git import GitError, Executor, Git, default_executor
 
-# Códigos com que o shell diz que não conseguiu executar o comando.
+# Codes with which the shell says it could not run the command.
 _SHELL_DID_NOT_RUN = {126, 127}
 _SAVED_OUTPUT = 4000
 
@@ -35,7 +35,7 @@ class Reason(str, enum.Enum):
     SETUP_ERROR = "setup_error"
 
 
-# Texto impresso para cada motivo.
+# Printed text for each reason.
 REASON_TEXT = {
     Reason.DOES_NOT_FAIL_ON_BASE: "não falha na base",
     Reason.DOES_NOT_PASS_ON_SOLUTION: "não passa na solução",
@@ -47,13 +47,13 @@ REASON_TEXT = {
 
 @dataclass
 class AcceptanceRun:
-    label: str                 # "base" ou "solucao"
+    label: str                 # "base" or "solucao"
     commit: str
-    code: int | None          # None quando não rodou ou estourou o tempo
-    duration: float              # segundos, só do comando de aceite
+    code: int | None          # None when it did not run or timed out
+    duration: float              # seconds, of the acceptance command only
     timed_out: bool = False
     did_not_run: bool = False
-    output: str = ""             # final da saída combinada, para diagnóstico
+    output: str = ""             # tail of the combined output, for diagnosis
 
 
 @dataclass
@@ -68,10 +68,10 @@ class ValidationResult:
 
 def run_acceptance(command: str | list[str], cwd: Path, timeout_s: int) -> tuple[
         int | None, float, bool, bool, str]:
-    """Roda o comando; devolve (código, duração, tempo_esgotado, não_rodou, saída).
+    """Runs the command; returns (code, duration, timed_out, did_not_run, output).
 
-    O processo roda em grupo próprio, para que o estouro de tempo mate
-    também os filhos.
+    The process runs in its own group, so that a timeout also kills its
+    children.
     """
     if isinstance(command, str):
         argv = ["sh", "-c", command] if command.strip() else []
@@ -132,9 +132,9 @@ def validate(case: Case, repo: Path, *, workdir: Path | None = None,
     with tempfile.TemporaryDirectory(prefix="dark-eval-", dir=workdir) as tmp:
         clone = Path(tmp) / "repo"
         try:
-            # Clone local: lê a origem, não grava nada nela.
-            # Objetos do git são imutáveis: os hardlinks do clone local não
-            # deixam a cópia alterar a origem.
+            # Local clone: reads the source, writes nothing to it.
+            # Git objects are immutable: the local clone's hardlinks do not
+            # let the copy change the source.
             executor(["git", "clone", "--quiet", "--no-checkout",
                       str(source_repo), str(clone)], Path(tmp))
         except GitError as e:
@@ -161,7 +161,7 @@ def validate(case: Case, repo: Path, *, workdir: Path | None = None,
                             "o aceite já passa no base_commit")
             if label == "solucao" and code != 0:
                 return _end(res, start, Reason.DOES_NOT_PASS_ON_SOLUTION,
-                            f"código {code} no commit_solucao")
+                            f"código {code} no solution_commit")
 
     res.valid = True
     res.total_duration = time.monotonic() - start
@@ -177,7 +177,7 @@ def _end(res: ValidationResult, start: float, reason: Reason, detail: str) -> Va
 
 
 def describe(res: ValidationResult) -> str:
-    """Texto curto para a linha de comando."""
+    """Short text for the command line."""
     lines = [f"caso {res.case}: " + ("VÁLIDO" if res.valid else
                                       f"INVÁLIDO ({REASON_TEXT[res.reason]})")]
     if res.detail:

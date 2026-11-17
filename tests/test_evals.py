@@ -1,7 +1,7 @@
-"""Testes do componente de evals: formato do caso, validação e mineração.
+"""Tests for the evals component: case format, validation and mining.
 
-Cada teste cria seus repositórios git no diretório temporário do próprio
-teste. Nenhum teste lê este repositório nem chama o Claude Code.
+Each test creates its git repositories in its own temporary directory.
+No test reads this repository or calls Claude Code.
 """
 
 import os
@@ -44,7 +44,7 @@ def new_repo(path: Path) -> Path:
 
 
 def make_commit(repo: Path, files: dict[str, str | None], subject: str) -> str:
-    """Escreve (ou apaga, com None) os arquivos e faz um commit."""
+    """Writes (or deletes, with None) the files and makes a commit."""
     for name, content in files.items():
         p = repo / name
         if content is None:
@@ -57,7 +57,7 @@ def make_commit(repo: Path, files: dict[str, str | None], subject: str) -> str:
     return _git(repo, "rev-parse", "HEAD")
 
 
-# --- formato do caso ---------------------------------------------------------
+# --- case format -------------------------------------------------------------
 
 def _example_case(**changes_) -> Case:
     base = dict(
@@ -74,20 +74,20 @@ def _example_case(**changes_) -> Case:
     return Case(**base)
 
 
-def test_caso_ida_e_volta_pelo_toml():
+def test_case_round_trip_through_toml():
     c = _example_case()
     text = m_case.to_toml(c)
-    tomllib.loads(text)                       # é TOML válido
+    tomllib.loads(text)                       # is valid TOML
     assert m_case.from_toml(text) == c
 
 
-def test_caso_com_comando_em_lista_e_sem_solucao():
+def test_case_with_list_command_and_no_solution():
     c = _example_case(solution_commit=None,
                       acceptance=Acceptance(command=["python", "-c", "print(1)"], files=[]))
     assert m_case.from_toml(m_case.to_toml(c)) == c
 
 
-def test_arquivos_de_assume_a_solucao_quando_omitido():
+def test_files_from_defaults_to_solution_when_omitted():
     text = m_case.to_toml(_example_case(acceptance=Acceptance(command="true", files=["t.py"])))
     c = m_case.from_toml(text)
     assert c.acceptance.files_from is None
@@ -95,14 +95,14 @@ def test_arquivos_de_assume_a_solucao_quando_omitido():
 
 
 @pytest.mark.parametrize("removed", ["id", "source", "base_commit", "prompt", "acceptance"])
-def test_campo_obrigatorio_ausente(removed):
+def test_missing_required_field(removed):
     data = tomllib.loads(m_case.to_toml(_example_case()))
     del data[removed]
     with pytest.raises(CaseFormatError, match=removed):
         m_case.from_dict(data)
 
 
-def test_origem_invalida_e_campo_desconhecido():
+def test_invalid_source_and_unknown_field():
     data = tomllib.loads(m_case.to_toml(_example_case()))
     with pytest.raises(CaseFormatError, match="source"):
         m_case.from_dict({**data, "source": "inventado"})
@@ -110,35 +110,35 @@ def test_origem_invalida_e_campo_desconhecido():
         m_case.from_dict({**data, "extra": 1})
 
 
-def test_id_com_caractere_proibido():
+def test_id_with_forbidden_character():
     data = tomllib.loads(m_case.to_toml(_example_case()))
     with pytest.raises(CaseFormatError, match="id"):
         m_case.from_dict({**data, "id": "../fora"})
 
 
-def test_exemplo_do_readme_e_um_caso_valido():
+def test_readme_example_is_a_valid_case():
     text = (ROOT / "evals" / "README.md").read_text()
     blocks = re.findall(r"```toml\n(.*?)```", text, re.S)
-    assert blocks, "o README de evals precisa de um exemplo em TOML"
+    assert blocks, "the evals README needs a TOML example"
     for block in blocks:
         m_case.from_toml(block)
 
 
-def test_casos_gravados_no_repositorio_tem_formato_valido():
+def test_cases_stored_in_repository_have_valid_format():
     files = sorted((ROOT / "evals" / "cases").glob("*.toml"))
     assert files
     for fpath in files:
         c = m_case.load(fpath)
         assert c.id == fpath.stem
-        assert c.prompt.strip(), f"{fpath.name}: caso gravado sem pedido"
+        assert c.prompt.strip(), f"{fpath.name}: stored case without a prompt"
 
 
-# --- validação ---------------------------------------------------------------
+# --- validation --------------------------------------------------------------
 
 @pytest.fixture
 def repo_calc(tmp_path):
-    """c1: soma com defeito; c2: corrige e traz o teste; c3: volta o defeito."""
-    repo = new_repo(tmp_path / "origem")
+    """c1: buggy sum; c2: fixes it and adds the test; c3: brings the bug back."""
+    repo = new_repo(tmp_path / "source")
     c1 = make_commit(repo, {"calc.py": "def soma(a, b):\n    return a - b\n",
                          "README.md": "calc\n"}, "Primeira versão")
     c2 = make_commit(repo, {"calc.py": "def soma(a, b):\n    return a + b\n",
@@ -167,9 +167,9 @@ def _snapshot(repo: Path) -> tuple:
             sorted(p.name for p in repo.iterdir()))
 
 
-def test_caso_valido(repo_calc, tmp_path):
+def test_valid_case(repo_calc, tmp_path):
     repo, c1, c2, _ = repo_calc
-    work = tmp_path / "trabalho"
+    work = tmp_path / "work"
     work.mkdir()
     before = _snapshot(repo)
 
@@ -182,44 +182,44 @@ def test_caso_valido(repo_calc, tmp_path):
     assert sol.commit == c2 and sol.code == 0
     assert base.duration >= 0 and sol.duration >= 0
     assert not base.timed_out and not sol.timed_out
-    # origem intacta, cópia apagada
+    # source intact, copy deleted
     assert _snapshot(repo) == before
     assert list(work.iterdir()) == []
 
 
-def test_caso_que_ja_passa_na_base(repo_calc, tmp_path):
+def test_case_that_already_passes_on_base(repo_calc, tmp_path):
     repo, _, c2, _ = repo_calc
     r = validation.validate(_calc_case(c2, c2), repo, workdir=tmp_path)
     assert not r.valid and r.reason == validation.Reason.DOES_NOT_FAIL_ON_BASE
-    assert len(r.runs) == 1           # não roda a solução à toa
+    assert len(r.runs) == 1           # does not run the solution needlessly
 
 
-def test_caso_que_nao_passa_na_solucao(repo_calc, tmp_path):
+def test_case_that_does_not_pass_on_solution(repo_calc, tmp_path):
     repo, c1, c2, c3 = repo_calc
     r = validation.validate(_calc_case(c1, c3, from_commit=c2), repo, workdir=tmp_path)
     assert not r.valid and r.reason == validation.Reason.DOES_NOT_PASS_ON_SOLUTION
     assert r.runs[1].commit == c3 and r.runs[1].code != 0
 
 
-def test_sem_solucao_basta_falhar_na_base(repo_calc, tmp_path):
+def test_without_solution_failing_on_base_is_enough(repo_calc, tmp_path):
     repo, c1, c2, _ = repo_calc
     r = validation.validate(_calc_case(c1, None, from_commit=c2), repo, workdir=tmp_path)
     assert r.valid and len(r.runs) == 1
 
 
 @pytest.mark.parametrize("command", [
-    "comando-que-nao-existe-dark-012",            # pelo shell: código 127
-    ["comando-que-nao-existe-dark-012", "--x"],   # direto: executável ausente
+    "comando-que-nao-existe-dark-012",            # via the shell: exit code 127
+    ["comando-que-nao-existe-dark-012", "--x"],   # direct: missing executable
 ])
-def test_comando_de_aceite_inexistente(repo_calc, tmp_path, command):
+def test_missing_acceptance_command(repo_calc, tmp_path, command):
     repo, c1, c2, _ = repo_calc
     r = validation.validate(_calc_case(c1, c2, command=command), repo, workdir=tmp_path)
     assert not r.valid and r.reason == validation.Reason.COMMAND_DOES_NOT_RUN
 
 
 @pytest.mark.parametrize("command", ["", "   ", []])
-def test_comando_vazio_nao_roda(repo_calc, tmp_path, command):
-    """`sh -c ""` sai com 0; sem esta regra o rascunho sem comando "passaria"."""
+def test_empty_command_does_not_run(repo_calc, tmp_path, command):
+    """`sh -c ""` exits with 0; without this rule a draft with no command would "pass"."""
     repo, c1, c2, _ = repo_calc
     case = _calc_case(c1, c2)
     case.acceptance.command = command
@@ -227,7 +227,7 @@ def test_comando_vazio_nao_roda(repo_calc, tmp_path, command):
     assert r.reason == validation.Reason.COMMAND_DOES_NOT_RUN
 
 
-def test_tempo_esgotado(repo_calc, tmp_path):
+def test_timeout(repo_calc, tmp_path):
     repo, c1, c2, _ = repo_calc
     sleeper = [sys.executable, "-c", "import time; time.sleep(60)"]
     r = validation.validate(_calc_case(c1, c2, command=sleeper, timeout_s=1),
@@ -237,10 +237,10 @@ def test_tempo_esgotado(repo_calc, tmp_path):
     assert r.runs[0].duration < 15
 
 
-def test_tempo_esgotado_mata_processos_filhos(repo_calc, tmp_path):
+def test_timeout_kills_child_processes(repo_calc, tmp_path):
     repo, c1, c2, _ = repo_calc
-    marker = tmp_path / "marca"
-    # o shell lança um filho que escreveria a marca depois do limite
+    marker = tmp_path / "marker"
+    # the shell starts a child that would write the marker after the limit
     command = f"{sys.executable} -c 'import time; time.sleep(3); open(\"{marker}\", \"w\")' ; true"
     r = validation.validate(_calc_case(c1, c2, command=command, timeout_s=1),
                           repo, workdir=tmp_path)
@@ -250,7 +250,7 @@ def test_tempo_esgotado_mata_processos_filhos(repo_calc, tmp_path):
     assert not marker.exists()
 
 
-def test_arquivo_de_teste_ausente_no_commit_indicado(repo_calc, tmp_path):
+def test_test_file_missing_in_given_commit(repo_calc, tmp_path):
     repo, c1, c2, _ = repo_calc
     r = validation.validate(_calc_case(c1, c2, files=["nao_existe.py"]), repo,
                           workdir=tmp_path)
@@ -258,14 +258,14 @@ def test_arquivo_de_teste_ausente_no_commit_indicado(repo_calc, tmp_path):
     assert "nao_existe.py" in r.detail
 
 
-def test_commit_inexistente(repo_calc, tmp_path):
+def test_missing_commit(repo_calc, tmp_path):
     repo, _, c2, _ = repo_calc
     r = validation.validate(_calc_case("f" * 40, c2), repo, workdir=tmp_path)
     assert not r.valid and r.reason == validation.Reason.SETUP_ERROR
 
 
-def test_solucao_roda_em_arvore_limpa(repo_calc, tmp_path):
-    """Sobra da execução na base (arquivo gerado) não chega à solução."""
+def test_solution_runs_in_clean_tree(repo_calc, tmp_path):
+    """Leftovers of the base run (a generated file) do not reach the solution."""
     repo, c1, c2, _ = repo_calc
     command = ("test ! -e sobra.txt && touch sobra.txt && "
                f"{sys.executable} test_calc.py")
@@ -273,9 +273,9 @@ def test_solucao_roda_em_arvore_limpa(repo_calc, tmp_path):
     assert r.valid, r
 
 
-# --- mineração ---------------------------------------------------------------
+# --- mining ------------------------------------------------------------------
 
-def test_e_teste_pelos_padroes():
+def test_is_test_by_patterns():
     p = mining.TEST_PATTERNS
     assert mining.is_test("tests/test_a.py", p)
     assert mining.is_test("tests/fixtures/x.jsonl", p)
@@ -287,7 +287,7 @@ def test_e_teste_pelos_padroes():
     assert not mining.is_test("tests/test_a.py", ["spec/*"])
 
 
-def test_mineracao_teste_e_codigo_no_mesmo_commit(tmp_path):
+def test_mining_test_and_code_in_same_commit(tmp_path):
     repo = new_repo(tmp_path / "r")
     c1 = make_commit(repo, {"calc.py": "x = 1\n"}, "Início")
     c2 = make_commit(repo, {"calc.py": "x = 2\n", "tests/test_calc.py": "assert 1\n"},
@@ -303,7 +303,7 @@ def test_mineracao_teste_e_codigo_no_mesmo_commit(tmp_path):
     assert c.subject == "Muda x e testa"
 
 
-def test_mineracao_testes_e_codigo_em_commits_seguidos(tmp_path):
+def test_mining_tests_and_code_in_consecutive_commits(tmp_path):
     repo = new_repo(tmp_path / "r")
     make_commit(repo, {"calc.py": "x = 1\n"}, "Início")
     t = make_commit(repo, {"tests/test_calc.py": "assert 1\n",
@@ -314,14 +314,14 @@ def test_mineracao_testes_e_codigo_em_commits_seguidos(tmp_path):
 
     cands = mining.mine(repo)
 
-    assert len(cands) == 1               # o commit de testes não vira caso sozinho
+    assert len(cands) == 1               # the tests commit does not become a case on its own
     c = cands[0]
     assert c.kind == "consecutive_commits"
     assert (c.base_commit, c.tests_commit, c.solution_commit) == (t, t, s)
     assert c.test_files == ["tests/dados/a.json", "tests/test_calc.py"]
 
 
-def test_commit_so_de_testes_seguido_de_commit_so_de_testes_nao_forma_par(tmp_path):
+def test_tests_only_commit_followed_by_tests_only_commit_is_not_a_pair(tmp_path):
     repo = new_repo(tmp_path / "r")
     make_commit(repo, {"calc.py": "x = 1\n"}, "Início")
     make_commit(repo, {"tests/test_a.py": "assert 1\n"}, "Teste a")
@@ -329,8 +329,8 @@ def test_commit_so_de_testes_seguido_de_commit_so_de_testes_nao_forma_par(tmp_pa
     assert mining.mine(repo) == []
 
 
-def test_commit_de_codigo_com_um_teste_nao_puxa_o_seguinte(tmp_path):
-    """Par só quando o primeiro commit é sobretudo de testes."""
+def test_code_commit_with_one_test_does_not_pull_the_next(tmp_path):
+    """A pair only when the first commit is mostly tests."""
     repo = new_repo(tmp_path / "r")
     make_commit(repo, {"a.py": "1\n"}, "Início")
     c2 = make_commit(repo, {"a.py": "2\n", "b.py": "2\n", "tests/test_a.py": "assert 1\n"},
@@ -341,7 +341,7 @@ def test_commit_de_codigo_com_um_teste_nao_puxa_o_seguinte(tmp_path):
     assert c3 not in [c.solution_commit for c in cands]
 
 
-def test_repositorio_sem_candidatos(tmp_path):
+def test_repository_without_candidates(tmp_path):
     repo = new_repo(tmp_path / "r")
     make_commit(repo, {"a.py": "1\n"}, "Início")
     make_commit(repo, {"a.py": "2\n", "README.md": "x\n"}, "Código e doc")
@@ -349,13 +349,13 @@ def test_repositorio_sem_candidatos(tmp_path):
     assert mining.mine(repo) == []
 
 
-def test_commit_raiz_nao_vira_candidato(tmp_path):
+def test_root_commit_is_not_a_candidate(tmp_path):
     repo = new_repo(tmp_path / "r")
     make_commit(repo, {"a.py": "1\n", "tests/test_a.py": "assert 1\n"}, "Raiz")
     assert mining.mine(repo) == []
 
 
-def test_teste_apagado_nao_entra_na_lista(tmp_path):
+def test_deleted_test_is_not_listed(tmp_path):
     repo = new_repo(tmp_path / "r")
     make_commit(repo, {"a.py": "1\n", "tests/test_velho.py": "assert 1\n"}, "Início")
     make_commit(repo, {"a.py": "2\n", "tests/test_velho.py": None,
@@ -364,14 +364,14 @@ def test_teste_apagado_nao_entra_na_lista(tmp_path):
     assert c.test_files == ["tests/test_novo.py"]
 
 
-def test_commit_que_so_apaga_teste_nao_vira_candidato(tmp_path):
+def test_commit_that_only_deletes_a_test_is_not_a_candidate(tmp_path):
     repo = new_repo(tmp_path / "r")
     make_commit(repo, {"a.py": "1\n", "tests/test_velho.py": "assert 1\n"}, "Início")
     make_commit(repo, {"a.py": "2\n", "tests/test_velho.py": None}, "Apaga o teste")
     assert mining.mine(repo) == []
 
 
-def test_padroes_configuraveis(tmp_path):
+def test_configurable_patterns(tmp_path):
     repo = new_repo(tmp_path / "r")
     make_commit(repo, {"lib/a.rb": "1\n"}, "Início")
     s = make_commit(repo, {"lib/a.rb": "2\n", "spec/a_spec.rb": "x\n"}, "Muda e testa")
@@ -380,7 +380,7 @@ def test_padroes_configuraveis(tmp_path):
     assert c.solution_commit == s and c.test_files == ["spec/a_spec.rb"]
 
 
-def test_merge_nao_vira_candidato(tmp_path):
+def test_merge_is_not_a_candidate(tmp_path):
     repo = new_repo(tmp_path / "r")
     make_commit(repo, {"a.py": "1\n"}, "Início")
     _git(repo, "checkout", "-q", "-b", "lado")
@@ -392,7 +392,7 @@ def test_merge_nao_vira_candidato(tmp_path):
     assert [c.solution_commit for c in cands] == [side]
 
 
-def test_rascunho_tem_pedido_em_branco_e_assunto_nas_notas(tmp_path):
+def test_draft_has_blank_prompt_and_subject_in_notes(tmp_path):
     repo = new_repo(tmp_path / "r")
     c1 = make_commit(repo, {"a.py": "1\n"}, "Início")
     c2 = make_commit(repo, {"a.py": "2\n", "tests/test_a.py": "assert 1\n"},
@@ -410,7 +410,7 @@ def test_rascunho_tem_pedido_em_branco_e_assunto_nas_notas(tmp_path):
     assert m_case.from_toml(m_case.to_toml(r)) == r
 
 
-def test_git_por_executor_injetavel(tmp_path):
+def test_git_via_injectable_executor(tmp_path):
     repo = new_repo(tmp_path / "r")
     make_commit(repo, {"a.py": "1\n"}, "Início")
     make_commit(repo, {"a.py": "2\n", "tests/test_a.py": "assert 1\n"}, "Muda")
@@ -426,8 +426,8 @@ def test_git_por_executor_injetavel(tmp_path):
     assert calls and all(a[0] == "git" for a in calls)
 
 
-def test_executor_falso_sem_processo():
-    """A mineração depende só do que o executor devolve."""
+def test_fake_executor_without_process():
+    """Mining depends only on what the executor returns."""
     outputs = {
         ("rev-list",): "c2 c1\nc1\n",
         ("diff-tree", "c2"): "M\0a.py\0A\0tests/test_a.py\0",
@@ -448,14 +448,14 @@ def test_executor_falso_sem_processo():
     assert (c.base_commit, c.solution_commit, c.test_files) == ("c1", "c2", ["tests/test_a.py"])
 
 
-# --- linha de comando ----------------------------------------------------------
+# --- command line --------------------------------------------------------------
 
-def test_cli_minerar_grava_rascunhos_sem_sobrescrever(tmp_path, capsys):
+def test_cli_minerar_writes_drafts_without_overwriting(tmp_path, capsys):
     from dark.evals.__main__ import main
     repo = new_repo(tmp_path / "r")
     make_commit(repo, {"a.py": "1\n"}, "Início")
     c2 = make_commit(repo, {"a.py": "2\n", "tests/test_a.py": "assert 1\n"}, "Muda")
-    output = tmp_path / "rascunhos"
+    output = tmp_path / "drafts"
 
     assert main(["minerar", "--repo", str(repo), "--gravar", str(output)]) == 0
     fpath = output / f"minerado-{c2[:7]}.toml"
@@ -467,12 +467,12 @@ def test_cli_minerar_grava_rascunhos_sem_sobrescrever(tmp_path, capsys):
     assert "já existe" in capsys.readouterr().out
 
 
-def test_cli_validar_devolve_codigo_pelo_resultado(repo_calc, tmp_path):
+def test_cli_validar_returns_code_from_result(repo_calc, tmp_path):
     from dark.evals.__main__ import main
     repo, c1, c2, _ = repo_calc
     good_case = tmp_path / "calc.toml"
     good_case.write_text(m_case.to_toml(_calc_case(c1, c2)))
-    bad = tmp_path / "ruim.toml"
+    bad = tmp_path / "bad.toml"
     bad.write_text(m_case.to_toml(_calc_case(c2, c2)))
     assert main(["validar", "--repo", str(repo), str(good_case)]) == 0
     assert main(["validar", "--repo", str(repo), str(bad)]) == 1

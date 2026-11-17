@@ -1,9 +1,9 @@
-"""Linha de comando dos evals.
+"""Command line for the evals.
 
     python -m dark.evals minerar [--repo .] [--padrao P ...] [--comando C] [--gravar DIR]
     python -m dark.evals validar [--repo .] [--dir-trabalho D] CASO.toml ...
 
-`validar` executa o comando de aceite: use só em repositórios seus.
+`validar` runs the acceptance command: use it only on your own repositories.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from . import case as m_case
 from . import mining, validation
 
 
-# Rótulos impressos: valor interno em inglês, texto em português.
+# Printed labels: internal value in English, text in Portuguese.
 KIND_LABELS = {"same_commit": "mesmo_commit", "consecutive_commits": "commits_seguidos"}
 
 

@@ -1,7 +1,7 @@
-"""O pouco de git de que os evals precisam, por um executor injetável.
+"""The little git the evals need, through an injectable executor.
 
-O executor recebe o argv completo (começando por "git") e o diretório, e
-devolve a saída padrão como texto. Erro vira ErroGit.
+The executor receives the full argv (starting with "git") and the directory,
+and returns standard output as text. An error becomes GitError.
 """
 
 from __future__ import annotations
@@ -35,16 +35,16 @@ class Git:
     def __call__(self, *args: str) -> str:
         return self.executor(["git", *args], self.repo)
 
-    # --- leitura do histórico -----------------------------------------------
+    # --- history reading ---------------------------------------------------
 
     def commits_with_parents(self, ref: str = "HEAD") -> list[tuple[str, list[str]]]:
-        """Commits alcançáveis de `ref`, do mais antigo ao mais novo."""
+        """Commits reachable from `ref`, oldest to newest."""
         output = self("rev-list", "--parents", "--topo-order", ref)
         lines = [l.split() for l in output.splitlines() if l.strip()]
         return [(l[0], l[1:]) for l in reversed(lines)]
 
     def changed_files(self, commit: str) -> list[tuple[str, str]]:
-        """(status, caminho) contra o primeiro pai, sem detectar renomeação."""
+        """(status, path) against the first parent, without rename detection."""
         output = self("diff-tree", "-r", "--no-commit-id", "--name-status",
                      "--no-renames", "-z", commit)
         parts = [p for p in output.split("\0") if p]
