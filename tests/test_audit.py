@@ -10,6 +10,7 @@ Three layers, tested separately:
 """
 
 import dataclasses
+import json
 import os
 import shutil
 import subprocess
@@ -165,8 +166,9 @@ def _with_repository(sessions, paths):
 def test_selection_joins_directories_with_same_identity(sessions):
     marked = _with_repository(sessions, {S1: "/a/proj", S6: "/b/proj-copia",
                                           S3: "/c/outro", S4: None})
-    ids = {"/a/proj": "raiz1", "/b/proj-copia": "raiz1", "/c/outro": "raiz2"}
-    sel = audit.select(marked, Path("/a/proj"), lambda p: ids.get(str(p)))
+    # Keys as Path: on Windows str(Path("/a/proj")) is "\\a\\proj".
+    ids = {Path("/a/proj"): "raiz1", Path("/b/proj-copia"): "raiz1", Path("/c/outro"): "raiz2"}
+    sel = audit.select(marked, Path("/a/proj"), lambda p: ids.get(Path(p)))
     assert {s.id for s in sel.sessions} == {S1, S6}
     assert sel.directories == [Path("/a/proj"), Path("/b/proj-copia")]
     assert sel.identity == "raiz1"
@@ -311,15 +313,20 @@ def new_repo(path: Path) -> Path:
     return path
 
 
+def _json_text(path: Path) -> str:
+    return json.dumps(str(path))[1:-1]
+
+
 def config_pointing(tmp_path: Path, alpha: Path, beta: Path | None = None) -> Path:
     """Copy of the synthetic files with cwd replaced by real paths."""
     destination = tmp_path / "config"
     shutil.copytree(CONFIG, destination)
     for file in destination.rglob("*.jsonl"):
         t = file.read_text(encoding="utf-8")
-        t = t.replace('"/repo/alpha', f'"{alpha}')
+        # Escaped as JSON string content: a Windows path has backslashes.
+        t = t.replace('"/repo/alpha', f'"{_json_text(alpha)}')
         if beta is not None:
-            t = t.replace('"/repo/beta', f'"{beta}')
+            t = t.replace('"/repo/beta', f'"{_json_text(beta)}')
         file.write_text(t, encoding="utf-8")
     return destination
 

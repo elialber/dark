@@ -50,6 +50,10 @@ def _copy(source: Path, destination: Path) -> None:
             shutil.copyfile(item, target)
 
 
+def _json_text(path: Path) -> str:
+    return json.dumps(str(path))[1:-1]
+
+
 def mount(case: str, tmp_path: Path) -> tuple[Path, Path, Path]:
     """Copies the case into tmp_path; returns (repo, config, managed)."""
     base = tmp_path / case
@@ -59,8 +63,9 @@ def mount(case: str, tmp_path: Path) -> tuple[Path, Path, Path]:
         d.mkdir(exist_ok=True)
     for fpath in base.rglob("*.json"):
         text = fpath.read_text(encoding="utf-8")
-        fpath.write_text(text.replace("{REPO}", str(repo)).replace("{CONFIG}", str(config)),
-                       encoding="utf-8")
+        # Escaped as JSON string content: a Windows path has backslashes.
+        fpath.write_text(text.replace("{REPO}", _json_text(repo))
+                         .replace("{CONFIG}", _json_text(config)), encoding="utf-8")
     memory = config / "projects" / "MEMORIA"
     if memory.exists():
         memory.rename(config / "projects" / inventory.project_dir(repo))

@@ -6,6 +6,7 @@ No test reads this repository or calls Claude Code.
 
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tomllib
@@ -29,6 +30,11 @@ GIT_TEST_ENV = {
     "GIT_CONFIG_GLOBAL": os.devnull,
     "GIT_CONFIG_NOSYSTEM": "1",
 }
+
+
+def _shell_python() -> str:
+    """The interpreter, written to be pasted into a `sh -c` command."""
+    return shlex.quote(Path(sys.executable).as_posix())
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -241,7 +247,9 @@ def test_timeout_kills_child_processes(repo_calc, tmp_path):
     repo, c1, c2, _ = repo_calc
     marker = tmp_path / "marker"
     # the shell starts a child that would write the marker after the limit
-    command = f"{sys.executable} -c 'import time; time.sleep(3); open(\"{marker}\", \"w\")' ; true"
+    # Quoted, with forward slashes: on Windows the shell would eat the backslashes.
+    command = (f"{_shell_python()} -c 'import time; time.sleep(3); "
+               f"open(\"{marker.as_posix()}\", \"w\")' ; true")
     r = validation.validate(_calc_case(c1, c2, command=command, timeout_s=1),
                           repo, workdir=tmp_path)
     assert r.reason == validation.Reason.TIMED_OUT
@@ -268,7 +276,7 @@ def test_solution_runs_in_clean_tree(repo_calc, tmp_path):
     """Leftovers of the base run (a generated file) do not reach the solution."""
     repo, c1, c2, _ = repo_calc
     command = ("test ! -e sobra.txt && touch sobra.txt && "
-               f"{sys.executable} test_calc.py")
+               f"{_shell_python()} test_calc.py")
     r = validation.validate(_calc_case(c1, c2, command=command), repo, workdir=tmp_path)
     assert r.valid, r
 

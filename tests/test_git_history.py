@@ -9,6 +9,7 @@ result does not depend on the machine. No test touches a real repository.
 from __future__ import annotations
 
 import os
+import sys
 import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -477,10 +478,14 @@ def test_retouch_of_merge_commit_does_not_apply(tmp_path):
     assert git_history.retouches(r, m, days=7).status is Status.NOT_APPLICABLE
 
 
-def test_retouch_with_odd_file_name(tmp_path):
+@pytest.mark.parametrize("name", [
+    "com espaço e #cerquilha# e ação.txt",
+    pytest.param("com espaço e *asterisco*.txt", marks=pytest.mark.skipif(
+        sys.platform == "win32", reason="'*' não é permitido em nome de arquivo no Windows")),
+])
+def test_retouch_with_odd_file_name(tmp_path, name):
     repo = new(tmp_path)
     repo.commit(T0, {"x.txt": "0"})
-    name = "com espaço e *asterisco*.txt"
     h = repo.commit(T0 + timedelta(days=1), {name: "1"})
     d = repo.commit(T0 + timedelta(days=2), {name: "2"})
     r = open_repository(repo)
