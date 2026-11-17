@@ -1,21 +1,21 @@
-"""Histórico git de um repositório, somente leitura.
+"""Git history of a repository, read-only.
 
-Responde às perguntas da auditoria sobre commits: commits numa janela de
-horário (E7), situação de um commit, amend, reversão e retoque. Não lê
-transcrições nem importa `dark.leitor`; recebe hashes e instantes.
+Answers the audit's questions about commits: commits in a time window
+(E7), status of a commit, amend, revert and retouch. Does not read
+transcripts nor import `dark.reader`; it receives hashes and instants.
 
-Regras:
+Rules:
 
-- O git é chamado como processo por um executor injetável
-  (`executor_padrao` por omissão). Todo comando passa por `_git`, que só
-  deixa passar subcomandos de leitura (`SUBCOMANDOS_LEITURA`).
-- Horários entram e saem como `datetime` com fuso. Horário sem fuso é
-  recusado com `ValueError`. Comparação sempre por instante.
-- Repositório inexistente, que não é git, sem commits ou sem git
-  instalado: o resultado traz `situacao`, não levanta exceção. Falha
-  inesperada do git vira `Situacao.ERRO` com `detalhe`.
-- O que o módulo vê depende do estado do repositório no momento da
-  consulta (branches, reflog, worktrees). Ver o diário do goal 011.
+- Git is called as a process through an injectable executor
+  (`default_executor` by default). Every command goes through `_git`, which
+  only lets read subcommands through (`READ_SUBCOMMANDS`).
+- Times come in and go out as timezone-aware `datetime`. A time without a
+  timezone is rejected with `ValueError`. Comparison is always by instant.
+- Repository missing, not git, without commits or git not installed: the
+  result carries `status`, no exception is raised. An unexpected git
+  failure becomes `Status.ERROR` with `detail`.
+- What the module sees depends on the state of the repository at query
+  time (branches, reflog, worktrees). See the diary of goal 011.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 
-# --- execução ----------------------------------------------------------------------
+# --- execution -----------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class Run:
@@ -41,21 +41,21 @@ class Run:
     error: str
 
 
-# executor(args, cwd, entrada=None) -> Execucao. `args` não inclui "git".
+# executor(args, cwd, input=None) -> Run. `args` does not include "git".
 Executor = Callable[..., Run]
 
 READ_SUBCOMMANDS = frozenset({
     "rev-parse", "rev-list", "log", "for-each-ref", "merge-base",
     "diff", "diff-tree", "patch-id", "cherry",
 })
-# subcomandos que têm formas de escrita: só a forma listada passa
+# subcommands that have write forms: only the listed form passes
 SUBCOMMANDS_WITH_SHAPE = {"worktree": frozenset({"list"})}
 
 _REMOVED_ENV = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE")
 
 
 class ForbiddenCommand(Exception):
-    """Pedido de um comando git fora da lista de leitura."""
+    """Request for a git command outside the read list."""
 
 
 class _GitFailure(Exception):
@@ -67,7 +67,7 @@ class _GitMissing(Exception):
 
 
 def default_executor(args: list[str], cwd: Path, input: str | None = None) -> Run:
-    """Roda `git <args>` em `cwd`, sem pager, sem prompt e sem locks opcionais."""
+    """Runs `git <args>` in `cwd`, without pager, prompt or optional locks."""
     env = {k: v for k, v in os.environ.items() if k not in _REMOVED_ENV}
     env.update(LC_ALL="C", GIT_OPTIONAL_LOCKS="0", GIT_TERMINAL_PROMPT="0",
                GIT_PAGER="cat", GIT_NO_REPLACE_OBJECTS="1")
@@ -98,35 +98,35 @@ def _git(executor: Executor, cwd: Path, args: list[str], input: str | None = Non
     return r
 
 
-# --- tipos de resultado ------------------------------------------------------------
+# --- result types --------------------------------------------------------------------
 
 class Status(enum.Enum):
     OK = "ok"
-    MISSING = "missing"            # caminho não existe
-    NOT_GIT = "not_git"                    # existe, mas não está num repositório
+    MISSING = "missing"            # path does not exist
+    NOT_GIT = "not_git"                    # exists, but is not in a repository
     NO_COMMITS = "no_commits"
-    GIT_MISSING = "git_missing"            # executável não encontrado
-    ERROR = "error"                          # o git falhou; ver `detalhe`
+    GIT_MISSING = "git_missing"            # executable not found
+    ERROR = "error"                          # git failed; see `detail`
     COMMIT_MISSING = "commit_missing"
-    AMBIGUOUS_HASH = "ambiguous_hash"          # prefixo curto casa com mais de um objeto
-    NOT_APPLICABLE = "not_applicable"        # ex.: retoque pedido para commit de merge
+    AMBIGUOUS_HASH = "ambiguous_hash"          # short prefix matches more than one object
+    NOT_APPLICABLE = "not_applicable"        # e.g. retouch requested for a merge commit
 
 
 class WindowClass(enum.Enum):
     NONE = "none"
     ONE = "one"
-    AMBIGUOUS = "ambiguous"                    # mais de um: o módulo não escolhe
+    AMBIGUOUS = "ambiguous"                    # more than one: the module does not choose
 
 
 @dataclass(frozen=True)
 class CommitInfo:
     hash: str
     parents: tuple[str, ...]
-    commit_date: datetime                  # com o fuso gravado no commit
+    commit_date: datetime                  # with the timezone recorded in the commit
     author_date: datetime
-    author: str                             # "nome <email>"; não sai do processo
+    author: str                             # "name <email>"; never leaves the process
     message: str
-    reflog_only: bool                        # nenhuma ref nem HEAD alcança; só o reflog
+    reflog_only: bool                        # no ref or HEAD reaches it; only the reflog
 
     @property
     def subject(self) -> str:
@@ -141,11 +141,11 @@ class CommitInfo:
 class Repository:
     status: Status
     path: Path
-    root: Path | None = None               # topo do worktree aberto (None se bare)
+    root: Path | None = None               # top of the opened worktree (None if bare)
     git_dir: Path | None = None
-    common_dir: Path | None = None              # diretório comum a todos os worktrees
-    default_branch: str | None = None       # ref completa, ex. refs/heads/main
-    default_remote: str | None = None       # parametro | origin/HEAD | nome convencional
+    common_dir: Path | None = None              # directory shared by all worktrees
+    default_branch: str | None = None       # full ref, e.g. refs/heads/main
+    default_remote: str | None = None       # parameter | origin/HEAD | conventional name
     detail: str | None = None
     executor: Executor = field(default=default_executor, repr=False)
     _index: dict[str, CommitInfo] | None = field(default=None, repr=False)
@@ -173,15 +173,15 @@ class CommitStatus:
     status: Status
     hash: str | None = None
     exists: bool = False
-    branches: list[str] = field(default_factory=list)       # locais, sem refs/heads/
+    branches: list[str] = field(default_factory=list)       # local, without refs/heads/
     remotes: list[str] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
     other_refs: list[str] = field(default_factory=list)    # stash, notes...
-    detached_head: bool = False           # alcançável pelo HEAD destacado de algum worktree
-    on_default: bool | None = None          # None: branch padrão desconhecida
+    detached_head: bool = False           # reachable from some worktree's detached HEAD
+    on_default: bool | None = None          # None: default branch unknown
     reflog_only: bool = False
-    maybe_squash: bool | None = None    # fora da padrão: squash/rebase não detectável
-    copy_on_default: bool | None = None    # a padrão tem commit com o mesmo patch (git cherry)
+    maybe_squash: bool | None = None    # off the default: squash/rebase not detectable
+    copy_on_default: bool | None = None    # the default has a commit with the same patch (git cherry)
     warning: str | None = None
     detail: str | None = None
 
@@ -189,8 +189,8 @@ class CommitStatus:
 @dataclass
 class Replacer:
     hash: str
-    evidence: list[str]                  # "reflog" e/ou "estrutura"
-    interval: timedelta                   # data de commit do substituto menos a do original
+    evidence: list[str]                  # "reflog" and/or "structure"
+    interval: timedelta                   # replacer's commit date minus the original's
 
 
 @dataclass
@@ -206,7 +206,7 @@ class Amend:
 class RevertFound:
     hash: str
     by_message: bool                    # "This reverts commit <hash>"
-    inverse_content: bool | None          # patch igual ao inverso do original; None: não deu para medir
+    inverse_content: bool | None          # patch equal to the inverse of the original; None: could not measure
     interval: timedelta
     reflog_only: bool
 
@@ -223,7 +223,7 @@ class Reverts:
 @dataclass
 class RetouchFound:
     hash: str
-    files: list[str]                    # arquivos em comum com o commit original
+    files: list[str]                    # files shared with the original commit
     interval: timedelta
     reflog_only: bool
 
@@ -233,19 +233,19 @@ class Retouches:
     status: Status
     hash: str | None = None
     deadline: timedelta | None = None
-    files: list[str] = field(default_factory=list)       # o que o commit alterou, menos os ignorados
-    ignored: list[str] = field(default_factory=list)      # alterados, mas fora da medida
+    files: list[str] = field(default_factory=list)       # what the commit changed, minus the ignored
+    ignored: list[str] = field(default_factory=list)      # changed, but outside the measure
     retouches: list[RetouchFound] = field(default_factory=list)
     retouched_files: list[str] = field(default_factory=list)
     excluded_reverts: int = 0
-    deadline_open: bool | None = None       # None: `agora` não informado
-    off_default: bool | None = None     # se sim, retoques feitos após squash não aparecem
+    deadline_open: bool | None = None       # None: `now` not given
+    off_default: bool | None = None     # if so, retouches made after a squash do not show
     confidence: str = "low"
     detail: str | None = None
 
 
 def _guarded(kind):
-    """Situação do repositório, git ausente e falha do git viram resultado."""
+    """Repository status, missing git and git failure become a result."""
     def deco(fn):
         @functools.wraps(fn)
         def involved(repo: Repository, *args, **kw):
@@ -261,11 +261,11 @@ def _guarded(kind):
     return deco
 
 
-# --- abertura ------------------------------------------------------------------------
+# --- opening -------------------------------------------------------------------------
 
 def open_repository(path: str | Path, *, executor: Executor | None = None,
           default_branch: str | None = None) -> Repository:
-    """Localiza o repositório que contém `caminho` (emenda E3)."""
+    """Locates the repository that contains `path` (E3 amendment)."""
     executor = executor or default_executor
     p = Path(path)
     repo = Repository(Status.OK, p, executor=executor)
@@ -311,7 +311,7 @@ def _ref_exists(repo: Repository, ref: str) -> bool:
 def _default_branch(repo: Repository, requested: str | None) -> tuple[str | None, str | None]:
     if requested:
         ref = requested if requested.startswith("refs/") else f"refs/heads/{requested}"
-        return ref, "parametro"
+        return ref, "parameter"
     r = repo.git(["rev-parse", "--symbolic-full-name", "refs/remotes/origin/HEAD"],
                  accepted=range(256))
     target = r.output.strip() if r.code == 0 else ""
@@ -320,11 +320,11 @@ def _default_branch(repo: Repository, requested: str | None) -> tuple[str | None
         return (local if _ref_exists(repo, local) else target), "origin/HEAD"
     for name in ("main", "master"):
         if _ref_exists(repo, f"refs/heads/{name}"):
-            return f"refs/heads/{name}", "nome convencional"
+            return f"refs/heads/{name}", "conventional name"
     return None, None
 
 
-# --- índice de commits ---------------------------------------------------------------
+# --- commit index --------------------------------------------------------------------
 
 _FMT = "%H%x1f%P%x1f%cI%x1f%aI%x1f%an <%ae>%x1f%B%x1e"
 
@@ -343,7 +343,7 @@ def _parse_log(output: str, reflog_only: set[str]) -> list[CommitInfo]:
 
 
 def _index(repo: Repository) -> dict[str, CommitInfo]:
-    """Todo commit alcançável por ref, HEAD de worktree ou reflog."""
+    """Every commit reachable from a ref, a worktree HEAD or the reflog."""
     if repo._index is None:
         only = set(repo.git(["rev-list", "--reflog", "--not", "--all"]).output.split())
         log = repo.git(["log", "--all", "--reflog", "--format=" + _FMT]).output
@@ -367,7 +367,7 @@ def _resolve(repo: Repository, hash_: str) -> tuple[Status, CommitInfo | None]:
     idx = _index(repo)
     if complete in idx:
         return Status.OK, idx[complete]
-    # existe no banco de objetos, mas nada o alcança (reflog expirado, ainda sem gc)
+    # exists in the object store, but nothing reaches it (expired reflog, not yet gc'd)
     log = repo.git(["log", "-1", "--no-walk", "--format=" + _FMT, complete]).output
     info = _parse_log(log, set())[0]
     return Status.OK, info
@@ -379,15 +379,15 @@ def _instant(t: datetime, name: str) -> datetime:
     return t
 
 
-# --- 1. janela -----------------------------------------------------------------------
+# --- 1. window -----------------------------------------------------------------------
 
 @_guarded(Window)
 def commits_in_window(repo: Repository, start: datetime, end: datetime) -> Window:
-    """Commits cuja data de commit cai em [inicio, fim], por instante.
+    """Commits whose commit date falls in [start, end], by instant.
 
-    O git grava segundos inteiros; por isso o início é truncado ao segundo
-    (o commit feito em 12:00:00.900 aparece como 12:00:00). Inclui commits
-    que só o reflog alcança. Mais de um é AMBIGUO: o módulo não escolhe.
+    Git records whole seconds; so the start is truncated to the second
+    (a commit made at 12:00:00.900 shows as 12:00:00). Includes commits
+    only the reflog reaches. More than one is AMBIGUOUS: the module does not choose.
     """
     _instant(start, "inicio")
     _instant(end, "fim")
@@ -400,7 +400,7 @@ def commits_in_window(repo: Repository, start: datetime, end: datetime) -> Windo
     return Window(Status.OK, start, end, findings, window_class)
 
 
-# --- 2. situação ---------------------------------------------------------------------
+# --- 2. status -----------------------------------------------------------------------
 
 def _worktrees(repo: Repository) -> list[dict[str, str]]:
     output = repo.git(["worktree", "list", "--porcelain", "-z"]).output
@@ -456,8 +456,8 @@ def commit_status(repo: Repository, hash_: str) -> CommitStatus:
 
 
 def _copy_on_default(repo: Repository, c: CommitInfo) -> bool | None:
-    """`git cherry`: há na padrão um commit com o mesmo patch? (rebase, cherry-pick,
-    squash de um commit só). Squash de vários commits não é detectado."""
+    """`git cherry`: does the default have a commit with the same patch? (rebase,
+    cherry-pick, single-commit squash). A squash of several commits is not detected."""
     if len(c.parents) != 1:
         return None
     r = repo.git(["cherry", repo.default_branch, c.hash, c.parents[0]])
@@ -471,8 +471,8 @@ def _copy_on_default(repo: Repository, c: CommitInfo) -> bool | None:
 # --- 3. amend ------------------------------------------------------------------------
 
 def _reflog_amends(repo: Repository) -> list[tuple[str, str]]:
-    """Pares (antigo, novo) das entradas "commit (amend)" dos reflogs legíveis:
-    HEAD de cada worktree existente e cada branch local."""
+    """(old, new) pairs from the "commit (amend)" entries of the readable reflogs:
+    HEAD of each existing worktree and each local branch."""
     if repo._reflog_amends is not None:
         return repo._reflog_amends
     readings: list[tuple[Path, str]] = []
@@ -498,12 +498,12 @@ def _reflog_amends(repo: Repository) -> list[tuple[str, str]]:
 
 @_guarded(Amend)
 def amend(repo: Repository, hash_: str) -> Amend:
-    """O commit foi substituído por amend?
+    """Was the commit replaced by an amend?
 
-    Evidências: "reflog" (entrada "commit (amend)" cujo valor anterior é
-    o commit) e "estrutura" (outro commit com os mesmos pais, mesmo autor
-    e mesma data de autor, feito depois: é o que o amend preserva). A
-    estrutura também casa com `rebase -i` que reescreve sem mudar a base.
+    Evidence: "reflog" (a "commit (amend)" entry whose previous value is
+    the commit) and "structure" (another commit with the same parents, same
+    author and same author date, made later: that is what amend preserves).
+    The structure also matches a `rebase -i` that rewrites without changing the base.
     """
     st, c = _resolve(repo, hash_)
     if c is None:
@@ -532,18 +532,18 @@ class Replacement:
     status: Status
     hash: str | None = None
     replaces: bool = False
-    originals: list[Replacer] = field(default_factory=list)   # intervalo: este menos o original
+    originals: list[Replacer] = field(default_factory=list)   # interval: this one minus the original
     detail: str | None = None
 
 
 @_guarded(Replacement)
 def replaced_commits(repo: Repository, hash_: str) -> Replacement:
-    """O commit substituiu outro por amend? A pergunta inversa de `amend`.
+    """Did the commit replace another by amend? The inverse question of `amend`.
 
-    Mesmas evidências: "reflog" (entrada "commit (amend)" cujo valor novo é
-    este commit) e "estrutura" (outro commit com os mesmos pais, mesmo autor e
-    mesma data de autor, feito antes ou no mesmo segundo). Serve para o
-    histórico arbitrar o amend de uma chamada de commit (E7, acréscimos).
+    Same evidence: "reflog" (a "commit (amend)" entry whose new value is
+    this commit) and "structure" (another commit with the same parents, same
+    author and same author date, made before or in the same second). Lets the
+    history arbitrate the amend of a commit tool call (E7, additions).
     """
     st, c = _resolve(repo, hash_)
     if c is None:
@@ -567,18 +567,18 @@ def replaced_commits(repo: Repository, hash_: str) -> Replacement:
     return Replacement(Status.OK, c.hash, bool(originals), originals)
 
 
-# --- 4. reversão ---------------------------------------------------------------------
+# --- 4. revert -----------------------------------------------------------------------
 
 _REVERTS = re.compile(r"This reverts commit ([0-9a-f]{7,64})")
 
 
 def _file_map(repo: Repository) -> dict[str, frozenset[str]]:
-    """Arquivos alterados por todo commit sem merge do índice, numa só chamada.
+    """Files changed by every non-merge commit of the index, in a single call.
 
-    Antes (goal 011) era um processo git por commit e por candidato; no
-    clone em disco montado, a auditoria de 95 commits levava 9 minutos
-    (goal 013). O resultado é o mesmo: lista em relação ao único pai, ou
-    tudo na raiz, sem detecção de renomeação.
+    Before (goal 011) it was one git process per commit and per candidate; on
+    the clone on a mounted disk, the audit of 95 commits took 9 minutes
+    (goal 013). The result is the same: list relative to the single parent, or
+    everything at the root, without rename detection.
     """
     if repo._files is None:
         output = repo.git(["log", "--all", "--reflog", "--no-merges", "--no-renames",
@@ -594,7 +594,7 @@ def _file_map(repo: Repository) -> dict[str, frozenset[str]]:
 
 
 def _files(repo: Repository, h: str) -> list[str]:
-    """Arquivos alterados pelo commit em relação ao primeiro pai (todos, se raiz)."""
+    """Files changed by the commit relative to the first parent (all, if root)."""
     mapping = _file_map(repo)
     if h in mapping:
         return sorted(mapping[h])
@@ -603,7 +603,7 @@ def _files(repo: Repository, h: str) -> list[str]:
 
 
 def _touching(repo: Repository, files: list[str]) -> set[str]:
-    """Commits sem merge, em qualquer ref ou reflog, que alteram algum dos arquivos."""
+    """Non-merge commits, in any ref or reflog, that change any of the files."""
     if not files:
         return set()
     target = set(files)
@@ -636,7 +636,7 @@ def _reverts(repo: Repository, c: CommitInfo) -> list[RevertFound]:
     computed: list[str | None] = []
 
     def inverse() -> str | None:
-        # Só calcula o patch inverso quando algum candidato precisa (goal 013).
+        # Only computes the inverse patch when some candidate needs it (goal 013).
         if not computed:
             computed.append(_patch_id(repo, repo.git(["diff", *_DIFF, c.hash, c.parents[0]]).output)
                              if c.parents else None)
@@ -663,8 +663,8 @@ def _reverts(repo: Repository, c: CommitInfo) -> list[RevertFound]:
 
 @_guarded(Reverts)
 def reverts(repo: Repository, hash_: str) -> Reverts:
-    """Commits que revertem este: pela mensagem padrão do `git revert` ou por
-    conteúdo (patch igual ao inverso do original, mesmo sem a mensagem)."""
+    """Commits that revert this one: by the standard `git revert` message or by
+    content (patch equal to the inverse of the original, even without the message)."""
     st, c = _resolve(repo, hash_)
     if c is None:
         return Reverts(st)
@@ -672,25 +672,25 @@ def reverts(repo: Repository, hash_: str) -> Reverts:
     return Reverts(Status.OK, c.hash, bool(by), by)
 
 
-# --- 5. retoque ----------------------------------------------------------------------
+# --- 5. retouch ----------------------------------------------------------------------
 
 @_guarded(Retouches)
 def retouches(repo: Repository, hash_: str, days: float, *,
              now: datetime | None = None, ignore: Iterable[str] = ()) -> Retouches:
-    """Outros commits que alteram de novo os arquivos deste, em até `dias`.
+    """Other commits that change this one's files again, within `days`.
 
-    Definição (sinal fraco de retrabalho, confiança baixa): commit D é
-    retoque de C se
+    Definition (weak rework signal, low confidence): commit D is a
+    retouch of C if
 
-    - D descende de C (foi feito sobre ele);
-    - D não é merge e não é reversão de C (reversão é a pergunta 4);
-    - D altera, em relação ao seu pai, ao menos um arquivo que C alterou;
-    - a data de commit de D é no máximo `dias` depois da de C (inclusive).
+    - D descends from C (was made on top of it);
+    - D is not a merge and is not a revert of C (revert is question 4);
+    - D changes, relative to its parent, at least one file that C changed;
+    - D's commit date is at most `days` after C's (inclusive).
 
-    `ignorar`: padrões (fnmatch, sobre o caminho inteiro) de arquivos que
-    ficam fora da medida, como arquivos de registro que todo commit altera.
+    `ignore`: patterns (fnmatch, over the whole path) of files that stay
+    outside the measure, such as record files that every commit changes.
 
-    Não diz se D corrige C: o módulo não sabe a intenção do segundo commit.
+    Does not say whether D fixes C: the module does not know the second commit's intent.
     """
     deadline = timedelta(days=days)
     if now is not None:

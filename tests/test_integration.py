@@ -1,17 +1,17 @@
-"""Testes da auditoria integrada (goal 013).
+"""Tests for the integrated audit (goal 013).
 
-Partes, na ordem do goal:
+Parts, in the goal's order:
 
-1. origem das peças anunciadas (E16), pelo cruzamento com o inventário;
-2. repartição do peso fixo pela própria transcrição (E11, terceira versão);
-3. commits: amend pela análise do comando, ligação por hash e por janela,
-   reversões e amends dos commits ligados (E7, acréscimos);
-4. o que está instalado;
-5. ajustes do relatório e do comando.
+1. provenance of announced harness items (E16), by cross-checking with the inventory;
+2. breakdown of the fixed context from the transcript itself (E11, third version);
+3. commits: amend from analysing the command, commit link by hash and by window,
+   reverts and amends of linked commits (E7, additions);
+4. what is installed;
+5. adjustments to the report and to the command.
 
-Só arquivos sintéticos. Transcrições, repositórios git e arquivos de
-harness são montados em diretório temporário por cada teste; nenhum
-arquivo com nome de harness fica no repositório (regra do CLAUDE.md).
+Synthetic files only. Transcripts, git repositories and harness files are
+assembled in a temporary directory by each test; no file with a harness
+name stays in the repository (CLAUDE.md rule).
 """
 
 import json
@@ -40,11 +40,11 @@ def isolated_git(monkeypatch):
 
 
 # ==========================================================================
-# Montagem de transcrições sintéticas
+# Assembling synthetic transcripts
 # ==========================================================================
 
 class Transcript:
-    """Monta um .jsonl mínimo, registro a registro."""
+    """Builds a minimal .jsonl, record by record."""
 
     def __init__(self, session="sess-0001", cwd="/repo/x"):
         self.session, self.cwd = session, cwd
@@ -85,7 +85,7 @@ class Transcript:
             "usage": {"input_tokens": input, "output_tokens": 1}})
 
     def bash(self, sec, tool_id, command, output="ok", structured=None, cutoff=None):
-        """Chamada Bash e o resultado, `ate` segundos depois (padrão: +2)."""
+        """Bash call and its result, `cutoff` seconds later (default: +2)."""
         self.response(sec, f"msg-{tool_id}", [{"type": "tool_use", "id": tool_id,
                                                "name": "Bash",
                                                "input": {"command": command}}], input=1)
@@ -116,7 +116,7 @@ def json_size(obj) -> int:
 
 
 # ==========================================================================
-# 2a. Leitor: tamanhos das partes do primeiro pedido
+# 2a. Reader: sizes of the parts of the first prompt
 # ==========================================================================
 
 TOOLS = [tool("Bash", 50), tool("Read", 30),
@@ -126,7 +126,7 @@ TOOLS = [tool("Bash", 50), tool("Read", 30),
 def session_with_first_prompt(tmp_path) -> reader.Session:
     t = Transcript()
     t.meta("mode", mode="normal")
-    t.prompt(0, "P1", "abcdefghij")                                    # 10 caracteres
+    t.prompt(0, "P1", "abcdefghij")                                    # 10 characters
     t.attachment(0, "environment", snapshot={"workingDirectory": "/x", "platform": "linux"})
     t.attachment(0, "skill_listing", content="s" * 400, names=["a", "b"], digests=["d1", "d2"],
             skillCount=2, isInitial=True)
@@ -141,10 +141,10 @@ def session_with_first_prompt(tmp_path) -> reader.Session:
     t.attachment(0, "hook_success", hookName="SessionStart:startup", hookEvent="SessionStart",
             toolUseID="h1", content="h" * 15, stdout="h" * 15, stderr="", exitCode=0,
             command="./inicio.sh", durationMs=1)
-    t.attachment(0, "prompt_snapshot", systemPrompt="x" * 5000)    # repete o que já foi contado
+    t.attachment(0, "prompt_snapshot", systemPrompt="x" * 5000)    # repeats what was already counted
     t.form(1, system("p" * 300, "q" * 60), TOOLS)
     t.response(2, "msg-1", [{"type": "text", "text": "ok"}], input=3000)
-    # Depois da primeira resposta: nada disto entra no primeiro pedido.
+    # After the first response: none of this goes into the first prompt.
     t.attachment(3, "skill_listing", content="z" * 999, names=["c"], digests=["d3"])
     t.form(4, system("w" * 999), TOOLS + [tool("Outra", 999)])
     t.prompt(5, "P2", "segundo pedido, mais longo que o primeiro")
@@ -153,23 +153,23 @@ def session_with_first_prompt(tmp_path) -> reader.Session:
                              git_root=lambda _: None)
 
 
-def test_partes_do_primeiro_pedido_por_tamanho(tmp_path):
+def test_first_prompt_parts_by_size(tmp_path):
     p = session_with_first_prompt(tmp_path).initial_parts
     assert p.system == 360
     assert p.tools == json_size(TOOLS[0]) + json_size(TOOLS[1])
     assert p.mcp_tools == json_size(TOOLS[2])
     assert p.prompt == 10
-    assert p.attachments["skill_listing"] == 400            # sem `names` e `digests`
-    assert p.attachments["agent_listing_delta"] == 70       # só as linhas mostradas
+    assert p.attachments["skill_listing"] == 400            # without `names` and `digests`
+    assert p.attachments["agent_listing_delta"] == 70       # only the lines shown
     assert p.attachments["deferred_tools_delta"] == len("WebFetch") + len("mcp__servidor-a__criar")
     assert p.attachments["mcp_instructions_delta"] == 90
     assert p.attachments["instructions"] == len("/x/CLAUDE.md") + 200
-    assert p.attachments["hook_success"] == 15              # o que o modelo recebe: `content`
+    assert p.attachments["hook_success"] == 15              # what the model receives: `content`
     assert p.attachments["environment"] == len("/x") + len("linux")
     assert "prompt_snapshot" not in p.attachments
 
 
-def test_partes_do_primeiro_pedido_guardam_so_tamanhos(tmp_path):
+def test_first_prompt_parts_store_only_sizes(tmp_path):
     p = session_with_first_prompt(tmp_path).initial_parts
     for value in (p.system, p.tools, p.mcp_tools, p.prompt):
         assert isinstance(value, int)
@@ -178,7 +178,7 @@ def test_partes_do_primeiro_pedido_guardam_so_tamanhos(tmp_path):
     assert "abcdefghij" not in text and "sss" not in text and "CLAUDE.md" not in text
 
 
-def test_sem_forma_da_requisicao_o_sistema_e_as_ferramentas_ficam_sem_dado(tmp_path):
+def test_without_request_shape_system_and_tools_have_no_data(tmp_path):
     t = Transcript()
     t.prompt(0, "P1", "oi")
     t.attachment(0, "skill_listing", content="s" * 40, names=["a"])
@@ -189,7 +189,7 @@ def test_sem_forma_da_requisicao_o_sistema_e_as_ferramentas_ficam_sem_dado(tmp_p
     assert p.attachments == {"skill_listing": 40} and p.prompt == 2
 
 
-def test_sem_resposta_de_modelo_nao_ha_partes_iniciais(tmp_path):
+def test_without_model_response_there_are_no_initial_parts(tmp_path):
     t = Transcript()
     t.prompt(0, "P1", "oi")
     t.attachment(0, "skill_listing", content="s" * 40, names=["a"])
@@ -197,16 +197,16 @@ def test_sem_resposta_de_modelo_nao_ha_partes_iniciais(tmp_path):
     assert s.initial_context is None and s.initial_parts is None
 
 
-def test_fork_nao_tem_partes_iniciais():
+def test_fork_has_no_initial_parts():
     sessions = {s.id: s for s in reader.read_all(CONFIG).sessions}
     assert sessions["aaaaaaaa-0000-4000-8000-000000000004"].initial_parts is None
 
 
 # ==========================================================================
-# Leitor: kind registrado, tipos embutidos, sessão de comando local
+# Reader: recorded kind, built-in types, local-command session
 # ==========================================================================
 
-def test_amend_e_decidido_pelo_comando_e_o_kind_fica_a_parte(tmp_path):
+def test_amend_is_decided_by_command_and_kind_is_kept_apart(tmp_path):
     t = Transcript()
     t.prompt(0, "P1", "commit")
     heredoc = "git commit -F - <<'EOF'\nteste de git commit --amend\nEOF"
@@ -221,11 +221,11 @@ def test_amend_e_decidido_pelo_comando_e_o_kind_fica_a_parte(tmp_path):
     assert (c2.amend, c2.recorded_kind) == (True, "committed")
 
 
-def test_tipos_de_subagente_embutidos_vem_do_anuncio():
+def test_builtin_subagent_types_come_from_announcement():
     s6 = {s.id: s for s in reader.read_all(CONFIG).sessions}[
         "aaaaaaaa-0000-4000-8000-000000000006"]
     assert s6.available.builtin_types == {"Explore"}
-    assert "Explore" in s6.available.subagent_types        # continua na lista toda
+    assert "Explore" in s6.available.subagent_types        # still in the full list
 
 
 def _local_command_session(tmp_path, name, with_response=False, synthetic=False):
@@ -241,7 +241,7 @@ def _local_command_session(tmp_path, name, with_response=False, synthetic=False)
                              git_root=lambda _: None)
 
 
-def test_sessao_de_comando_local_e_marcada(tmp_path):
+def test_local_command_session_is_flagged(tmp_path):
     only = _local_command_session(tmp_path, "a")
     assert only.local_commands == 1 and only.local_command_only
     assert _local_command_session(tmp_path, "b", with_response=True,
@@ -252,7 +252,7 @@ def test_sessao_de_comando_local_e_marcada(tmp_path):
 
 
 # ==========================================================================
-# 1. Origem das peças (E16)
+# 1. Provenance of harness items (E16)
 # ==========================================================================
 
 def item(kind, scope, name, *, plugin=None, invocable=True, on_demand=False,
@@ -269,10 +269,10 @@ ITEMS = [
     item("skill", "project", "project-skill"),
     item("skill", "user", "user-skill"),
     item("skill", "plugin", "example-plugin:skill-plugin", plugin="example-plugin"),
-    item("skill", "user", "skill-oculta", invocable=False),    # instalada, não anunciada
+    item("skill", "user", "skill-oculta", invocable=False),    # installed, not announced
     item("skill", "project", "web:nested-skill", on_demand=True),
     item("subagent", "project", "project-agent"),
-    item("subagent", "user", "agente-parado"),                # instalado, não anunciado
+    item("subagent", "user", "agente-parado"),                # installed, not announced
     item("mcp", "project", "servidor-a"),
     item("mcp", "plugin", "servidor-p", plugin="example-plugin"),
 ]
@@ -295,7 +295,7 @@ def provenances():
     return provenance.classify(ANNOUNCED, ITEMS, PLUGINS)
 
 
-def test_origem_das_skills(provenances):
+def test_skill_provenance(provenances):
     o = provenances.skills
     assert (o["project-skill"].provenance, o["project-skill"].path) == (
         "project", Path("/inv/project/skill/project-skill.md"))
@@ -303,18 +303,18 @@ def test_origem_das_skills(provenances):
     assert o["example-plugin:skill-plugin"].provenance == "plugin"
     assert o["conta-exemplo:skill-da-conta"] == provenance.Provenance("account")
     assert o["skill-embutida"] == provenance.Provenance("builtin")
-    # Prefixo de um plugin instalado, mas sem arquivo ativo: não é da conta.
+    # Prefix of an installed plugin, but no active file: not from the account.
     assert o["disabled-plugin:skill-sumida"] == provenance.Provenance("no_file")
 
 
-def test_origem_dos_tipos_de_subagente(provenances):
+def test_subagent_type_provenance(provenances):
     o = provenances.subagent_types
     assert o["project-agent"].provenance == "project" and o["project-agent"].path
-    assert o["Explore"] == provenance.Provenance("builtin")       # o próprio anúncio diz
+    assert o["Explore"] == provenance.Provenance("builtin")       # the announcement itself says so
     assert o["agente-sumido"] == provenance.Provenance("no_file")
 
 
-def test_origem_dos_servidores_e_das_ferramentas(provenances):
+def test_server_and_tool_provenance(provenances):
     s = provenances.mcp_servers
     assert s["servidor-a"].provenance == "project"
     assert s["claude_ai_Exemplo"] == provenance.Provenance("account")
@@ -326,7 +326,7 @@ def test_origem_dos_servidores_e_das_ferramentas(provenances):
     assert f["mcp__claude_ai_Exemplo__ler"].provenance == "account"
 
 
-def test_so_o_que_tem_arquivo_o_usuario_pode_mudar(provenances):
+def test_user_can_change_only_what_has_a_file(provenances):
     mutable_items = {n for n, o in provenances.skills.items() if o.mutable}
     assert mutable_items == {"project-skill", "user-skill", "example-plugin:skill-plugin"}
     assert not provenance.Provenance("no_file").mutable
@@ -334,7 +334,7 @@ def test_so_o_que_tem_arquivo_o_usuario_pode_mudar(provenances):
     assert {o for o in provenance.PROVENANCES if provenance.Provenance(o).platform} == {"account", "builtin"}
 
 
-def test_soma_por_origem_fecha_com_o_total_anunciado(provenances):
+def test_sum_by_provenance_matches_announced_total(provenances):
     for category, announced in [("skills", ANNOUNCED.skills),
                                   ("subagent_types", ANNOUNCED.subagent_types),
                                   ("tools", ANNOUNCED.tools),
@@ -344,13 +344,13 @@ def test_soma_por_origem_fecha_com_o_total_anunciado(provenances):
                                           "account": 1, "builtin": 1, "no_file": 1}
 
 
-def test_instaladas_e_nao_anunciadas(provenances):
+def test_installed_and_not_announced(provenances):
     no_ = provenances.not_announced
-    assert [p.name for p in no_["skills"]] == ["skill-oculta"]     # sob demanda fica fora
+    assert [p.name for p in no_["skills"]] == ["skill-oculta"]     # on-demand is left out
     assert [p.name for p in no_["subagent_types"]] == ["agente-parado"]
 
 
-def test_anunciados_e_a_uniao_das_sessoes():
+def test_announced_is_union_of_sessions():
     sessions = reader.read_all(CONFIG).sessions
     a = provenance.announced_from(sessions)
     assert "plugin:outra-skill" in a.skills and a.builtin_types == {"Explore"}
@@ -358,7 +358,7 @@ def test_anunciados_e_a_uniao_das_sessoes():
 
 
 # ==========================================================================
-# 2b. Repartição do peso fixo (E11, terceira versão)
+# 2b. Fixed-context breakdown (E11, third version)
 # ==========================================================================
 
 def _session_with_parts(sid, measured, parts):
@@ -366,7 +366,7 @@ def _session_with_parts(sid, measured, parts):
                          initial_context=measured, initial_parts=parts)
 
 
-def test_reparticao_em_grupos_com_fator_declarado():
+def test_breakdown_into_groups_with_declared_factor():
     parts = reader.InitialParts(
         system=360, tools=720, mcp_tools=36, prompt=36,
         attachments={"skill_listing": 180, "agent_listing_delta": 36,
@@ -374,20 +374,20 @@ def test_reparticao_em_grupos_com_fator_declarado():
                 "instructions": 72, "hook_success": 36, "environment": 36})
     r = indicators.breakdown([_session_with_parts("s1", 1000, parts)])
     assert r.factor == indicators.CHARS_PER_TOKEN == 3.6
-    assert r.total_sum("prompt de sistema") == pytest.approx(100)
-    assert r.total_sum("ferramentas embutidas") == pytest.approx(200)
-    assert r.total_sum("outros anexos") == pytest.approx(10)
-    assert r.group_sum("plataforma") == pytest.approx(310)
-    assert r.total_sum("lista de skills") == pytest.approx(50)
+    assert r.total_sum("system_prompt") == pytest.approx(100)
+    assert r.total_sum("builtin_tools") == pytest.approx(200)
+    assert r.total_sum("other_attachments") == pytest.approx(10)
+    assert r.group_sum("platform") == pytest.approx(310)
+    assert r.total_sum("skill_listing") == pytest.approx(50)
     assert r.group_sum("harness") == pytest.approx(10 + 50 + 10 + 20 + 10 + 20 + 10)
-    assert r.group_sum("pedido") == pytest.approx(10)
+    assert r.group_sum("prompt") == pytest.approx(10)
     assert r.measured_total == 1000
     assert r.unexplained == pytest.approx(1000 - 310 - 130 - 10)
-    assert r.group_share("plataforma") == pytest.approx(0.31)
+    assert r.group_share("platform") == pytest.approx(0.31)
     assert r.unexplained_share == pytest.approx(0.55)
 
 
-def test_reparticao_so_com_os_dois_dados():
+def test_breakdown_only_with_both_data():
     parts = reader.InitialParts(system=36, tools=0, mcp_tools=0,
                                    prompt=0, attachments={})
     without_shape = reader.InitialParts(system=None, tools=None, mcp_tools=None,
@@ -398,10 +398,10 @@ def test_reparticao_so_com_os_dois_dados():
         _session_with_parts("fork", None, None)])
     assert list(r.measured) == ["com"]
     assert r.without_shape == ["sem-forma"]
-    assert r.group_summary("plataforma").median == pytest.approx(10)
+    assert r.group_summary("platform").median == pytest.approx(10)
 
 
-def test_nao_explicado_negativo_fica_como_esta():
+def test_negative_unexplained_is_kept_as_is():
     parts = reader.InitialParts(system=3600, tools=0, mcp_tools=0,
                                    prompt=0, attachments={})
     r = indicators.breakdown([_session_with_parts("s", 500, parts)])
@@ -409,10 +409,10 @@ def test_nao_explicado_negativo_fica_como_esta():
 
 
 # ==========================================================================
-# 4. O que está instalado
+# 4. What is installed
 # ==========================================================================
 
-def test_resumo_do_instalado():
+def test_installed_summary():
     inv = Inventory(items=[
         *ITEMS,
         item("instruction", "project", "CLAUDE.md", item_count=6, with_reason=3, chars=500),
@@ -426,15 +426,15 @@ def test_resumo_do_instalado():
     assert (i.active_plugins, i.plugins) == (1, 2)
     assert i.failures == 1 and i.on_demand == 2
     assert (i.instructions.files, i.instructions.chars) == (2, 600)
-    assert (i.instructions.item_count, i.instructions.with_reason) == (8, 3)   # sem as sob demanda
+    assert (i.instructions.item_count, i.instructions.with_reason) == (8, 3)   # without the on-demand ones
     assert i.instructions.estimated_reason is True
 
 
 # ==========================================================================
-# Auditoria: exclusão, regras e linha de plataforma
+# Audit: exclusion, rules and platform line
 # ==========================================================================
 
-def test_sessao_de_comando_local_nao_entra_nos_indicadores(tmp_path):
+def test_local_command_session_is_excluded_from_indicators(tmp_path):
     regular = reader.read_all(CONFIG).sessions
     only = _local_command_session(tmp_path, "local")
     a = audit.audit([*regular, only])
@@ -446,7 +446,7 @@ def test_sessao_de_comando_local_nao_entra_nos_indicadores(tmp_path):
 
 
 def _inventory_s6():
-    """Inventário que dá arquivo a parte do que a sessão S6 anuncia."""
+    """Inventory that gives a file to part of what session S6 announces."""
     return Inventory(items=[
         item("skill", "project", "exemplo-skill"),
         item("skill", "project", "nunca-usada"),
@@ -462,48 +462,48 @@ def s6():
             if s.id == "aaaaaaaa-0000-4000-8000-000000000006"]
 
 
-def test_peso_morto_em_o_que_chama_atencao_conta_so_o_que_tem_arquivo(s6):
+def test_dead_weight_in_highlights_counts_only_what_has_a_file(s6):
     a = audit.audit(s6, inventory=_inventory_s6())
     findings = {x.rule: x.values for x in a.findings}
-    # skills nunca usadas: nunca-usada (projeto); as outras têm uso
+    # never-used skills: nunca-usada (project); the others are used
     assert findings["dead_weight.skills"]["never_used"] == 1
     assert findings["dead_weight.skills"]["available"] == 3
-    # tipos: exemplo-ocioso (projeto) nunca usado; Explore é embutido
+    # types: exemplo-ocioso (project) never used; Explore is built-in
     assert findings["dead_weight.subagent_types"]["never_used"] == 1
-    # servidores: servidor-b (projeto) nunca usado
+    # servers: servidor-b (project) never used
     assert findings["dead_weight.mcp_servers"]["never_used"] == 1
-    # ferramentas com arquivo: só as do servidor-b
+    # tools with a file: only those of servidor-b
     assert findings["dead_weight.tools"]["never_used"] == 1
 
 
-def test_plataforma_fica_em_linha_a_parte(s6):
+def test_platform_goes_on_separate_line(s6):
     a = audit.audit(s6, inventory=_inventory_s6())
     p = a.platform
-    assert p["skills"] == 1                     # plugin:outra-skill: prefixo, sem arquivo
+    assert p["skills"] == 1                     # plugin:outra-skill: prefix, no file
     assert p["subagent_types"] == 1            # Explore
     assert p["tools"] == 5                # Bash, Read, Skill, Agent, WebFetch
     assert p["mcp_servers"] == 0
     assert not any(x.rule == "plataforma" for x in a.findings)
 
 
-def test_sem_inventario_a_regra_conta_tudo_como_antes(s6):
+def test_without_inventory_rule_counts_everything_as_before(s6):
     a = audit.audit(s6)
     assert a.provenances is None and a.platform is None
     findings = {x.rule: x.values for x in a.findings}
     assert findings["dead_weight.skills"]["never_used"] == len(a.dead_weight.skills.never_used)
 
 
-def test_regra_nao_dispara_quando_so_a_plataforma_tem_peca_sem_uso(s6):
+def test_rule_does_not_fire_when_only_platform_has_unused_item(s6):
     inv = Inventory(items=[item("skill", "project", n) for n in
                             ("exemplo-skill", "por-comando")])
     a = audit.audit(s6, inventory=inv)
     rules = {x.rule for x in a.findings}
-    assert "dead_weight.skills" not in rules          # nunca-usada não tem arquivo
+    assert "dead_weight.skills" not in rules          # nunca-usada has no file
     assert a.never_used_by_provenance["skills"]["builtin"] == ["nunca-usada"]
 
 
 # ==========================================================================
-# 3. Commits: ligação por hash e por janela (git real, em pasta temporária)
+# 3. Commits: commit link by hash and by window (real git, in a temporary directory)
 # ==========================================================================
 
 def git(*args, cwd, env=None):
@@ -514,9 +514,9 @@ def git(*args, cwd, env=None):
 def commit_at(repo: Path, when: datetime, file="a.txt", content=None, *extra):
     (repo / file).write_text(content or when.isoformat())
     git("add", file, cwd=repo)
-    data = when.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    date = when.strftime("%Y-%m-%dT%H:%M:%S+00:00")
     git("commit", "-q", "-m", f"commit {when:%H%M%S}", *extra, cwd=repo,
-        env={"GIT_AUTHOR_DATE": data, "GIT_COMMITTER_DATE": data})
+        env={"GIT_AUTHOR_DATE": date, "GIT_COMMITTER_DATE": date})
     return git("rev-parse", "HEAD", cwd=repo)
 
 
@@ -541,7 +541,7 @@ def _commits_session(tmp_path, cwd, steps, sid="sess-commits"):
                              git_root=lambda _: None)
 
 
-def test_ligacao_por_hash_por_janela_ambigua_e_sem_ligacao(tmp_path, repo):
+def test_link_by_hash_by_window_ambiguous_and_unlinked(tmp_path, repo):
     h_hash = commit_at(repo, BASE + timedelta(seconds=10))
     h_window = commit_at(repo, BASE + timedelta(seconds=21))
     commit_at(repo, BASE + timedelta(seconds=31))
@@ -565,7 +565,7 @@ def test_ligacao_por_hash_por_janela_ambigua_e_sem_ligacao(tmp_path, repo):
     assert links.linked_commits == {h_hash, h_window}
 
 
-def test_comando_com_dois_commits_liga_os_dois(tmp_path, repo):
+def test_command_with_two_commits_links_both(tmp_path, repo):
     a = commit_at(repo, BASE + timedelta(seconds=10))
     b = commit_at(repo, BASE + timedelta(seconds=11))
     s = _commits_session(tmp_path, repo, [
@@ -574,17 +574,17 @@ def test_comando_com_dois_commits_liga_os_dois(tmp_path, repo):
     assert x.form == "window" and set(x.commits) == {a, b}
 
 
-def test_repositorio_que_nao_existe_mais_fica_sem_ligacao(tmp_path):
-    s = _commits_session(tmp_path, tmp_path / "sumiu", [
+def test_repository_that_no_longer_exists_is_unlinked(tmp_path):
+    s = _commits_session(tmp_path, tmp_path / "gone", [
         dict(sec=10, tool_id="t", command="git commit -q -m a")])
     (x,) = commit_linking.link_commits([s]).links_
     assert (x.form, x.reason) == ("unlinked", "repositório ausente")
 
 
-def test_git_e_o_arbitro_do_amend(tmp_path, repo):
+def test_git_is_the_amend_arbiter(tmp_path, repo):
     original = commit_at(repo, BASE + timedelta(seconds=10))
-    data = (BASE + timedelta(seconds=20)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
-    git("commit", "-q", "--amend", "--no-edit", cwd=repo, env={"GIT_COMMITTER_DATE": data})
+    date = (BASE + timedelta(seconds=20)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    git("commit", "-q", "--amend", "--no-edit", cwd=repo, env={"GIT_COMMITTER_DATE": date})
     new = git("rev-parse", "HEAD", cwd=repo)
     fake = commit_at(repo, BASE + timedelta(seconds=30))
     heredoc = "git commit -q -F - <<'EOF'\nfala de git commit --amend\nEOF"
@@ -601,13 +601,13 @@ def test_git_e_o_arbitro_do_amend(tmp_path, repo):
     assert by["t-heredoc"].recorded_kind == "amended"
     assert (by["t-heredoc"].amend_by_command, by["t-heredoc"].amend_by_git) == (False, False)
     assert links.amends == 1 and links.amends_kind == 1
-    # O commit original foi ligado e depois substituído por amend.
+    # The original commit was linked and later replaced by an amend.
     assert by["t-original"].commits == (original,)
     assert links.replaced_commits == {original}
 
 
-def test_sem_repositorio_o_amend_e_o_do_comando(tmp_path):
-    s = _commits_session(tmp_path, tmp_path / "sumiu", [
+def test_without_repository_amend_comes_from_command(tmp_path):
+    s = _commits_session(tmp_path, tmp_path / "gone", [
         dict(sec=10, tool_id="t", command="git commit --amend -q --no-edit")])
     links = commit_linking.link_commits([s])
     (x,) = links.links_
@@ -615,18 +615,18 @@ def test_sem_repositorio_o_amend_e_o_do_comando(tmp_path):
     assert links.amends == 1
 
 
-def test_reversao_dos_commits_ligados(tmp_path, repo):
+def test_revert_of_linked_commits(tmp_path, repo):
     target = commit_at(repo, BASE + timedelta(seconds=10), "b.txt", "conteúdo")
-    data = (BASE + timedelta(seconds=50)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    date = (BASE + timedelta(seconds=50)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
     git("revert", "--no-edit", target, cwd=repo,
-        env={"GIT_AUTHOR_DATE": data, "GIT_COMMITTER_DATE": data})
+        env={"GIT_AUTHOR_DATE": date, "GIT_COMMITTER_DATE": date})
     s = _commits_session(tmp_path, repo, [
         dict(sec=9.5, tool_id="t", command="git commit -q -m a")])
     links = commit_linking.link_commits([s])
     assert links.reverted == {target}
 
 
-def test_so_consulta_os_repositorios_das_sessoes_recebidas(tmp_path, repo):
+def test_queries_only_repositories_of_given_sessions(tmp_path, repo):
     opened = []
 
     def open_repository(path, **kw):
@@ -638,10 +638,10 @@ def test_so_consulta_os_repositorios_das_sessoes_recebidas(tmp_path, repo):
         dict(sec=10, tool_id="t1", command="git commit -q -m a"),
         dict(sec=20, tool_id="t2", command="git commit -q -m b")])
     commit_linking.link_commits([s], open_repository=open_repository)
-    assert opened == [repo]                  # um repositório, aberto uma vez
+    assert opened == [repo]                  # one repository, opened once
 
 
-def test_historico_diz_o_que_um_commit_substituiu(repo):
+def test_history_tells_what_a_commit_replaced(repo):
     original = commit_at(repo, BASE + timedelta(seconds=10))
     git("commit", "-q", "--amend", "--no-edit", cwd=repo,
         env={"GIT_COMMITTER_DATE": (BASE + timedelta(seconds=20)).isoformat()})
@@ -654,7 +654,7 @@ def test_historico_diz_o_que_um_commit_substituiu(repo):
 
 
 # ==========================================================================
-# 5. Relatório
+# 5. Report
 # ==========================================================================
 
 @pytest.fixture
@@ -679,7 +679,7 @@ def section(text, title):
     return text.split(f"## {title}")[1].split("\n## ")[0]
 
 
-def test_ordem_das_secoes_com_instalado_e_apendice(integrated_text):
+def test_section_order_with_installed_and_appendix(integrated_text):
     titles = [l[3:] for l in integrated_text.splitlines() if l.startswith("## ")]
     assert titles == ["O que chama atenção", "Peso fixo", "Peso morto",
                        "O que está instalado", "Custo", "Intervenções", "Hooks", "Commits",
@@ -687,29 +687,29 @@ def test_ordem_das_secoes_com_instalado_e_apendice(integrated_text):
     assert "Ainda não disponível" not in integrated_text
 
 
-def test_cada_secao_termina_com_como_ler(integrated_text):
+def test_each_section_ends_with_how_to_read(integrated_text):
     for block in integrated_text.split("\n## "):
         last = [l for l in block.strip().splitlines() if l.strip()][-1]
         assert last.startswith("*Como ler:*"), block[:40]
 
 
-def test_cabecalho_com_contagem_de_formato_e_sessoes_excluidas(integrated_text):
+def test_header_with_format_count_and_excluded_sessions(integrated_text):
     hdr = integrated_text.split("\n## ")[0]
-    assert "tipo-novo" not in hdr                       # o detalhe foi para o apêndice
+    assert "tipo-novo" not in hdr                       # the detail moved to the appendix
     assert "Formato desconhecido" in hdr and "Apêndice" in hdr
     assert "Sessões de comando local, excluídas: 1" in hdr
     assert "tipo-novo" in section(integrated_text, "Apêndice")
 
 
-def test_o_que_chama_atencao_tem_linha_de_plataforma(integrated_text):
+def test_highlights_have_platform_line(integrated_text):
     block = section(integrated_text, "O que chama atenção")
     assert "Custo fixo de plataforma" in block
     line = next(l for l in block.splitlines() if "Custo fixo de plataforma" in l)
-    assert not line.startswith("- ")                  # não é um dos itens
+    assert not line.startswith("- ")                  # not one of the items
     assert "1 skill" in line and "5 ferramentas" in line
 
 
-def test_peso_fixo_mostra_a_reparticao_estimada(integrated_text):
+def test_fixed_context_shows_estimated_breakdown(integrated_text):
     block = section(integrated_text, "Peso fixo")
     for part in ("Plataforma", "Harness", "Pedido", "Não explicado",
                   "prompt de sistema", "lista de skills"):
@@ -718,7 +718,7 @@ def test_peso_fixo_mostra_a_reparticao_estimada(integrated_text):
     assert "ainda não está disponível" not in block
 
 
-def test_peso_morto_por_origem_sem_minimo(integrated_text):
+def test_dead_weight_by_provenance_without_minimum(integrated_text):
     block = section(integrated_text, "Peso morto")
     assert "mínimo" not in block
     assert "por origem" in block
@@ -726,7 +726,7 @@ def test_peso_morto_por_origem_sem_minimo(integrated_text):
     assert "Instaladas e não anunciadas" in block and "não pesam" in block
 
 
-def test_lista_longa_vai_para_o_apendice():
+def test_long_list_goes_to_appendix():
     names = {f"skill-{i:02d}" for i in range(12)}
     s = reader.Session(id="s", path=Path("/s"), project_dir="p",
                       available=reader.Available(skills=names))
@@ -738,13 +738,13 @@ def test_lista_longa_vai_para_o_apendice():
     assert all(n in section(t, "Apêndice") for n in names)
 
 
-def test_secao_do_que_esta_instalado(integrated_text):
+def test_installed_section(integrated_text):
     block = section(integrated_text, "O que está instalado")
     assert "| Skill |" in block and "projeto" in block
     assert "4 itens" in block and "1 com motivo" in block and "estimativa" in block
 
 
-def test_commits_ligados(integrated_text):
+def test_linked_commits(integrated_text):
     block = section(integrated_text, "Commits")
     assert "com hash: 1" in block and "ligadas por janela: 1" in block
     assert "ambíguas: 1" in block and "sem ligação: 1" in block
@@ -753,18 +753,18 @@ def test_commits_ligados(integrated_text):
     assert "`kind`" in block
 
 
-def test_relatorio_sem_git_diz_que_a_consulta_foi_pulada(s6):
+def test_report_without_git_says_query_was_skipped(s6):
     a = audit.audit(s6, no_git=True)
     block = section(report.markdown(a), "Commits")
     assert "--sem-git" in block
 
 
 # ==========================================================================
-# 5. Comando
+# 5. Command
 # ==========================================================================
 
 def _config_with_session(tmp_path, repo):
-    """Diretório de configuração sintético com uma sessão no repositório."""
+    """Synthetic configuration directory with one session in the repository."""
     cfg = tmp_path / "config"
     t = Transcript(session="sess-cli", cwd=str(repo))
     t.prompt(0, "P1", "oi")
@@ -777,62 +777,62 @@ def _config_with_session(tmp_path, repo):
 
 
 def _harness_in_repo(repo):
-    """Skill de projeto montada só aqui, em pasta temporária."""
+    """Project skill assembled only here, in a temporary directory."""
     folder = repo / ".claude" / "skills" / "skill-local"
     folder.mkdir(parents=True)
     (folder / "SKILL.md").write_text("---\nname: skill-local\ndescription: exemplo\n---\n"
                                     "corpo\n", encoding="utf-8")
 
 
-def test_sem_argumento_audita_o_repositorio_do_diretorio_atual(tmp_path, repo,
-                                                                monkeypatch, capsys):
+def test_without_argument_audits_repository_of_current_directory(tmp_path, repo,
+                                                                 monkeypatch, capsys):
     cfg = _config_with_session(tmp_path, repo)
     (repo / "sub").mkdir()
     monkeypatch.chdir(repo / "sub")
     assert cli.main(["auditar", "--config", str(cfg), "--gerenciado",
-                     str(tmp_path / "nada")]) == 0
+                     str(tmp_path / "nothing")]) == 0
     output = capsys.readouterr().out
     assert f"Repositório: `{repo}`" in output and "Sessões: 1" in output
 
 
-def test_caminho_e_todos_juntos_e_erro(capsys):
+def test_path_and_all_together_is_error(capsys):
     assert cli.main(["auditar", ".", "--todos", "--config", str(CONFIG)]) == 2
 
 
-def test_comando_cruza_com_o_inventario(tmp_path, repo, capsys):
+def test_command_cross_checks_with_inventory(tmp_path, repo, capsys):
     cfg = _config_with_session(tmp_path, repo)
     _harness_in_repo(repo)
     git("add", "-A", cwd=repo)
     assert cli.main(["auditar", str(repo), "--config", str(cfg), "--gerenciado",
-                     str(tmp_path / "nada")]) == 0
+                     str(tmp_path / "nothing")]) == 0
     output = capsys.readouterr().out
     assert ".claude/skills/skill-local/SKILL.md" in output
     assert "Custo fixo de plataforma" in output
     assert "## O que está instalado" in output
 
 
-def test_sem_git_nao_consulta_o_historico(tmp_path, repo, monkeypatch, capsys):
+def test_no_git_does_not_query_history(tmp_path, repo, monkeypatch, capsys):
     cfg = _config_with_session(tmp_path, repo)
 
     def forbidden(*a, **k):
-        raise AssertionError("o histórico git não devia ser consultado")
+        raise AssertionError("git history should not have been queried")
 
     monkeypatch.setattr(git_history, "open_repository", forbidden)
     monkeypatch.setattr(commit_linking, "link_commits", forbidden)
     assert cli.main(["auditar", str(repo), "--config", str(cfg), "--sem-git",
-                     "--gerenciado", str(tmp_path / "nada")]) == 0
+                     "--gerenciado", str(tmp_path / "nothing")]) == 0
     assert "--sem-git" in section(capsys.readouterr().out, "Commits")
 
 
-def test_com_git_liga_o_commit_da_sessao(tmp_path, repo, capsys):
+def test_with_git_links_session_commit(tmp_path, repo, capsys):
     cfg = _config_with_session(tmp_path, repo)
     commit_at(repo, BASE + timedelta(seconds=3))
     assert cli.main(["auditar", str(repo), "--config", str(cfg), "--gerenciado",
-                     str(tmp_path / "nada")]) == 0
+                     str(tmp_path / "nothing")]) == 0
     assert "ligadas por janela: 1" in section(capsys.readouterr().out, "Commits")
 
 
-def test_comando_nao_escreve_no_repositorio_auditado(tmp_path, repo, capsys):
+def test_command_does_not_write_to_audited_repository(tmp_path, repo, capsys):
     cfg = _config_with_session(tmp_path, repo)
     _harness_in_repo(repo)
 
@@ -842,5 +842,5 @@ def test_comando_nao_escreve_no_repositorio_auditado(tmp_path, repo, capsys):
 
     before = snapshot()
     assert cli.main(["auditar", str(repo), "--config", str(cfg), "--gerenciado",
-                     str(tmp_path / "nada")]) == 0
+                     str(tmp_path / "nothing")]) == 0
     assert snapshot() == before

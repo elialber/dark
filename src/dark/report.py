@@ -1,11 +1,11 @@
-"""Apresentação da auditoria em Markdown (goal 008).
+"""Presentation of the audit in Markdown (goal 008).
 
-Recebe a `Auditoria` calculada em `dark.auditoria` e devolve texto. Não
-calcula indicador nem lê nada: só formata. Em português, legível direto
-no terminal. Cada seção termina com uma linha "Como ler".
+Takes the `Audit` computed in `dark.audit` and returns text. It computes no
+indicator and reads nothing: it only formats. In Portuguese, readable directly
+in the terminal. Each section ends with a "Como ler" line.
 
-O relatório traz nomes reais de skills, ferramentas e servidores: é o
-propósito dele, e ele fica na máquina do usuário.
+The report includes real names of skills, tools and servers: that is its
+purpose, and it stays on the user's machine.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from datetime import datetime
 
 from dark import indicators as ind
 from dark import reader
-from dark import provenance as org
+from dark import provenance as prov
 from dark.audit import MODES_WITHOUT_REJECTION, Finding, Audit
 
 TITLE = "Auditoria do harness"
@@ -33,7 +33,7 @@ SECTIONS = {
     "appendix": "Apêndice",
 }
 
-# Quantos nomes uma lista mostra no corpo; o resto vai para o apêndice.
+# How many names a list shows in the body; the rest goes to the appendix.
 FIRST_NAMES = 5
 
 PROVENANCE_NAMES = {
@@ -75,11 +75,11 @@ HOOK_TYPES = {
 
 
 # --------------------------------------------------------------------------
-# Formatação
+# Formatting
 # --------------------------------------------------------------------------
 
 def n(value: float | int | None) -> str:
-    """Número no formato brasileiro: 1.234.567 e 12,5."""
+    """Number in Brazilian format: 1.234.567 and 12,5."""
     if value is None:
         return "—"
     if isinstance(value, float) and not value.is_integer():
@@ -99,7 +99,7 @@ def when(dt: datetime | None) -> str:
 
 
 def anchor(title: str) -> str:
-    """Âncora no estilo do GitHub: minúsculas, sem pontuação, espaço vira hífen."""
+    """GitHub-style anchor: lowercase, no punctuation, space becomes hyphen."""
     return "#" + re.sub(r"[^\w\- ]", "", title.lower()).replace(" ", "-")
 
 
@@ -121,7 +121,7 @@ def plural(k: int, one: str, several: str) -> str:
 
 
 def first_items(names, limit: int = FIRST_NAMES) -> str:
-    """Os primeiros nomes, em ordem, e quantos ficaram para o apêndice."""
+    """The first names, in order, and how many were left for the appendix."""
     names = sorted(names)
     text = code(names[:limit])
     if len(names) > limit:
@@ -130,7 +130,7 @@ def first_items(names, limit: int = FIRST_NAMES) -> str:
 
 
 # --------------------------------------------------------------------------
-# Seções
+# Sections
 # --------------------------------------------------------------------------
 
 def _header(a: Audit) -> list[str]:
@@ -266,7 +266,20 @@ def _fixed_context(a: Audit) -> list[str]:
     return lines
 
 
-GROUP_TITLES = {"plataforma": "Plataforma", "harness": "Harness", "pedido": "Pedido"}
+GROUP_TITLES = {"platform": "Plataforma", "harness": "Harness", "prompt": "Pedido"}
+PART_TITLES = {
+    "system_prompt": "prompt de sistema",
+    "builtin_tools": "ferramentas embutidas",
+    "other_attachments": "outros anexos",
+    "loaded_mcp_tools": "ferramentas MCP carregadas",
+    "skill_listing": "lista de skills",
+    "subagent_listing": "lista de subagentes",
+    "deferred_tool_names": "nomes de ferramentas adiadas",
+    "mcp_server_instructions": "instruções de servidores MCP",
+    "instructions_and_memory": "instruções e memória",
+    "hook_output": "saída de hooks",
+    "first_prompt": "primeiro pedido",
+}
 
 
 def _breakdown(a: Audit) -> list[str]:
@@ -282,8 +295,8 @@ def _breakdown(a: Audit) -> list[str]:
         lines.append(f"| **{GROUP_TITLES[group]}** | **{n(round(r.group_summary(group).median))}** "
                       f"| **{pct(r.group_sum(group), r.measured_total)}** |")
         for g, part in ind.PARTS:
-            if g == group and group != "pedido":
-                lines.append(f"| {part} | {n(round(r.summary(part).median))} | "
+            if g == group and group != "prompt":
+                lines.append(f"| {PART_TITLES[part]} | {n(round(r.summary(part).median))} | "
                               f"{pct(r.total_sum(part), r.measured_total)} |")
     lines.append(f"| **Não explicado** | **{n(round(r.unexplained_summary().median))}** "
                   f"| **{pct(r.unexplained, r.measured_total)}** |")
@@ -302,7 +315,7 @@ def _breakdown(a: Audit) -> list[str]:
 
 
 def _never_used_tools(c: ind.Category) -> list[str]:
-    """Ferramentas comuns por nome; as MCP agrupadas por servidor."""
+    """Regular tools by name; MCP tools grouped by server."""
     common = sorted(x for x in c.never_used if not reader.mcp_server(x))
     never_by_server = Counter(reader.mcp_server(x) for x in c.never_used
                                  if reader.mcp_server(x))
@@ -326,9 +339,9 @@ def _by_provenance(a: Audit, key: str) -> list[str]:
     groups = a.never_used_by_provenance.get(key, {})
     if not groups:
         return []
-    parts = [f"{PROVENANCE_NAMES[o]} {n(len(groups[o]))}" for o in org.PROVENANCES if o in groups]
+    parts = [f"{PROVENANCE_NAMES[o]} {n(len(groups[o]))}" for o in prov.PROVENANCES if o in groups]
     lines = [f"  - nunca usados, por origem: {', '.join(parts)}"]
-    with_file = [x for o in org.PROVENANCES if o in org.WITH_FILE for x in groups.get(o, [])]
+    with_file = [x for o in prov.PROVENANCES if o in prov.WITH_FILE for x in groups.get(o, [])]
     if with_file and key != "tools":
         lines.append(f"  - com arquivo (você pode mudar): {first_items(with_file)}; "
                       f"caminhos no {link('appendix')}")

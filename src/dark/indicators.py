@@ -1,10 +1,10 @@
-"""Indicadores de saúde que não dependem de evals.
+"""Health indicators that do not depend on evals.
 
-Funções puras sobre o modelo interno do leitor: recebem sessões e devolvem
-um resultado tipado. Nenhuma lê disco ou relógio; quem lê é o chamador (ou
-o comando mínimo de conferência, no fim do arquivo).
+Pure functions over the reader's internal model: they take sessions and return
+a typed result. None of them reads disk or clock; the caller does (or the
+minimal cross-check command at the end of the file).
 
-Decisões que cada indicador segue estão em docs/decisoes.md.
+The decisions each indicator follows are in docs/decisoes.md.
 """
 
 from __future__ import annotations
@@ -37,13 +37,13 @@ def summarize(values: Iterable[float]) -> Summary:
 
 
 # --------------------------------------------------------------------------
-# Peso fixo de contexto (E11 revista: só o total)
+# Fixed context (E11 revised: total only)
 # --------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class FixedContext:
-    by_session: dict[str, int]     # tokens de entrada da primeira resposta
-    without_data: list[str]            # sessões sem resposta de modelo, ou de fork
+    by_session: dict[str, int]     # input tokens of the first response
+    without_data: list[str]            # sessions with no model response, or forks
     summary: Summary
 
 
@@ -58,60 +58,60 @@ def fixed_context(sessions: Iterable[Session]) -> FixedContext:
 
 
 # --------------------------------------------------------------------------
-# Repartição do peso fixo (E11, terceira versão)
+# Fixed context breakdown (E11, third version)
 # --------------------------------------------------------------------------
 
-# Caracteres por token. Vem das duas partes medidas dos dois lados no
-# diário 010 (prompt de sistema 3,64; lista de skills 3,57). É estimativa:
-# os caracteres incluem o escape de JSON, e código tokeniza diferente de texto.
+# Characters per token. Comes from the two parts measured on both sides in
+# diary 010 (system prompt 3.64; skill list 3.57). It is an estimate:
+# the characters include JSON escaping, and code tokenizes differently from text.
 CHARS_PER_TOKEN = 3.6
 
-GROUPS = ("plataforma", "harness", "pedido")
+GROUPS = ("platform", "harness", "prompt")
 
-# (grupo, parte), na ordem em que o relatório mostra.
+# (group, part), in the order the report shows them.
 PARTS = (
-    ("plataforma", "prompt de sistema"),
-    ("plataforma", "ferramentas embutidas"),
-    ("plataforma", "outros anexos"),
-    ("harness", "ferramentas MCP carregadas"),
-    ("harness", "lista de skills"),
-    ("harness", "lista de subagentes"),
-    ("harness", "nomes de ferramentas adiadas"),
-    ("harness", "instruções de servidores MCP"),
-    ("harness", "instruções e memória"),
-    ("harness", "saída de hooks"),
-    ("pedido", "primeiro pedido"),
+    ("platform", "system_prompt"),
+    ("platform", "builtin_tools"),
+    ("platform", "other_attachments"),
+    ("harness", "loaded_mcp_tools"),
+    ("harness", "skill_listing"),
+    ("harness", "subagent_listing"),
+    ("harness", "deferred_tool_names"),
+    ("harness", "mcp_server_instructions"),
+    ("harness", "instructions_and_memory"),
+    ("harness", "hook_output"),
+    ("prompt", "first_prompt"),
 )
 PART_GROUP = {part: group for group, part in PARTS}
 
-# Tipo de anexo -> parte. Anexo de tipo fora desta lista vai para "outros
-# anexos" (ambiente, data, modelo, contexto da sessão...), da plataforma.
+# Attachment kind -> part. An attachment of a kind not in this list goes to
+# "other_attachments" (environment, date, model, session context...), on the platform side.
 ATTACHMENT_PART = {
-    "skill_listing": "lista de skills",
-    "agent_listing_delta": "lista de subagentes",
-    "deferred_tools_delta": "nomes de ferramentas adiadas",
-    "deferred_tools_record": "nomes de ferramentas adiadas",
-    "mcp_instructions_delta": "instruções de servidores MCP",
-    "instructions": "instruções e memória",
-    "nested_memory": "instruções e memória",
-    "hook_success": "saída de hooks",
-    "hook_non_blocking_error": "saída de hooks",
-    "hook_cancelled": "saída de hooks",
+    "skill_listing": "skill_listing",
+    "agent_listing_delta": "subagent_listing",
+    "deferred_tools_delta": "deferred_tool_names",
+    "deferred_tools_record": "deferred_tool_names",
+    "mcp_instructions_delta": "mcp_server_instructions",
+    "instructions": "instructions_and_memory",
+    "nested_memory": "instructions_and_memory",
+    "hook_success": "hook_output",
+    "hook_non_blocking_error": "hook_output",
+    "hook_cancelled": "hook_output",
 }
 
 
 @dataclass(frozen=True)
 class Breakdown:
-    """Peso fixo repartido por parte do primeiro pedido, em tokens estimados.
+    """Fixed context broken down by part of the first prompt, in estimated tokens.
 
-    Só entram as sessões com o peso fixo medido e com a forma da requisição
-    gravada. O que o medido tem a mais que a soma das partes é o "não
-    explicado"; pode ser negativo, e fica como está.
+    Only sessions with measured fixed context and a recorded request shape
+    are included. What the measurement has beyond the sum of the parts is the
+    "unexplained"; it may be negative, and is left as is.
     """
     factor: float
-    by_session: dict[str, dict[str, float]]    # sessão -> parte -> tokens estimados
-    measured: dict[str, int]                     # sessão -> peso fixo medido
-    without_shape: list[str]                       # medido, mas sem a forma da requisição
+    by_session: dict[str, dict[str, float]]    # session -> part -> estimated tokens
+    measured: dict[str, int]                     # session -> measured fixed context
+    without_shape: list[str]                       # measured, but without the request shape
 
     def total_sum(self, part: str) -> float:
         return sum(p.get(part, 0.0) for p in self.by_session.values())
@@ -159,20 +159,20 @@ def breakdown(sessions: Iterable[Session],
             without_shape.append(s.id)
             continue
         chars: Counter = Counter({
-            "prompt de sistema": p.system,
-            "ferramentas embutidas": p.tools or 0,
-            "ferramentas MCP carregadas": p.mcp_tools or 0,
-            "primeiro pedido": p.prompt or 0,
+            "system_prompt": p.system,
+            "builtin_tools": p.tools or 0,
+            "loaded_mcp_tools": p.mcp_tools or 0,
+            "first_prompt": p.prompt or 0,
         })
         for kind, size in p.attachments.items():
-            chars[ATTACHMENT_PART.get(kind, "outros anexos")] += size
+            chars[ATTACHMENT_PART.get(kind, "other_attachments")] += size
         by_session[s.id] = {part: chars[part] / factor for _, part in PARTS}
         measured[s.id] = s.initial_context
     return Breakdown(factor, by_session, measured, without_shape)
 
 
 # --------------------------------------------------------------------------
-# Peso morto
+# Dead weight
 # --------------------------------------------------------------------------
 
 @dataclass(frozen=True)
@@ -183,15 +183,15 @@ class SessionUsage:
 
 @dataclass(frozen=True)
 class Category:
-    """Disponível contra usado, para um tipo de peça, no período das sessões."""
+    """Available versus used, for one kind of harness item, over the sessions' period."""
     available: set[str]
     used: set[str]
-    never_used: set[str]              # disponíveis que ninguém usou no período
-    used_outside_list: set[str]      # usados que não constam em nenhuma lista
+    never_used: set[str]              # available items nobody used in the period
+    used_outside_list: set[str]      # used items not present in any list
     by_session: dict[str, SessionUsage]
     available_summary: Summary
     used_summary: Summary
-    sessions_without_list: int              # onde o "disponível" não existe nos registros
+    sessions_without_list: int              # where "available" does not exist in the records
     sessions_without_use: int
 
 
@@ -204,7 +204,7 @@ class DeadWeight:
 
 
 def skill_name(name: str) -> str:
-    """Tira o prefixo de plugin (`plugin:skill`), para comparar lista e uso."""
+    """Strips the plugin prefix (`plugin:skill`), to compare list and use."""
     return name.rsplit(":", 1)[-1]
 
 
@@ -221,10 +221,10 @@ def _responses(s: Session):
 
 
 def _used_skills(s: Session) -> set[str]:
-    """Chamada `Skill`, `attributionSkill` ou /comando com nome de skill anunciada.
+    """`Skill` call, `attributionSkill`, or /command with an announced skill's name.
 
-    O /comando só conta se o nome está na lista de skills da sessão: é isso
-    que deixa de fora os comandos embutidos (lote 005).
+    The /command only counts if the name is in the session's skill list: that
+    is what leaves the built-in commands out (lote 005).
     """
     used = {c.input.get("skill") for c in _calls(s) if c.name == "Skill"}
     used |= {r.skill for r in _responses(s)}
@@ -252,10 +252,10 @@ def _category(sessions: list[Session], available: Callable[[Session], set[str]],
     all_used: set[str] = set()
     by_session = {}
     for s in sessions:
-        d, u = available(s), used(s)
-        all_available |= d
+        av, u = available(s), used(s)
+        all_available |= av
         all_used |= u
-        by_session[s.id] = SessionUsage(len(d), len(u))
+        by_session[s.id] = SessionUsage(len(av), len(u))
     return Category(
         available=all_available, used=all_used,
         never_used=all_available - all_used,
@@ -268,11 +268,11 @@ def _category(sessions: list[Session], available: Callable[[Session], set[str]],
 
 
 def dead_weight(sessions: Iterable[Session]) -> DeadWeight:
-    """Disponível contra usado. O uso inclui o que os subagentes chamaram.
+    """Available versus used. Use includes what subagents called.
 
-    "Nunca usado" vale só para o período coberto pelas sessões recebidas.
-    Hooks e regras de instrução ficam de fora: não há lista do disponível
-    nos registros.
+    "Never used" holds only for the period covered by the given sessions.
+    Hooks and instruction rules are left out: the records have no list of
+    what is available.
     """
     sessions = list(sessions)
     return DeadWeight(
@@ -289,7 +289,7 @@ def dead_weight(sessions: Iterable[Session]) -> DeadWeight:
 
 
 # --------------------------------------------------------------------------
-# Intervenções (E5 revista: sinais estruturais como contagem)
+# Interventions (E5 revised: structural signals as counts)
 # --------------------------------------------------------------------------
 
 @dataclass
@@ -300,7 +300,7 @@ class Signals:
     rejections_with_comment: int = 0
     rejections_without_comment: int = 0
     mid_turn_messages: int = 0
-    by_mode: dict[str, int] = field(default_factory=dict)   # pedidos por modo de permissão
+    by_mode: dict[str, int] = field(default_factory=dict)   # prompts per permission mode
 
     def tally_prompt(self, prompt: reader.Prompt) -> None:
         self.prompts += 1
@@ -327,8 +327,8 @@ class Signals:
 @dataclass(frozen=True)
 class Interventions:
     by_session: dict[str, Signals]
-    by_prompt: dict[tuple[str, str], Signals]   # (sessão, pedido)
-    without_prompt: Signals                          # sinais que não caem em nenhum pedido
+    by_prompt: dict[tuple[str, str], Signals]   # (session, prompt)
+    without_prompt: Signals                          # signals that fall in no prompt
     total: Signals
     sessions_without_signal: int
     prompts_summary: Summary
@@ -336,7 +336,7 @@ class Interventions:
 
     @property
     def by_mode(self) -> dict[str, int]:
-        """Pedidos por modo de permissão; "?" quando o registro não diz."""
+        """Prompts per permission mode; "?" when the record does not say."""
         return self.total.by_mode
 
 
@@ -362,17 +362,17 @@ def interventions(sessions: Iterable[Session]) -> Interventions:
 
 
 # --------------------------------------------------------------------------
-# Custo em tokens (E4 e E9)
+# Token cost (E4 and E9)
 # --------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class Spend:
-    main_file: int
+    main: int
     subagents: int
 
     @property
     def total(self) -> int:
-        return self.main_file + self.subagents
+        return self.main + self.subagents
 
     @property
     def subagent_share(self) -> float | None:
@@ -384,10 +384,10 @@ class Cost:
     by_session: dict[str, Spend]
     by_prompt: dict[tuple[str, str], Spend]
     total: Spend
-    without_prompt: int                 # tokens da sessão principal sem pedido atribuído
-    session_summary: Summary           # tokens totais por sessão
-    prompt_summary: Summary           # tokens totais por pedido
-    main_prompt_summary: Summary  # só a sessão principal, pedidos com resposta
+    without_prompt: int                 # main session tokens with no assigned prompt
+    session_summary: Summary           # total tokens per session
+    prompt_summary: Summary           # total tokens per prompt
+    main_prompt_summary: Summary  # main session only, prompts with a response
 
 
 def cost(sessions: Iterable[Session]) -> Cost:
@@ -400,25 +400,25 @@ def cost(sessions: Iterable[Session]) -> Cost:
         ids = {p.id for p in s.prompts}
         without_prompt += sum(r.tokens.total for r in s.responses
                           if not r.copied and r.prompt_id not in ids)
-    total = Spend(sum(g.main_file for g in by_session.values()),
+    total = Spend(sum(g.main for g in by_session.values()),
                   sum(g.subagents for g in by_session.values()))
     return Cost(
         by_session, by_prompt, total, without_prompt,
         session_summary=summarize(g.total for g in by_session.values()),
         prompt_summary=summarize(g.total for g in by_prompt.values()),
         main_prompt_summary=summarize(
-            g.main_file for g in by_prompt.values() if g.main_file))
+            g.main for g in by_prompt.values() if g.main))
 
 
 # --------------------------------------------------------------------------
-# Hooks (E6, versão final: desfechos visíveis)
+# Hooks (E6, final version: visible outcomes)
 # --------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class Hooks:
     total: int
     by_type: dict[str, int]
-    by_event: dict[str, int]                   # "?" quando o registro não diz
+    by_event: dict[str, int]                   # "?" when the record does not say
     by_type_and_event: dict[tuple[str, str], int]
     blocks_count: int
     in_subagents: int
@@ -426,7 +426,7 @@ class Hooks:
 
 
 def hooks(sessions: Iterable[Session]) -> Hooks:
-    """Desfechos visíveis de hook. Hook que roda sem saída não aparece aqui."""
+    """Visible hook outcomes. A hook that runs without output does not show up here."""
     by_type, by_event, crossed = Counter(), Counter(), Counter()
     blocks_count = in_sub = with_hook = total = 0
     for s in sessions:
@@ -444,7 +444,7 @@ def hooks(sessions: Iterable[Session]) -> Hooks:
 
 
 # --------------------------------------------------------------------------
-# Commits (E7, terceira versão: o que ficou registrado)
+# Commits (E7, third version: what was recorded)
 # --------------------------------------------------------------------------
 
 @dataclass
@@ -476,10 +476,10 @@ class Commits(CommitCounts):
 
 
 def commits(sessions: Iterable[Session]) -> Commits:
-    """Chamadas que executam `git commit` e se o hash ficou registrado.
+    """Calls that run `git commit`, and whether the hash was recorded.
 
-    Não liga chamada a commit do repositório: isso é da coleta. Aqui só se
-    conta o que a transcrição traz.
+    Does not link a call to a repository commit: that belongs to collection.
+    Here we only count what the transcript contains.
     """
     total, by_session, in_sub = CommitCounts(), {}, 0
     for s in sessions:
@@ -499,7 +499,7 @@ def commits(sessions: Iterable[Session]) -> Commits:
 
 
 # --------------------------------------------------------------------------
-# Comando mínimo de conferência
+# Minimal cross-check command
 # --------------------------------------------------------------------------
 
 def _summary_line(r: Summary) -> str:
@@ -520,7 +520,7 @@ def main(argv: list[str] | None = None) -> int:
     sessions = [s for s in reading.sessions
                if not any(x in s.project_dir for x in args.exclude_dir)]
     if not sessions:
-        # Sem histórico não é erro; só falhas sem nenhuma sessão é (lote 005).
+        # No history is not an error; only failures with no session at all is (lote 005).
         if reading.failures:
             print(f"nenhuma sessão lida; falhas: {len(reading.failures)}", file=sys.stderr)
             return 1
@@ -529,14 +529,14 @@ def main(argv: list[str] | None = None) -> int:
     show = print
     show(f"sessoes: {len(sessions)}  falhas: {len(reading.failures)}")
 
-    pf = fixed_context(sessions)
-    show(f"peso_fixo: {_summary_line(pf.summary)} sem_dado={len(pf.without_data)}")
+    fc = fixed_context(sessions)
+    show(f"peso_fixo: {_summary_line(fc.summary)} sem_dado={len(fc.without_data)}")
 
-    pm = dead_weight(sessions)
+    dw = dead_weight(sessions)
     labels = {"skills": "skills", "subagent_types": "tipos_subagente",
               "tools": "ferramentas", "mcp_servers": "servidores_mcp"}
     for name, label in labels.items():
-        c: Category = getattr(pm, name)
+        c: Category = getattr(dw, name)
         show(f"peso_morto.{label}: disponiveis={len(c.available)} usados={len(c.used)} "
                f"nunca_usados={len(c.never_used)} fora_da_lista={len(c.used_outside_list)} "
                f"sessoes_sem_lista={c.sessions_without_list} sessoes_sem_uso={c.sessions_without_use}")
@@ -560,7 +560,7 @@ def main(argv: list[str] | None = None) -> int:
            f"{sum(1 for x in it.by_prompt.values() if x.signals)} de {len(it.by_prompt)}")
 
     cst = cost(sessions)
-    show(f"custo: principal={cst.total.main_file} subagentes={cst.total.subagents} "
+    show(f"custo: principal={cst.total.main} subagentes={cst.total.subagents} "
            f"total={cst.total.total} parcela_subagentes={cst.total.subagent_share:.4f} "
            f"sem_pedido={cst.without_prompt}")
     show(f"  por sessão: {_summary_line(cst.session_summary)}")
