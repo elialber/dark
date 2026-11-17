@@ -5,6 +5,8 @@ em diretório temporário. Nenhum teste lê o diretório real do usuário.
 """
 
 import json
+import shutil
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -18,11 +20,17 @@ INVALIDOS = FIXTURES / "invalidos"
 S1 = "aaaaaaaa-0000-4000-8000-000000000001"
 S3 = "aaaaaaaa-0000-4000-8000-000000000003"
 S4 = "aaaaaaaa-0000-4000-8000-000000000004"
+S5 = "aaaaaaaa-0000-4000-8000-000000000005"
+CONFIG_COM_FALHA = FIXTURES / "config-com-falha"
+
+
+def utc(*partes):
+    return datetime(*partes, tzinfo=timezone.utc)
 
 
 @pytest.fixture(scope="module")
 def sessoes():
-    return {s.id: s for s in leitor.ler_tudo(CONFIG)}
+    return {s.id: s for s in leitor.ler_tudo(CONFIG).sessoes}
 
 
 @pytest.fixture(scope="module")
@@ -42,7 +50,7 @@ def test_diretorio_config_padrao_e_dot_claude_na_home():
 
 def test_localiza_arquivos_principais_e_de_subagente():
     achados = {a.principal.stem: a for a in leitor.localizar_sessoes(CONFIG)}
-    assert set(achados) == {S1, S3, S4}
+    assert set(achados) == {S1, S3, S4, S5}
     assert achados[S1].pasta_projeto == "-repo-alfa"
     assert [p.name for p in achados[S1].subagentes] == ["agent-agt0000000000001.jsonl"]
     assert achados[S3].subagentes == []
@@ -80,8 +88,8 @@ def test_tokens_da_sessao_somam_os_subagentes(s1):
 # --- armadilha: linhas fora de ordem de horário ------------------------------
 
 def test_inicio_e_fim_nao_dependem_da_ordem_das_linhas(s1):
-    assert s1.inicio == "2026-01-01T10:00:00.000Z"
-    assert s1.fim == "2026-01-01T11:00:12.000Z"
+    assert s1.inicio == utc(2026, 1, 1, 10, 0, 0)
+    assert s1.fim == utc(2026, 1, 1, 11, 0, 12)
 
 
 def test_resposta_gravada_fora_de_ordem_vai_para_o_pedido_certo(s1):
@@ -155,7 +163,7 @@ def test_chamadas_de_skill_e_de_subagente(s1):
 # --- armadilha: subagente com o sessionId da sessão-mãe ----------------------
 
 def test_subagente_fica_dentro_da_sessao_mae(sessoes, s1):
-    assert len(sessoes) == 3  # o arquivo do subagente não vira sessão
+    assert len(sessoes) == 4  # o arquivo do subagente não vira sessão
     (sub,) = s1.subagentes
     assert sub.id == "agt0000000000001"
     assert sub.tipo == "exemplo-revisor"
@@ -230,7 +238,7 @@ def test_versoes_do_claude_code_por_sessao(s1):
 # --- hooks -------------------------------------------------------------------
 
 def test_eventos_de_hook(s1):
-    por_tipo = {h.tipo: h for h in s1.hooks}
+    por_tipo = {h.tipo: h for h in s1.hooks if h.subagente_id is None}
     assert set(por_tipo) == {"sucesso", "erro_sem_bloqueio", "cancelado", "bloqueio", "parada"}
     assert por_tipo["sucesso"].evento == "SessionStart"
     assert por_tipo["erro_sem_bloqueio"].codigo_saida == 1
@@ -238,6 +246,105 @@ def test_eventos_de_hook(s1):
     assert por_tipo["bloqueio"].tool_use_id == "toolu_T6"
     assert por_tipo["bloqueio"].evento == "PreToolUse"
     assert [h.tipo for h in s1.hooks if h.bloqueou] == ["bloqueio"]
+
+
+def test_hook_em_subagente_guarda_de_qual_subagente_veio(s1):
+    (do_sub,) = [h for h in s1.hooks if h.subagente_id is not None]
+    assert do_sub.subagente_id == "agt0000000000001"
+    assert do_sub.tipo == "cancelado"
+    assert all(h.subagente_id is None for h in s1.hooks if h is not do_sub)
+
+
+def test_decisao_de_hook_e_capturada_tambem_quando_o_source_nao_e_hook(sessoes):
+    # Nos dados reais, o hook que pede confirmação aparece com source do
+    # usuário e reasonCode "hook:<evento>".
+    hooks = {h.tool_use_id: h for h in sessoes[S5].hooks}
+    confirmada = hooks["toolu_T20"]
+    assert (confirmada.tipo, confirmada.evento, confirmada.bloqueou) == (
+        "confirmacao", "PreToolUse", False)
+    liberada = hooks["toolu_T21"]
+    assert (liberada.tipo, liberada.evento, liberada.bloqueou) == (
+        "decisao", "PreToolUse", False)
+
+
+# --- respostas sintéticas ------------------------------------------------------
+
+def test_resposta_sintetica_sem_usage_nao_e_erro_e_conta_zero(sessoes):
+    r = sessoes[S5].resposta("msg_M22")
+    assert r.sintetica is True
+    assert r.tokens == Tokens()
+    assert sessoes[S5].tokens_principal.total == 4
+    assert sessoes[S5].resposta("msg_M20").sintetica is False
+
+
+def test_resposta_de_modelo_real_sem_usage_continua_sendo_erro(tmp_path):
+    linhas = [json.loads(l) for l in (INVALIDOS / "sem-message-id.jsonl").read_text().splitlines()]
+    linhas[-1]["message"]["id"] = "msg_X1"
+    linhas[-1]["message"].pop("usage")
+    arq = tmp_path / "sem-usage.jsonl"
+    arq.write_text("\n".join(json.dumps(x) for x in linhas) + "\n")
+    with pytest.raises(ErroDeFormato, match="usage"):
+        leitor.ler_sessao(arq)
+
+
+# --- horários como instantes ---------------------------------------------------
+
+def test_horario_sem_milissegundos_e_com_deslocamento(sessoes):
+    s5 = sessoes[S5]
+    assert s5.inicio == utc(2026, 1, 2, 10, 0, 0)           # "…T10:00:00Z"
+    # "…T08:00:00.000-03:00" é 11:00 UTC: o fim, embora o texto ordene antes.
+    assert s5.fim == utc(2026, 1, 2, 11, 0, 0)
+    assert s5.pedidos[0].timestamp == utc(2026, 1, 2, 10, 0, 0)
+
+
+def test_corte_compara_instantes_e_nao_texto():
+    corte = datetime(2026, 1, 2, 7, 30, tzinfo=timezone(timedelta(hours=-3)))  # 10:30 UTC
+    (s5,) = [s for s in leitor.ler_tudo(CONFIG, ate=corte).sessoes if s.id == S5]
+    assert s5.fim == utc(2026, 1, 2, 10, 0, 9)
+    (igual,) = [s for s in leitor.ler_tudo(CONFIG, ate="2026-01-02T10:30:00Z").sessoes
+                if s.id == S5]
+    assert igual.fim == s5.fim
+
+
+def test_horario_ilegivel_e_erro_de_formato():
+    with pytest.raises(ErroDeFormato, match="timestamp"):
+        leitor.ler_sessao(INVALIDOS / "horario-ilegivel.jsonl")
+
+
+# --- falha isolada por sessão (E12) --------------------------------------------
+
+def test_sessao_invalida_nao_impede_a_leitura_das_outras():
+    leitura = leitor.ler_tudo(CONFIG_COM_FALHA)
+    assert sorted(s.id[-1] for s in leitura.sessoes) == ["1", "3"]
+    falhas = {f.arquivo.name: f for f in leitura.falhas}
+    assert set(falhas) == {"cccccccc-0000-4000-8000-000000000002.jsonl",
+                           "agent-agt0000000000009.jsonl"}
+    principal = falhas["cccccccc-0000-4000-8000-000000000002.jsonl"]
+    assert principal.linha == 2 and "uuid" in principal.mensagem
+
+
+def test_subagente_invalido_nao_derruba_a_sessao_mae():
+    leitura = leitor.ler_tudo(CONFIG_COM_FALHA)
+    (mae,) = [s for s in leitura.sessoes if s.id.endswith("3")]
+    assert mae.subagentes == []
+    assert len(mae.respostas) == 1
+    assert [f.arquivo.name for f in mae.falhas] == ["agent-agt0000000000009.jsonl"]
+
+
+def test_comando_imprime_sessoes_e_falhas_e_termina_bem(capsys):
+    assert leitor.main(["--config", str(CONFIG_COM_FALHA)]) == 0
+    saida = capsys.readouterr().out
+    assert "sessoes: 2" in saida
+    assert "falhas: 2" in saida
+    assert "cccccccc-0000-4000-8000-000000000002.jsonl, linha 2" in saida
+
+
+def test_comando_termina_com_erro_se_nenhuma_sessao_for_lida(tmp_path, capsys):
+    pasta = tmp_path / "projects" / "-so-invalida"
+    pasta.mkdir(parents=True)
+    shutil.copy(INVALIDOS / "sem-uuid.jsonl", pasta / "x.jsonl")
+    assert leitor.main(["--config", str(tmp_path)]) == 1
+    assert "falhas: 1" in capsys.readouterr().out
 
 
 # --- armadilha: tipo e campo desconhecidos -----------------------------------
@@ -260,6 +367,7 @@ def test_fixtures_validas_nao_tem_mais_nada_desconhecido(sessoes):
     ("sem-uuid.jsonl", "uuid"),
     ("sem-type.jsonl", "type"),
     ("lixo-no-meio.jsonl", "JSON"),
+    ("horario-ilegivel.jsonl", "timestamp"),
 ])
 def test_campo_de_que_o_leitor_depende_ausente_ou_trocado_e_erro(arquivo, trecho):
     with pytest.raises(ErroDeFormato) as erro:
@@ -290,28 +398,29 @@ def test_fork_nao_conta_de_novo_o_historico_copiado(sessoes):
 
 def test_agregados_de_conferencia(sessoes):
     ag = leitor.agregados(sessoes.values())
-    assert ag["sessoes"] == 3
+    assert ag["sessoes"] == 4
     assert ag["subagentes"] == 1
-    assert ag["pedidos_humanos"] == 4
-    assert ag["resultados_ferramenta"] == 5
+    assert ag["pedidos_humanos"] == 5
+    assert ag["resultados_ferramenta"] == 7
     assert ag["chamadas_skill"] == 1
     assert ag["chamadas_subagente"] == 1
-    assert ag["tokens_principal"] == 138 + 100 + 11
+    assert ag["tokens_principal"] == 138 + 100 + 11 + 4
     assert ag["tokens_subagentes"] == 60
-    assert ag["tokens_total"] == 309
+    assert ag["tokens_total"] == 313
     assert ag["respostas_repetidas_entre_sessoes"] == 0
     assert ag["versoes"] == 2
 
 
 def test_corte_por_data_ignora_registros_posteriores():
-    (s,) = [x for x in leitor.ler_tudo(CONFIG, ate="2026-01-01T10:59:59.000Z") if x.id == S1]
+    leitura = leitor.ler_tudo(CONFIG, ate="2026-01-01T10:59:59.000Z")
+    (s,) = [x for x in leitura.sessoes if x.id == S1]
     assert [p.id for p in s.pedidos] == ["P1"]
     assert s.tokens_principal.total == 127
-    assert s.fim == "2026-01-01T10:05:04.000Z"
+    assert s.fim == utc(2026, 1, 1, 10, 5, 4)
 
 
 def test_comando_imprime_os_agregados(capsys):
     assert leitor.main(["--config", str(CONFIG)]) == 0
     saida = capsys.readouterr().out
-    assert "sessoes" in saida and "309" in saida
+    assert "sessoes: 4" in saida and "313" in saida
     assert "tipo-novo" in saida  # o relatório de desconhecidos aparece

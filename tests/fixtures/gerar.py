@@ -15,6 +15,7 @@ AQUI = Path(__file__).parent
 S1 = "aaaaaaaa-0000-4000-8000-000000000001"
 S3 = "aaaaaaaa-0000-4000-8000-000000000003"
 S4 = "aaaaaaaa-0000-4000-8000-000000000004"
+S5 = "aaaaaaaa-0000-4000-8000-000000000005"
 AGENTE = "agt0000000000001"
 
 
@@ -35,7 +36,9 @@ class Arquivo:
         reg = {
             "type": tipo, "uuid": uuid,
             "parentUuid": self.ultimo if pai == "auto" else pai,
-            "timestamp": f"2026-01-01T{ts}.000Z", "sessionId": self.sessao,
+            # ts curto vira o formato usual; ts com "T" é usado como veio
+            "timestamp": ts if "T" in ts else f"2026-01-01T{ts}.000Z",
+            "sessionId": self.sessao,
             "isSidechain": bool(self.agente), "cwd": self.cwd, "gitBranch": "main",
             "version": self.versao, "entrypoint": "cli", "userType": "external",
         }
@@ -207,6 +210,9 @@ def sessao_principal():
         attributionAgent="exemplo-revisor")
     s.resultado("10:00:21", "toolu_ST1", sm1[1], "P1",
                 estruturado={"type": "text", "file": {}})
+    s.anexo("10:00:22", "hook_cancelled", hookName="PreToolUse:Read",
+            hookEvent="PreToolUse", toolUseID="toolu_ST1", command="./hooks/lento.sh",
+            durationMs=5000, timedOut=True, timeoutMs=5000)
     s.resposta("10:00:30", "msg_SM2", [texto("Sem problemas.")], uso(5, 5),
                stop="end_turn", attributionAgent="exemplo-revisor")
     base = AQUI / "config/projects/-repo-alfa" / S1 / "subagents"
@@ -239,6 +245,60 @@ def sessao_e_fork():
     f.gravar(AQUI / "config/projects/-repo-beta" / f"{S4}.jsonl")
 
 
+def sessao_de_bordas():
+    """Horários em outros formatos, decisões de hook e resposta sintética."""
+    a = Arquivo(S5, cwd="/repo/gama")
+    a.meta("mode", mode="normal")
+    a.pedido("2026-01-02T10:00:00Z", "PG", "Rode o comando.")       # sem milissegundos
+    m20 = a.resposta("2026-01-02T10:00:05.000Z", "msg_M20",
+                     [chamada("toolu_T20", "Bash", command="make")], uso(1, 1))
+    # Hook pediu confirmação e o usuário aceitou: source não é "hook".
+    a.resultado("2026-01-02T10:00:06.000Z", "toolu_T20", m20[0], "PG",
+                permissionDecision={"decision": "accept", "source": "user_temporary",
+                                    "reasonCode": "hook:PreToolUse"})
+    m21 = a.resposta("2026-01-02T10:00:07.000Z", "msg_M21",
+                     [chamada("toolu_T21", "Bash", command="make test")], uso(1, 1))
+    # Hook liberou por conta própria.
+    a.resultado("2026-01-02T10:00:08.000Z", "toolu_T21", m21[0], "PG",
+                permissionDecision={"decision": "accept", "source": "hook",
+                                    "reasonType": "hook", "reasonCode": "hook:PreToolUse"})
+    # Resposta gerada localmente: sem usage.
+    a.conversa("assistant", "2026-01-02T10:00:09.000Z", message={
+        "id": "msg_M22", "type": "message", "role": "assistant", "model": "<synthetic>",
+        "content": [texto("Limite atingido.")], "stop_reason": "stop_sequence"})
+    # 08:00 em -03:00 é 11:00 UTC: o último instante, embora o texto ordene antes.
+    a.conversa("system", "2026-01-02T08:00:00.000-03:00", subtype="turn_duration",
+               durationMs=1, messageCount=1, isMeta=False)
+    a.gravar(AQUI / "config/projects/-repo-gama" / f"{S5}.jsonl")
+
+
+def config_com_falha():
+    """Uma pasta com sessão válida, sessão inválida e subagente inválido."""
+    base = AQUI / "config-com-falha/projects/-repo-delta"
+
+    def valida(sessao):
+        a = Arquivo(sessao, cwd="/repo/delta")
+        a.meta("mode", mode="normal")
+        a.pedido("10:00:00", "P1", "Olá.")
+        a.resposta("10:00:01", f"msg_{sessao[-4:]}", [texto("Oi.")], uso(1, 1),
+                   stop="end_turn")
+        return a
+
+    boa = "cccccccc-0000-4000-8000-000000000001"
+    ruim = "cccccccc-0000-4000-8000-000000000002"
+    com_sub = "cccccccc-0000-4000-8000-000000000003"
+    valida(boa).gravar(base / f"{boa}.jsonl")
+    quebrada = valida(ruim)
+    quebrada.linhas[1].pop("uuid")
+    quebrada.gravar(base / f"{ruim}.jsonl")
+    valida(com_sub).gravar(base / f"{com_sub}.jsonl")
+    sub = Arquivo(com_sub, cwd="/repo/delta", agente="agt0000000000009")
+    sub.conversa("user", "10:00:02", message={"role": "user", "content": "Tarefa."})
+    sub.resposta("10:00:03", "msg_SUBX", [texto("Feito.")], uso(1, 1), stop="end_turn")
+    sub.linhas[-1]["message"].pop("id")
+    sub.gravar(base / com_sub / "subagents" / "agent-agt0000000000009.jsonl")
+
+
 def invalidos():
     base = AQUI / "invalidos"
 
@@ -263,14 +323,17 @@ def invalidos():
        lambda ls: ls[-1]["message"]["usage"].update(output_tokens="muitos"))
     um("sem-uuid.jsonl", lambda ls: ls[1].pop("uuid"))
     um("sem-type.jsonl", lambda ls: ls[0].pop("type"))
+    um("horario-ilegivel.jsonl", lambda ls: ls[1].update(timestamp="ontem à tarde"))
     um("ultima-linha-cortada.jsonl", lambda ls: None, truncar=True)
     um("lixo-no-meio.jsonl", lambda ls: None, lixo_no_meio=True)
 
 
 if __name__ == "__main__":
-    for pasta in ("config", "invalidos"):
+    for pasta in ("config", "config-com-falha", "invalidos"):
         shutil.rmtree(AQUI / pasta, ignore_errors=True)
     sessao_principal()
     sessao_e_fork()
+    sessao_de_bordas()
+    config_com_falha()
     invalidos()
     print("fixtures geradas em", AQUI)
