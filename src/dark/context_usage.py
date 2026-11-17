@@ -1,16 +1,16 @@
 """Repartição do contexto inicial pelo comando `/context`.
 
-E11 revista: o total vem do `usage` da primeira resposta (leitor e
-indicadores); a repartição vem daqui, com a parte não atribuída mostrada
-como tal.
+E11 revised: the total comes from the `usage` of the first response (reader
+and indicators); the breakdown comes from here, with the unattributed part
+shown as such.
 
-`/context` em modo não interativo não chama o modelo e devolve um relatório
-em Markdown feito para pessoas. O formato pode mudar: linha ou seção que o
-analisador não conhece é guardada em `nao_reconhecido`, não derruba a
-análise. Só é erro não achar nenhuma categoria.
+`/context` in non-interactive mode does not call the model and returns a
+Markdown report meant for people. The format may change: a line or section
+the parser does not know is kept in `unrecognized` and does not break the
+parse. It is only an error to find no category at all.
 
-O comando mede o estado do momento (configuração, skills, servidores), não
-o de uma sessão passada. Formato observado no Claude Code 2.1.326; ver
+The command measures the current state (configuration, skills, servers), not
+that of a past session. Format observed in Claude Code 2.1.326; see
 pair/diario/010.md.
 """
 
@@ -24,41 +24,41 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# executor(argumentos, diretorio) -> saída padrão
+# executor(arguments, directory) -> standard output
 Executor = Callable[[Sequence[str], Path], str]
 
 ARGUMENTS = ["claude", "-p", "/context", "--no-session-persistence"]
 
 
 class InvalidOutput(ValueError):
-    """A saída não traz nenhuma categoria reconhecível."""
+    """The output contains no recognizable category."""
 
 
 # --------------------------------------------------------------------------
-# Modelo
+# Model
 # --------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class Category:
     name: str
     tokens: int
-    kind: str            # "usado" (conta no total), "adiado", "livre", "reserva"
+    kind: str            # "used" (counts in the total), "deferred", "free", "reserved"
     known: bool
 
 
 @dataclass(frozen=True)
 class Item:
-    """Uma linha das tabelas de detalhe: skill, ferramenta MCP, agente, memória."""
-    name: str            # skill, ferramenta, tipo de agente ou caminho do arquivo
-    source: str          # coluna Source; servidor, no caso de ferramenta MCP
+    """A row of the detail tables: skill, MCP tool, agent, memory."""
+    name: str            # skill, tool, agent type or file path
+    source: str          # Source column; the server, for an MCP tool
     tokens: int
 
 
 @dataclass(frozen=True)
 class Breakdown:
     model: str | None
-    total: int | None                    # "Tokens:" do cabeçalho
-    window: int | None                   # tamanho da janela, mesmo lugar
+    total: int | None                    # "Tokens:" from the header
+    window: int | None                   # window size, same place
     categories: list[Category]
     skills: list[Item] = field(default_factory=list)
     mcp_tools: list[Item] = field(default_factory=list)
@@ -68,25 +68,25 @@ class Breakdown:
 
     @property
     def categories_sum(self) -> int:
-        """Soma das categorias que entram no total informado."""
+        """Sum of the categories that count in the given total."""
         return sum(c.tokens for c in self.categories if c.kind == "used")
 
     @property
     def deferred(self) -> int:
-        """Ferramentas adiadas (embutidas e MCP): listadas, fora do total."""
+        """Deferred tools (built-in and MCP): listed, outside the total."""
         return sum(c.tokens for c in self.categories if c.kind == "deferred")
 
 
 @dataclass(frozen=True)
 class Unattributed:
-    measured: int          # total pelo usage, recebido de fora
-    given: int       # total do /context
-    tokens: int          # medido - informado
-    percent: float    # tokens / medido * 100
+    measured: int          # total from usage, received from outside
+    given: int       # total from /context
+    tokens: int          # measured - given
+    percent: float    # tokens / measured * 100
 
 
 # --------------------------------------------------------------------------
-# Números: "319", "1,234", "2.5k", "~220", "1m"
+# Numbers: "319", "1,234", "2.5k", "~220", "1m"
 # --------------------------------------------------------------------------
 
 _NUMBER = re.compile(r"~?(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?([kKmM]?)")
@@ -103,7 +103,7 @@ def number(text: str) -> int | None:
 
 
 # --------------------------------------------------------------------------
-# Análise
+# Parsing
 # --------------------------------------------------------------------------
 
 _FREE = {"Free space": "free", "Autocompact buffer": "reserved"}
@@ -113,7 +113,7 @@ _KNOWN = {
     "Skills", "Messages", *_FREE,
 }
 
-# seção -> (campo da Reparticao, cabeçalho esperado, colunas nome/origem/tokens)
+# section -> (Breakdown field, expected header, name/source/tokens columns)
 _DETAILS = {
     "Skills": ("skills", ("Skill", "Source", "Tokens"), (0, 1, 2)),
     "MCP Tools": ("mcp_tools", ("Tool", "Server", "Tokens"), (0, 1, 2)),
@@ -148,7 +148,7 @@ def parse(text: str) -> Breakdown:
     details: dict[str, list[Item]] = {field_name: [] for field_name, _, _ in _DETAILS.values()}
     unrecognized: list[str] = []
 
-    section: str | None = None      # None = cabeçalho, antes da primeira seção ###
+    section: str | None = None      # None = header, before the first ### section
     header: tuple[str, ...] | None = None
 
     for raw in text.splitlines():
@@ -221,13 +221,13 @@ def parse(text: str) -> Breakdown:
 
 
 # --------------------------------------------------------------------------
-# Parte não atribuída
+# Unattributed part
 # --------------------------------------------------------------------------
 
 def unattributed(breakdown: Breakdown, total_usage: int) -> Unattributed:
-    """Diferença entre o total medido pelo `usage` e o informado pelo comando.
+    """Difference between the total measured by `usage` and the one given by the command.
 
-    Usa o total do cabeçalho; sem ele, a soma das categorias.
+    Uses the header total; without it, the sum of the categories.
     """
     if total_usage <= 0:
         raise ValueError("total do usage tem de ser positivo")
@@ -237,7 +237,7 @@ def unattributed(breakdown: Breakdown, total_usage: int) -> Unattributed:
 
 
 # --------------------------------------------------------------------------
-# Execução
+# Execution
 # --------------------------------------------------------------------------
 
 def _default_executor(arguments: Sequence[str], directory: Path) -> str:
@@ -249,10 +249,10 @@ def _default_executor(arguments: Sequence[str], directory: Path) -> str:
 
 
 def execute(repository: Path | str, executor: Executor | None = None) -> str:
-    """Roda `/context` no repositório e devolve o texto.
+    """Runs `/context` in the repository and returns the text.
 
-    `--no-session-persistence` evita que a execução deixe uma transcrição
-    no diretório do usuário, misturada ao histórico real.
+    `--no-session-persistence` keeps the run from leaving a transcript in
+    the user's directory, mixed with the real history.
     """
     repository = Path(repository)
     if not repository.is_dir():
@@ -265,10 +265,10 @@ def measure(repository: Path | str, executor: Executor | None = None) -> Breakdo
 
 
 # --------------------------------------------------------------------------
-# Conferência mínima: só números, nomes só com --nomes
+# Minimal cross-check: numbers only, names only with --nomes
 # --------------------------------------------------------------------------
 
-# Rótulos impressos: valor interno em inglês, texto em português.
+# Printed labels: internal value in English, text in Portuguese.
 KIND_LABELS = {"used": "usado", "deferred": "adiado", "free": "livre", "reserved": "reserva"}
 
 

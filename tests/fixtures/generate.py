@@ -1,7 +1,7 @@
-"""Gera os arquivos sintéticos de tests/fixtures/.
+"""Generates the synthetic files of tests/fixtures/.
 
-Todo o conteúdo é inventado. Nenhum dado real entra aqui. Os arquivos
-gerados ficam versionados; rode este script só para refazê-los:
+All content is made up. No real data goes in here. The generated files
+are versioned; run this script only to regenerate them:
 
     python tests/fixtures/generate.py
 """
@@ -21,7 +21,7 @@ AGENT = "agt0000000000001"
 
 
 class FixtureFile:
-    """Monta um .jsonl registro a registro, encadeando parentUuid."""
+    """Builds a .jsonl record by record, chaining parentUuid."""
 
     def __init__(self, session, cwd="/repo/alpha", version="2.1.300", agent=None):
         self.session, self.cwd, self.version, self.agent = session, cwd, version, agent
@@ -30,23 +30,23 @@ class FixtureFile:
     def meta(self, kind, **fields):
         self.lines.append({"type": kind, "sessionId": self.session, **fields})
 
-    def conversation(self, kind, ts, parent_commit="auto", **fields):
+    def conversation(self, kind, ts, parent_uuid="auto", **fields):
         self.n += 1
         prefix = "s" if self.agent else "u"
         uuid = f"{prefix}{self.session[-4:]}-{self.n:04d}"
-        reg = {
+        record = {
             "type": kind, "uuid": uuid,
-            "parentUuid": self.last if parent_commit == "auto" else parent_commit,
-            # ts curto vira o formato usual; ts com "T" é usado como veio
+            "parentUuid": self.last if parent_uuid == "auto" else parent_uuid,
+            # a short ts becomes the usual format; a ts with "T" is used as given
             "timestamp": ts if "T" in ts else f"2026-01-01T{ts}.000Z",
             "sessionId": self.session,
             "isSidechain": bool(self.agent), "cwd": self.cwd, "gitBranch": "main",
             "version": self.version, "entrypoint": "cli", "userType": "external",
         }
         if self.agent:
-            reg["agentId"] = self.agent
-        reg.update(fields)
-        self.lines.append(reg)
+            record["agentId"] = self.agent
+        record.update(fields)
+        self.lines.append(record)
         self.last = uuid
         return uuid
 
@@ -56,7 +56,7 @@ class FixtureFile:
                              message={"role": "user", "content": text}, **fields)
 
     def response(self, ts, mid, blocks, use, stop="tool_use", uses=None, **fields):
-        """`usos`, se dado, traz um usage por bloco (parciais antes do final)."""
+        """`uses`, if given, holds one usage per block (partial ones before the final)."""
         uuids = []
         for i, block in enumerate(blocks):
             use = uses[i] if uses else use
@@ -67,11 +67,11 @@ class FixtureFile:
                          "stop_reason": stop, "usage": dict(use)}, **fields))
         return uuids
 
-    def result(self, ts, tool_id, parent_commit, prompt_id, content="ok", error=False,
+    def result(self, ts, tool_id, parent_uuid, prompt_id, content="ok", error=False,
                   structured=None, **fields):
         extra = {"promptId": prompt_id} if prompt_id else {}
         return self.conversation(
-            "user", ts, parent_commit=parent_commit, sourceToolAssistantUUID=parent_commit,
+            "user", ts, parent_uuid=parent_uuid, sourceToolAssistantUUID=parent_uuid,
             message={"role": "user", "content": [{
                 "type": "tool_result", "tool_use_id": tool_id,
                 "content": content, "is_error": error}]},
@@ -88,9 +88,9 @@ class FixtureFile:
                 f.write(json.dumps(line, ensure_ascii=False) + "\n")
 
 
-def use(e, s, cc=0, cl=0):
-    return {"input_tokens": e, "output_tokens": s,
-            "cache_creation_input_tokens": cc, "cache_read_input_tokens": cl}
+def use(i, o, cc=0, cr=0):
+    return {"input_tokens": i, "output_tokens": o,
+            "cache_creation_input_tokens": cc, "cache_read_input_tokens": cr}
 
 
 def text(t):
@@ -114,7 +114,7 @@ def main_session():
             hookEvent="SessionStart", toolUseID="h-1", content="ola", stdout="ola\n",
             stderr="", exitCode=0, command="./hooks/inicio.sh", durationMs=5)
 
-    # Pedido 1: resposta em três blocos, com o mesmo usage repetido em cada um.
+    # Prompt 1: response in three blocks, with the same usage repeated in each.
     a.prompt("10:00:01", "P1", "Liste os arquivos de teste.")
     m1 = a.response("10:00:05", "msg_M1", [
         {"type": "thinking", "thinking": "", "signature": "x"},
@@ -124,7 +124,7 @@ def main_session():
     a.result("10:00:06", "toolu_T1", m1[2], "P1", "test_a.py",
                 permissionDecision=ACCEPTANCE)
 
-    # Chamadas de skill e de subagente na mesma resposta.
+    # Skill and subagent calls in the same response.
     m2 = a.response("10:00:07", "msg_M2", [
         call("toolu_T2", "Skill", skill="exemplo-skill", args="alvo"),
         call("toolu_T3", "Agent", subagent_type="exemplo-revisor",
@@ -138,12 +138,12 @@ def main_session():
                 structured={"agentId": AGENT, "status": "async_launched",
                              "isAsync": True})
 
-    # Linha gravada depois, com horário ANTERIOR ao da linha de cima.
+    # Line written later, with a timestamp EARLIER than the line above.
     a.response("10:00:02", "msg_M3", [text("Pronto.")], use(1, 2, 3, 4), stop="end_turn")
     a.conversation("system", "10:00:10", subtype="turn_duration", durationMs=9000,
                messageCount=8, isMeta=False)
 
-    # Aviso de tarefa em segundo plano: o trabalho vai para o pedido P1 (E9).
+    # Background task notification: the work goes to prompt P1 (E9).
     a.conversation("user", "10:05:00", promptId="PN", origin={"kind": "task-notification"},
                promptSource="system", message={
                    "role": "user",
@@ -151,13 +151,13 @@ def main_session():
     a.response("10:05:02", "msg_M4", [text("O subagente terminou.")], use(3, 4),
                stop="end_turn")
 
-    # Mensagem digitada no meio do turno: só existe como anexo, não como user.
+    # Message typed mid-turn: it exists only as an attachment, not as user.
     a.meta("queue-operation", operation="enqueue", content="espere",
            timestamp="2026-01-01T10:05:03.000Z")
     a.attachment("10:05:04", "queued_command", prompt="espere", origin={"kind": "human"},
             humanTurn=True, source_uuid="fila-0001", commandMode="prompt")
 
-    # Pedido 2, em outro diretório e outra versão.
+    # Prompt 2, in another directory and another version.
     a.cwd, a.version = "/repo/alpha/sub", "2.1.326"
     a.prompt("11:00:00", "P2", "Altere o arquivo.")
     m5 = a.response("11:00:03", "msg_M5", [
@@ -170,7 +170,7 @@ def main_session():
     a.conversation("user", "11:00:06", interruptedMessageId="msg_M5",
                message={"role": "user", "content": [text("[interrompido]")]})
 
-    # Hooks: falha sem bloqueio, cancelamento, bloqueio e parada.
+    # Hooks: non-blocking error, cancellation, block and stop.
     m7 = a.response("11:00:07", "msg_M7", [
         call("toolu_T6", "Bash", command="rm -rf build"),
     ], use(2, 2))
@@ -188,11 +188,11 @@ def main_session():
                hookInfos=[{"command": "./hooks/fim.sh"}], hookErrors=[],
                preventedContinuation=False, hasOutput=False, level="suggestion")
 
-    # Chamada sem resultado (sessão interrompida).
+    # Call without a result (interrupted session).
     a.response("11:00:10", "msg_M6", [call("toolu_T5", "Read", file_path="a.py")],
                use(1, 1))
 
-    # Formato que o leitor não conhece: conta e segue.
+    # Format the reader does not know: counts it and moves on.
     a.meta("tipo-novo", value=1)
     a.attachment("11:00:11", "anexo_novo", datum=1)
     a.conversation("system", "11:00:12", subtype="turn_duration", durationMs=1,
@@ -201,13 +201,13 @@ def main_session():
     a.meta("cost-state", totalCostUSD=0.01, modelUsage={})
     a.save(HERE / "config/projects/-repo-alpha" / f"{S1}.jsonl")
 
-    # Subagente: mesmo sessionId da sessão-mãe, agentId próprio.
+    # Subagent: same sessionId as the parent session, its own agentId.
     s = FixtureFile(S1, agent=AGENT)
     s.conversation("user", "10:00:09", promptId="P1",
                message={"role": "user", "content": "Revise o módulo."})
     sm1 = s.response("10:00:20", "msg_SM1", [
         text("Lendo."), call("toolu_ST1", "Read", file_path="m.py"),
-    ], None, uses=[use(20, 4, 10, 10), use(20, 10, 10, 10)],  # saída parcial no 1º bloco
+    ], None, uses=[use(20, 4, 10, 10), use(20, 10, 10, 10)],  # partial output in the 1st block
         attributionAgent="exemplo-revisor")
     s.result("10:00:21", "toolu_ST1", sm1[1], "P1",
                 structured={"type": "text", "file": {}})
@@ -231,13 +231,13 @@ def session_is_fork():
                stop="end_turn")
     o.save(HERE / "config/projects/-repo-beta" / f"{S3}.jsonl")
 
-    # Fork: mesmos uuid e message.id, sessionId novo, promptId reescrito,
-    # requestSessionId apontando para a sessão de origem.
+    # Fork: same uuid and message.id, new sessionId, rewritten promptId,
+    # requestSessionId pointing to the source session.
     f = FixtureFile(S4, cwd="/repo/beta")
     f.meta("mode", mode="normal")
-    f.lines += [dict(reg, sessionId=S4, **({"promptId": "PF"} if reg["type"] == "user" else
+    f.lines += [dict(rec, sessionId=S4, **({"promptId": "PF"} if rec["type"] == "user" else
                                             {"requestSessionId": S3}))
-                 for reg in o.lines if "uuid" in reg]
+                 for rec in o.lines if "uuid" in rec]
     f.last = f.lines[-1]["uuid"]
     f.n = 50
     f.prompt("13:00:00", "PF", "Pergunta nova.")
@@ -247,34 +247,34 @@ def session_is_fork():
 
 
 def edge_session():
-    """Horários em outros formatos, decisões de hook e resposta sintética."""
+    """Timestamps in other formats, hook decisions and a synthetic response."""
     a = FixtureFile(S5, cwd="/repo/gamma")
     a.meta("mode", mode="normal")
-    a.prompt("2026-01-02T10:00:00Z", "PG", "Rode o comando.")       # sem milissegundos
+    a.prompt("2026-01-02T10:00:00Z", "PG", "Rode o comando.")       # no milliseconds
     m20 = a.response("2026-01-02T10:00:05.000Z", "msg_M20",
                      [call("toolu_T20", "Bash", command="make")], use(1, 1))
-    # Hook pediu confirmação e o usuário aceitou: source não é "hook".
+    # Hook asked for confirmation and the user accepted: source is not "hook".
     a.result("2026-01-02T10:00:06.000Z", "toolu_T20", m20[0], "PG",
                 permissionDecision={"decision": "accept", "source": "user_temporary",
                                     "reasonCode": "hook:PreToolUse"})
     m21 = a.response("2026-01-02T10:00:07.000Z", "msg_M21",
                      [call("toolu_T21", "Bash", command="make test")], use(1, 1))
-    # Hook liberou por conta própria.
+    # Hook allowed it on its own.
     a.result("2026-01-02T10:00:08.000Z", "toolu_T21", m21[0], "PG",
                 permissionDecision={"decision": "accept", "source": "hook",
                                     "reasonType": "hook", "reasonCode": "hook:PreToolUse"})
-    # Resposta gerada localmente: sem usage.
+    # Locally generated response: no usage.
     a.conversation("assistant", "2026-01-02T10:00:09.000Z", message={
         "id": "msg_M22", "type": "message", "role": "assistant", "model": "<synthetic>",
         "content": [text("Limite atingido.")], "stop_reason": "stop_sequence"})
-    # 08:00 em -03:00 é 11:00 UTC: o último instante, embora o texto ordene antes.
+    # 08:00 at -03:00 is 11:00 UTC: the latest instant, although the text sorts earlier.
     a.conversation("system", "2026-01-02T08:00:00.000-03:00", subtype="turn_duration",
                durationMs=1, messageCount=1, isMeta=False)
     a.save(HERE / "config/projects/-repo-gamma" / f"{S5}.jsonl")
 
 
 def indicators_session():
-    """O que estava disponível, o contexto inicial e chamadas de git commit."""
+    """What was available, the initial context and git commit calls."""
     a = FixtureFile(S6, version="2.1.326")
     a.meta("mode", mode="normal")
     a.meta("api-request-shape", timestamp="2026-01-03T09:00:00.000Z", shapeHash="h1",
@@ -313,19 +313,19 @@ def indicators_session():
     ]
     for i, (mid, u, block, structured) in enumerate(steps):
         m = a.response(f"2026-01-03T09:00:{10 + 2 * i}.000Z", mid, [block], u)
-        # Texto de comando dentro de resultado de ferramenta não é comando.
+        # Command text inside a tool result is not a command.
         content = ("<command-name>/nunca-usada</command-name>"
                     if block["id"] == "toolu_T31" else "ok")
         a.result(f"2026-01-03T09:00:{11 + 2 * i}.000Z", block["id"], m[0], "PI1",
                     content, structured=structured)
-    # Skill acionada por /comando: pedido humano com o texto do comando.
+    # Skill triggered by /command: human prompt with the command text.
     a.prompt("2026-01-03T09:10:00.000Z", "PI2",
              "<command-message>por-comando</command-message>\n"
              "<command-name>/por-comando</command-name>\n"
              "<command-args>alvo</command-args>")
     a.response("2026-01-03T09:10:02.000Z", "msg_M36", [text("Resumo.")], use(2, 2),
                stop="end_turn", attributionSkill="exemplo-skill")
-    # Comando embutido: registro user sem origin; não está na lista de skills.
+    # Built-in command: user record without origin; not in the skill list.
     a.conversation("user", "2026-01-03T09:11:00.000Z", message={
         "role": "user",
         "content": "<command-name>/clear</command-name>\n"
@@ -335,7 +335,7 @@ def indicators_session():
 
 
 def config_with_failure():
-    """Uma pasta com sessão válida, sessão inválida e subagente inválido."""
+    """A folder with a valid session, an invalid session and an invalid subagent."""
     base = HERE / "config-with-failure/projects/-repo-delta"
 
     def valid(session):

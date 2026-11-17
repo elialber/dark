@@ -1,14 +1,14 @@
-"""Leitor das transcrições de sessão do Claude Code.
+"""Reader for Claude Code session transcripts.
 
-Único ponto do projeto que conhece o formato dos arquivos .jsonl. Converte
-os registros para um modelo interno próprio (decisão E1 revista):
+The only place in the project that knows the format of the .jsonl files. Converts
+the records into an internal model of its own (decision E1, revised):
 
-- tipo de registro ou campo desconhecido não é erro: é contado e relatado;
-- ausência ou mudança de tipo de um campo de que o leitor depende é erro
-  (ErroDeFormato), com arquivo e linha.
+- an unknown record kind or field is not an error: it is counted and reported;
+- a missing field the reader depends on, or one whose type changed, is an error
+  (FormatError), with file and line.
 
-O formato está descrito em docs/formato-transcricoes.md. Só biblioteca
-padrão.
+The format is described in docs/formato-transcricoes.md. Standard library
+only.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # --------------------------------------------------------------------------
-# O que o leitor conhece do formato
+# What the reader knows about the format
 # --------------------------------------------------------------------------
 
 _ENVELOPE = {
@@ -129,10 +129,10 @@ KNOWN_BLOCKS = {
     "user": {"text", "image", "tool_result"},
 }
 
-# Tamanho de anexo (E11, terceira versão): soma dos textos do anexo, sem o
-# `type` e sem as chaves que repetem o que outra chave já traz (a lista de
-# nomes ao lado do texto renderizado, por exemplo). Em anexo de hook, só o
-# `content`, que é o que o modelo recebe.
+# Attachment size (E11, third version): sum of the attachment's texts, without
+# `type` and without the keys that repeat what another key already carries (the
+# list of names next to the rendered text, for example). In a hook attachment,
+# only `content`, which is what the model receives.
 _ATTACHMENT_IGNORED_KEYS = {
     "skill_listing": {"names", "digests"},
     "agent_listing_delta": {"addedTypes", "builtInTypes", "builtInPluginTypes",
@@ -143,7 +143,7 @@ _ATTACHMENT_IGNORED_KEYS = {
     **{h: {"hookName", "hookEvent", "toolUseID", "stdout", "stderr", "command"}
        for h in ("hook_success", "hook_non_blocking_error", "hook_cancelled")},
 }
-# Anexos que repetem o que já foi contado em outro lugar.
+# Attachments that repeat what was already counted elsewhere.
 _ATTACHMENT_EXCLUDED = {"prompt_snapshot"}
 
 
@@ -170,11 +170,11 @@ _HOOKS = {
 
 
 # --------------------------------------------------------------------------
-# Modelo interno
+# Internal model
 # --------------------------------------------------------------------------
 
 class FormatError(Exception):
-    """Um campo de que o leitor depende está ausente ou mudou de tipo."""
+    """A field the reader depends on is missing or changed type."""
 
     def __init__(self, file: Path, line: int, message: str):
         self.file, self.line, self.message = Path(file), line, message
@@ -207,30 +207,30 @@ def _sum(items: Iterable[Tokens]) -> Tokens:
 
 @dataclass
 class ToolResult:
-    """Resultado de uma chamada de ferramenta."""
+    """Result of a tool call."""
     timestamp: datetime
     error: bool
-    structured: object            # toolUseResult: objeto, lista ou string
+    structured: object            # toolUseResult: object, list or string
     decision: dict | None           # permissionDecision
     denial: str | None            # toolDenialKind
 
 
 @dataclass(frozen=True)
 class Commit:
-    """Chamada Bash que executa `git commit` (E7, terceira versão)."""
-    hash: str | None          # gitOperation.commit.sha; None se não ficou registrado
+    """Bash call that runs `git commit` (E7, third version)."""
+    hash: str | None          # gitOperation.commit.sha; None if it was not recorded
     amend: bool
-    silent: bool          # -q ou --quiet: o hash não aparece na saída
-    count: int = 1       # commits no mesmo comando
-    approximate: bool = False  # o comando não pôde ser analisado; detecção por padrão
-    # gitOperation.commit.kind, guardado à parte: não entra em `amend`, porque
-    # dá falso positivo com `--amend` dentro de heredoc (E7, acréscimos).
+    silent: bool          # -q or --quiet: the hash does not show in the output
+    count: int = 1       # commits in the same command
+    approximate: bool = False  # the command could not be parsed; detection by pattern
+    # gitOperation.commit.kind, kept apart: it does not feed `amend`, because it
+    # gives a false positive with `--amend` inside a heredoc (E7, additions).
     recorded_kind: str | None = None
 
 
 @dataclass
 class ToolCall:
-    """Chamada de ferramenta (bloco tool_use), com o resultado quando existe."""
+    """Tool call (tool_use block), with its result when there is one."""
     id: str
     name: str
     input: dict
@@ -244,48 +244,48 @@ class ToolCall:
 
 @dataclass
 class Response:
-    """Uma resposta da API: os registros assistant de mesmo message.id."""
+    """One API response: the assistant records sharing a message.id."""
     message_id: str
     model: str | None
-    timestamp: datetime            # do primeiro registro
-    tokens: Tokens                 # contado uma vez (E4)
+    timestamp: datetime            # of the first record
+    tokens: Tokens                 # counted once (E4)
     stop_reason: str | None
     blocks: list[str] = field(default_factory=list)
     records: int = 0
     prompt_id: str | None = None
-    copied: bool = False          # histórico copiado por fork
-    synthetic: bool = False        # gerada localmente (model "<synthetic>")
+    copied: bool = False          # history copied by fork
+    synthetic: bool = False        # generated locally (model "<synthetic>")
     skill: str | None = None       # attributionSkill
 
 
 @dataclass
 class Prompt:
-    """Um promptId de origem humana (E9)."""
+    """A promptId of human origin (E9)."""
     id: str
     timestamp: datetime
-    size: int                   # caracteres do texto; o texto não é guardado
+    size: int                   # characters of the text; the text is not kept
     source: str | None              # promptSource
-    permission_mode: str | None = None   # permissionMode no envio do pedido
-    records: int = 1             # mais de um só em arquivo de fork
+    permission_mode: str | None = None   # permissionMode when the prompt was sent
+    records: int = 1             # more than one only in a fork file
     tokens: Tokens = field(default_factory=Tokens)
     subagent_tokens: Tokens = field(default_factory=Tokens)
 
 
 @dataclass
 class Intervention:
-    kind: str                      # interrupcao | rejeicao | mensagem_no_meio
+    kind: str                      # interruption | rejection | mid_turn_message
     timestamp: datetime
     prompt_id: str | None = None
-    with_comment: bool | None = None   # só em rejeicao
+    with_comment: bool | None = None   # only in rejection
 
 
 @dataclass
 class HookEvent:
-    """Desfecho visível de um hook (E6, versão final).
+    """Visible outcome of a hook (E6, final version).
 
-    tipo: sucesso (com saída) | erro_sem_bloqueio | cancelado (tempo esgotado)
-    | bloqueio | confirmacao (o hook pediu confirmação ao usuário)
-    | decisao (o hook liberou) | parada | hook_* (anexo ainda não conhecido).
+    kind: success (with output) | non_blocking_error | cancelled (timed out)
+    | block | confirmation (the hook asked the user for confirmation)
+    | decision (the hook allowed) | stop | hook_* (attachment not yet known).
     """
     kind: str
     timestamp: datetime
@@ -294,7 +294,7 @@ class HookEvent:
     exit_code: int | None = None
     tool_use_id: str | None = None
     blocked: bool = False
-    subagent_id: str | None = None   # de qual subagente veio, se veio de um
+    subagent_id: str | None = None   # which subagent it came from, if any
 
 
 @dataclass
@@ -309,11 +309,11 @@ class Unknowns:
 
 @dataclass
 class Available:
-    """O que foi anunciado ao modelo na sessão, com os nomes como vieram."""
+    """What was announced to the model in the session, with names as they came."""
     skills: set[str] = field(default_factory=set)
     subagent_types: set[str] = field(default_factory=set)
     tools: set[str] = field(default_factory=set)
-    builtin_types: set[str] = field(default_factory=set)   # builtInTypes do anúncio
+    builtin_types: set[str] = field(default_factory=set)   # builtInTypes of the announcement
 
     @property
     def mcp_servers(self) -> set[str]:
@@ -321,14 +321,14 @@ class Available:
 
 
 def mcp_server(tool: str) -> str | None:
-    """Servidor de uma ferramenta MCP (`mcp__<servidor>__<ferramenta>`)."""
+    """Server of an MCP tool (`mcp__<server>__<tool>`)."""
     parts = tool.split("__")
     return parts[1] if len(parts) >= 3 and parts[0] == "mcp" else None
 
 
 @dataclass(frozen=True)
 class ReadFailure:
-    """Arquivo que não pôde ser lido (E12). Linha 0: falha ao abrir."""
+    """File that could not be read (E12). Line 0: failed to open."""
     file: Path
     line: int
     message: str
@@ -342,7 +342,7 @@ class Subagent:
     id: str
     path: Path
     kind: str | None = None
-    tool_use_id: str | None = None   # chamada Agent que o acionou
+    tool_use_id: str | None = None   # Agent call that spawned it
     depth: int | None = None
     prompt_id: str | None = None
     responses: list[Response] = field(default_factory=list)
@@ -355,17 +355,17 @@ class Subagent:
 
 @dataclass(frozen=True)
 class InitialParts:
-    """Tamanhos, em caracteres, das partes do primeiro pedido (E11, terceira versão).
+    """Sizes, in characters, of the parts of the first prompt (E11, third version).
 
-    Só tamanhos; nenhum conteúdo. `sistema` e as ferramentas vêm da forma da
-    requisição (`api-request-shape`) e ficam None quando ela não foi gravada.
-    `anexos` vai do tipo do anexo ao tamanho do texto que o modelo recebe.
+    Sizes only; no content. `system` and the tools come from the request shape
+    (`api-request-shape`) and are None when it was not recorded.
+    `attachments` maps attachment type to the size of the text the model receives.
     """
     system: int | None
-    tools: int | None          # definições das ferramentas que não são MCP
-    mcp_tools: int | None      # definições de ferramentas MCP carregadas (não adiadas)
+    tools: int | None          # definitions of the non-MCP tools
+    mcp_tools: int | None      # definitions of loaded (non-deferred) MCP tools
     attachments: dict[str, int]
-    prompt: int | None               # o primeiro pedido humano
+    prompt: int | None               # the first human prompt
 
 
 @dataclass
@@ -376,11 +376,11 @@ class Session:
     start: datetime | None = None
     end: datetime | None = None
     versions: list[str] = field(default_factory=list)
-    version: str | None = None            # a do registro mais recente
+    version: str | None = None            # that of the most recent record
     cwds: list[str] = field(default_factory=list)
-    repository: Path | None = None      # raiz git mais frequente entre os cwds (E3)
+    repository: Path | None = None      # most frequent git root among the cwds (E3)
     repositories: Counter = field(default_factory=Counter)
-    copied_from: str | None = None        # sessão de origem, se for fork
+    copied_from: str | None = None        # source session, if a fork
     prompts: list[Prompt] = field(default_factory=list)
     responses: list[Response] = field(default_factory=list)
     calls: list[ToolCall] = field(default_factory=list)
@@ -391,19 +391,19 @@ class Session:
     lines: int = 0
     truncated_lines: int = 0
     responses_without_prompt: int = 0
-    failures: list[ReadFailure] = field(default_factory=list)   # subagentes ilegíveis
+    failures: list[ReadFailure] = field(default_factory=list)   # unreadable subagents
     available: Available = field(default_factory=Available)
-    initial_context: int | None = None   # tokens de entrada da 1ª resposta; None em fork
-    commands: list[str] = field(default_factory=list)   # /comandos digitados, sem a barra
-    local_commands: int = 0             # registros system/local_command
+    initial_context: int | None = None   # input tokens of the 1st response; None in a fork
+    commands: list[str] = field(default_factory=list)   # typed /commands, without the slash
+    local_commands: int = 0             # system/local_command records
     initial_parts: InitialParts | None = None
 
     @property
     def local_command_only(self) -> bool:
-        """Sessão sem resposta de modelo cujos pedidos são todos comandos locais.
+        """Session with no model response whose prompts are all local commands.
 
-        É o rastro de `claude -p /context` e afins: não entra nos indicadores
-        (lote 006).
+        It is the trace of `claude -p /context` and the like: it is left out of
+        the indicators (lote 006).
         """
         return (self.local_commands > 0
                 and not any(not r.synthetic for r in self.responses)
@@ -430,7 +430,7 @@ class Session:
 
 @dataclass
 class ReadResult:
-    """Resultado de ler_tudo: o que foi lido e o que falhou (E12)."""
+    """Result of read_all: what was read and what failed (E12)."""
     sessions: list[Session] = field(default_factory=list)
     failures: list[ReadFailure] = field(default_factory=list)
 
@@ -443,11 +443,11 @@ class SessionFiles:
 
 
 # --------------------------------------------------------------------------
-# Localizar
+# Locate
 # --------------------------------------------------------------------------
 
 def config_dir(environment: Mapping[str, str] | None = None) -> Path:
-    """Diretório de configuração do Claude Code, respeitando CLAUDE_CONFIG_DIR."""
+    """Claude Code configuration directory, honouring CLAUDE_CONFIG_DIR."""
     environment = os.environ if environment is None else environment
     defined = environment.get("CLAUDE_CONFIG_DIR")
     return Path(defined) if defined else Path.home() / ".claude"
@@ -459,7 +459,7 @@ def _subagents_of(main_file: Path) -> list[Path]:
 
 
 def find_sessions(config: Path) -> list[SessionFiles]:
-    """Arquivos principais de sessão e, para cada um, os de subagente."""
+    """Main session files and, for each one, its subagent files."""
     projects = Path(config) / "projects"
     if not projects.is_dir():
         return []
@@ -468,10 +468,10 @@ def find_sessions(config: Path) -> list[SessionFiles]:
 
 
 def git_root_of(path: Path) -> Path | None:
-    """Raiz do repositório git que contém o caminho, olhando só o disco.
+    """Root of the git repository containing the path, looking at the disk only.
 
-    Sobe a partir do primeiro ancestral que ainda existe. Em worktree, devolve
-    o repositório principal.
+    Walks up from the first ancestor that still exists. In a worktree, returns
+    the main repository.
     """
     current = Path(path)
     for folder in (current, *current.parents):
@@ -495,14 +495,14 @@ def git_root_of(path: Path) -> Path | None:
 
 
 # --------------------------------------------------------------------------
-# Ler
+# Read
 # --------------------------------------------------------------------------
 
 def instant(value: str | datetime) -> datetime:
-    """Converte um horário ISO 8601 em instante UTC.
+    """Convert an ISO 8601 time into a UTC instant.
 
-    Aceita com ou sem milissegundos e com "Z" ou deslocamento. Horário sem
-    fuso é tomado como UTC. Levanta ValueError se não for um horário.
+    Accepts it with or without milliseconds and with "Z" or an offset. A time
+    without a zone is taken as UTC. Raises ValueError if it is not a time.
     """
     dt = value if isinstance(value, datetime) else datetime.fromisoformat(value)
     if dt.tzinfo is None:
@@ -521,10 +521,10 @@ _APPROXIMATE = re.compile(
     r"(?:^|[;&|(\n])\s*(?:(?:[A-Za-z_][A-Za-z0-9_]*=\S*|then|do|else|elif|if|while|until"
     r"|\{|!|sudo|env|command|time)\s+)*git\s+"
     r"(?:-[Cc]\s+\S+\s+)*commit(?=\s|$)")
-# Palavras do shell depois das quais vem um comando (`if` e `while` também:
-# a condição é executada).
+# Shell words followed by a command (`if` and `while` too: the condition is
+# executed).
 _SHELL_WORDS = {"then", "do", "else", "elif", "if", "while", "until", "{", "!"}
-# Prefixos que executam o comando seguinte, com as opções que levam valor.
+# Prefixes that run the following command, with the options that take a value.
 _PREFIXES: dict[str, set[str]] = {
     "sudo": {"-u", "-g", "-C", "-D", "-h", "-p", "-r", "-t", "-U", "-T", "--user",
              "--group", "--chdir", "--host", "--prompt", "--role", "--type",
@@ -544,7 +544,7 @@ class CommitAnalysis:
 
 
 def _without_heredocs(command: str) -> str:
-    """Tira o corpo dos heredocs: é texto, não comando."""
+    """Strip heredoc bodies: they are text, not commands."""
     output, end = [], None
     for line in command.split("\n"):
         if end is not None:
@@ -559,7 +559,7 @@ def _without_heredocs(command: str) -> str:
 
 
 def _simple_commands(command: str) -> list[list[str]]:
-    """Divide em comandos simples; levanta ValueError se não der para analisar."""
+    """Split into simple commands; raises ValueError if it cannot be parsed."""
     lexer = shlex.shlex(command, posix=True, punctuation_chars="();<>|&\n")
     lexer.whitespace = " \t\r"
     lexer.whitespace_split = True
@@ -579,9 +579,9 @@ def _simple_commands(command: str) -> list[list[str]]:
 
 
 def _command_start(tokens: list[str]) -> int | None:
-    """Posição do comando de fato, depois de VAR=valor, palavra do shell e prefixo.
+    """Position of the actual command, after VAR=value, shell words and prefixes.
 
-    None quando o prefixo não executa o que vem depois (`command -v`).
+    None when the prefix does not run what follows (`command -v`).
     """
     i = 0
     while i < len(tokens):
@@ -604,12 +604,12 @@ def _command_start(tokens: list[str]) -> int | None:
 
 
 def _is_git_commit(tokens: list[str]) -> list[str] | None:
-    """Argumentos do `git commit`, se o comando simples for um."""
+    """Arguments of `git commit`, if the simple command is one."""
     i = _command_start(tokens)
     if i is None or i >= len(tokens) or tokens[i].rsplit("/", 1)[-1] != "git":
         return None
     i += 1
-    while i < len(tokens) and tokens[i].startswith("-"):     # opções globais do git
+    while i < len(tokens) and tokens[i].startswith("-"):     # git global options
         i += 2 if tokens[i] in _GIT_OPTS_WITH_VALUE else 1
     if i < len(tokens) and tokens[i] == "commit":
         return tokens[i + 1:]
@@ -617,13 +617,13 @@ def _is_git_commit(tokens: list[str]) -> list[str] | None:
 
 
 def parse_commit(command: str) -> CommitAnalysis | None:
-    """Diz se um comando de shell executa `git commit`, e com que opções.
+    """Tell whether a shell command runs `git commit`, and with which options.
 
-    Analisa o comando (encadeamentos, aspas, heredocs); não procura texto.
-    Reconhece o commit depois de palavra do shell (`then`, `do`, `else`,
-    `{`, `!`...) e de prefixo (`sudo`, `env`, `command`, `time`). Um comando
-    que só menciona a expressão não conta. Limite conhecido: `git commit`
-    dentro de `bash -c "..."` ou de `eval` não é visto.
+    Parses the command (chaining, quotes, heredocs); does not search text.
+    Recognizes the commit after a shell word (`then`, `do`, `else`, `{`,
+    `!`...) and after a prefix (`sudo`, `env`, `command`, `time`). A command
+    that only mentions the expression does not count. Known limit: `git commit`
+    inside `bash -c "..."` or `eval` is not seen.
     """
     clean = _without_heredocs(command)
     try:
@@ -651,7 +651,7 @@ def parse_commit(command: str) -> CommitAnalysis | None:
                 silent = True
             short_opt = re.fullmatch(r"-[A-Za-z]+", a)
             if a in _COMMIT_OPTS_WITH_VALUE or (short_opt and a[-1] in "mFCct"):
-                i += 1                           # o próximo token é o valor da opção
+                i += 1                           # the next token is the option's value
             i += 1
     return CommitAnalysis(count, amend, silent) if count else None
 
@@ -660,11 +660,11 @@ _COMMAND_NAME = re.compile(r"<command-name>\s*/?([^<\s]+)\s*</command-name>")
 
 
 class _File:
-    """Lê um .jsonl (principal ou de subagente) e acumula o que achou."""
+    """Read a .jsonl (main or subagent) and accumulate what it found."""
 
     def __init__(self, path: Path, cutoff: datetime | None, unknowns: Unknowns,
                  subagent_id: str | None = None):
-        self.path, self.cutoff, self.desc = Path(path), cutoff, unknowns
+        self.path, self.cutoff, self.unknowns = Path(path), cutoff, unknowns
         self.subagent_id = subagent_id
         self.line = 0
         self.lines = self.truncated = 0
@@ -673,14 +673,14 @@ class _File:
         self.end: datetime | None = None
         self.versions: Counter = Counter()
         self.recent_version: tuple[datetime, str] | None = None
-        self.cwds: Counter = Counter()          # dict mantém a ordem de chegada
+        self.cwds: Counter = Counter()          # dict keeps arrival order
         self.copied_from: str | None = None
         self.parents: dict[str, str | None] = {}
         self.prompt_by_uuid: dict[str, str] = {}
         self.prompts: dict[str, Prompt] = {}
         self.responses: dict[str, Response] = {}
-        self.first_uuid: dict[str, str] = {}  # message.id -> uuid do 1º registro
-        self.reserved: dict[str, str | None] = {}  # message.id -> pedido corrente no arquivo
+        self.first_uuid: dict[str, str] = {}  # message.id -> uuid of the 1st record
+        self.reserved: dict[str, str | None] = {}  # message.id -> current prompt in the file
         self.calls: dict[str, ToolCall] = {}
         self.results: dict[str, tuple[ToolResult, str]] = {}
         self.interventions: list[tuple[Intervention, str]] = []
@@ -691,8 +691,8 @@ class _File:
         self.initial_context: int | None = None
         self.commands: list[str] = []
         self.local_commands = 0
-        # Primeiro pedido (só no arquivo principal): o que chega antes da
-        # primeira resposta do modelo.
+        # First prompt (main file only): what arrives before the model's
+        # first response.
         self.before_response = subagent_id is None
         self.initial_shape: dict | None = None
         self.initial_attachments: Counter = Counter()
@@ -700,7 +700,7 @@ class _File:
         self._current_prompt: str | None = None
         self._read()
 
-    # -- validação ---------------------------------------------------------
+    # -- validation -------------------------------------------------------
 
     def _error(self, message: str) -> FormatError:
         return FormatError(self.path, self.line, message)
@@ -716,9 +716,9 @@ class _File:
 
     def _check_fields(self, kind: str, reg: dict) -> None:
         for field_name in reg.keys() - KNOWN_FIELDS[kind]:
-            self.desc.fields[f"{kind}.{field_name}"] += 1
+            self.unknowns.fields[f"{kind}.{field_name}"] += 1
 
-    # -- laço principal ----------------------------------------------------
+    # -- main loop --------------------------------------------------------
 
     def _read(self) -> None:
         with open(self.path, encoding="utf-8", errors="replace") as f:
@@ -731,7 +731,7 @@ class _File:
             try:
                 reg = json.loads(raw)
             except json.JSONDecodeError as e:
-                if i == last:        # escrita em andamento: tolerada e contada
+                if i == last:        # write in progress: tolerated and counted
                     self.truncated += 1
                     continue
                 raise self._error(f"linha não é JSON válido ({e.msg})") from None
@@ -743,7 +743,7 @@ class _File:
     def _record(self, reg: dict) -> None:
         kind = self._require(reg, "type", str, "")
         if kind not in KNOWN_FIELDS:
-            self.desc.kinds[kind] += 1
+            self.unknowns.kinds[kind] += 1
             return
         self._check_fields(kind, reg)
         if kind == "api-request-shape":
@@ -770,14 +770,14 @@ class _File:
                 self.recent_version = (ts, version)
         if isinstance(reg.get("cwd"), str):
             self.cwds[reg["cwd"]] += 1
-        parent_commit = reg.get("parentUuid")
-        if parent_commit is None and isinstance(reg.get("logicalParentUuid"), str):
-            parent_commit = reg["logicalParentUuid"]     # atravessa a compactação
-        self.parents[uuid] = parent_commit if isinstance(parent_commit, str) else None
+        parent_uuid = reg.get("parentUuid")
+        if parent_uuid is None and isinstance(reg.get("logicalParentUuid"), str):
+            parent_uuid = reg["logicalParentUuid"]     # crosses compaction
+        self.parents[uuid] = parent_uuid if isinstance(parent_uuid, str) else None
         getattr(self, f"_{kind}")(reg, uuid, ts)
 
     def _names(self, lst: object) -> set[str]:
-        """Nomes de uma lista de textos ou de objetos com `name`."""
+        """Names from a list of strings or of objects with `name`."""
         if not isinstance(lst, list):
             return set()
         names = set()
@@ -789,7 +789,7 @@ class _File:
         return names
 
     def _request_shape(self, reg: dict) -> None:
-        """Ferramentas não adiadas, da parte fixa da requisição."""
+        """Non-deferred tools, from the fixed part of the request."""
         text = reg.get("timestamp")
         if self.cutoff is not None and isinstance(text, str):
             try:
@@ -840,11 +840,11 @@ class _File:
         if human and "toolUseResult" not in reg and not reg.get("isMeta"):
             key = prompt_id if isinstance(prompt_id, str) else f"sem-prompt-id:{uuid}"
             if not isinstance(prompt_id, str):
-                self.desc.fields["user.promptId ausente em pedido humano"] += 1
+                self.unknowns.fields["user.promptId ausente em pedido humano"] += 1
             size = len(content) if isinstance(content, str) else sum(
                 len(b.get("text", "")) for b in content if isinstance(b, dict))
             mode = reg.get("permissionMode") if isinstance(reg.get("permissionMode"), str) else None
-            if key in self.prompts:          # fork: promptId reescrito nos copiados
+            if key in self.prompts:          # fork: promptId rewritten in the copied ones
                 p = self.prompts[key]
                 p.records += 1
                 p.timestamp, p.size, p.source = ts, size, reg.get("promptSource")
@@ -868,15 +868,15 @@ class _File:
                     continue
                 block_type = block.get("type")
                 if block_type not in KNOWN_BLOCKS["user"]:
-                    self.desc.kinds[f"user.content/{block_type}"] += 1
+                    self.unknowns.kinds[f"user.content/{block_type}"] += 1
                 if block_type == "tool_result":
                     self._tool_result(reg, block, uuid, ts)
 
     def _command(self, content: str | list) -> None:
-        """/comando digitado: texto que começa por `<command-` e traz o nome.
+        """Typed /command: text that starts with `<command-` and carries the name.
 
-        Vale para skills e para comandos embutidos; quem separa é o cruzamento
-        com a lista de skills anunciadas (lote 005).
+        Applies to skills and to built-in commands; matching against the list of
+        announced skills tells them apart (lote 005).
         """
         if isinstance(content, list):
             content = next((b.get("text") for b in content
@@ -898,11 +898,11 @@ class _File:
             self._hook_decision(decision, tool_id, ts)
 
     def _hook_decision(self, decision: dict, tool_id: str, ts: datetime) -> None:
-        """Decisão de permissão em que um hook participou.
+        """Permission decision in which a hook took part.
 
-        O hook aparece de dois jeitos: como autor da decisão (source "hook")
-        ou só no reasonCode ("hook:<evento>"), quando pediu confirmação e
-        quem decidiu foi o usuário.
+        The hook shows up in two ways: as the author of the decision (source
+        "hook") or only in reasonCode ("hook:<event>"), when it asked for
+        confirmation and the user decided.
         """
         code = decision.get("reasonCode")
         code = code if isinstance(code, str) and code.startswith("hook:") else ""
@@ -924,8 +924,8 @@ class _File:
         message = self._require(reg, "message", dict, "assistant.")
         mid = self._require(message, "id", str, "assistant.message.")
         blocks = self._require(message, "content", list, "assistant.message.")
-        # Resposta gerada localmente não passou pela API: pode vir sem usage, e
-        # isso vale zero. Em resposta de modelo, usage ausente é erro.
+        # A locally generated response did not go through the API: it may come
+        # without usage, which counts as zero. In a model response, missing usage is an error.
         synthetic = message.get("model") == "<synthetic>"
         if synthetic and message.get("usage") is None:
             tokens = Tokens()
@@ -956,7 +956,7 @@ class _File:
             if not synthetic and not copied:
                 self.before_response = False
         elif tokens.output > response.tokens.output:
-            # Em subagentes o usage dos primeiros blocos é parcial; vale o final.
+            # In subagents the usage of the first blocks is partial; the last one counts.
             response.tokens = tokens
         response.records += 1
         for block in blocks:
@@ -965,7 +965,7 @@ class _File:
             block_type = block.get("type")
             response.blocks.append(str(block_type))
             if block_type not in KNOWN_BLOCKS["assistant"]:
-                self.desc.kinds[f"assistant.content/{block_type}"] += 1
+                self.unknowns.kinds[f"assistant.content/{block_type}"] += 1
             if block_type == "tool_use":
                 block_where = "assistant.message.content[]."
                 tool_id = self._require(block, "id", str, block_where)
@@ -979,13 +979,13 @@ class _File:
             return 0
         return self._require(use, name, int, where)
 
-    # -- attachment e system -------------------------------------------------
+    # -- attachment and system ----------------------------------------------
 
     def _attachment(self, reg: dict, uuid: str, ts: datetime) -> None:
         attachment = self._require(reg, "attachment", dict, "attachment.")
         kind = self._require(attachment, "type", str, "attachment.attachment.")
         if kind not in KNOWN_ATTACHMENTS:
-            self.desc.kinds[f"attachment/{kind}"] += 1
+            self.unknowns.kinds[f"attachment/{kind}"] += 1
         if self.before_response and kind not in _ATTACHMENT_EXCLUDED:
             self.initial_attachments[kind] += attachment_size(attachment)
         if kind.startswith("hook_"):
@@ -1014,7 +1014,7 @@ class _File:
     def _system(self, reg: dict, uuid: str, ts: datetime) -> None:
         subtype = reg.get("subtype")
         if subtype not in SYSTEM_SUBTYPES:
-            self.desc.kinds[f"system/{subtype}"] += 1
+            self.unknowns.kinds[f"system/{subtype}"] += 1
         if subtype == "local_command":
             self.local_commands += 1
         if subtype == "stop_hook_summary":
@@ -1023,10 +1023,10 @@ class _File:
                 blocked=bool(reg.get("preventedContinuation")),
                 subagent_id=self.subagent_id))
 
-    # -- depois da leitura ---------------------------------------------------
+    # -- after reading -------------------------------------------------------
 
     def prompt_of(self, uuid: str | None) -> str | None:
-        """Pedido humano mais próximo subindo a cadeia de parentUuid."""
+        """Nearest human prompt walking up the parentUuid chain."""
         path, finding = [], None
         while uuid is not None and uuid not in path:
             if uuid in self.prompt_by_uuid:
@@ -1034,13 +1034,13 @@ class _File:
                 break
             path.append(uuid)
             uuid = self.parents.get(uuid)
-        for u in path:                      # memoriza o trecho percorrido
+        for u in path:                      # memoizes the walked stretch
             if finding is not None:
                 self.prompt_by_uuid[u] = finding
         return finding
 
     def close(self) -> None:
-        """Liga resultados às chamadas e respostas aos pedidos."""
+        """Link results to calls and responses to prompts."""
         for tool_id, (result, _) in self.results.items():
             if tool_id in self.calls:
                 self.calls[tool_id].result = result
@@ -1072,7 +1072,7 @@ def _commit_of(call: ToolCall) -> Commit | None:
 
 
 def _read_meta(path: Path) -> dict:
-    """Metadados do subagente (agent-<id>.meta.json), se existirem."""
+    """Subagent metadata (agent-<id>.meta.json), if present."""
     meta = path.parent / (path.stem + ".meta.json")
     try:
         data = json.loads(meta.read_text(encoding="utf-8"))
@@ -1084,17 +1084,17 @@ def _read_meta(path: Path) -> dict:
 def read_session(main_file: Path, subagents: Iterable[Path] | None = None, *,
                git_root: Callable[[Path], Path | None] = git_root_of,
                cutoff: str | datetime | None = None) -> Session:
-    """Lê uma sessão (arquivo principal e subagentes) para o modelo interno.
+    """Read a session (main file and subagents) into the internal model.
 
-    `ate` descarta registros de conversa posteriores a esse instante. Erro no
-    arquivo principal levanta ErroDeFormato; erro em arquivo de subagente
-    tira só aquele subagente e fica registrado em `Sessao.falhas`.
+    `cutoff` discards conversation records later than that instant. An error in
+    the main file raises FormatError; an error in a subagent file drops only
+    that subagent and is recorded in `Session.failures`.
     """
     cutoff = None if cutoff is None else instant(cutoff)
     main_file = Path(main_file)
     subagents = _subagents_of(main_file) if subagents is None else list(subagents)
-    desc = Unknowns()
-    a = _File(main_file, cutoff, desc)
+    unknowns = Unknowns()
+    a = _File(main_file, cutoff, unknowns)
     a.close()
     s = Session(id=a.session_id or main_file.stem, path=main_file,
                project_dir=main_file.parent.name, start=a.start, end=a.end,
@@ -1103,7 +1103,7 @@ def read_session(main_file: Path, subagents: Iterable[Path] | None = None, *,
                prompts=list(a.prompts.values()), responses=list(a.responses.values()),
                calls=list(a.calls.values()),
                interventions=[i for i, _ in a.interventions], hooks=a.hooks,
-               unknowns=desc, lines=a.lines, truncated_lines=a.truncated,
+               unknowns=unknowns, lines=a.lines, truncated_lines=a.truncated,
                available=a.available,
                initial_context=None if a.copied_from else a.initial_context,
                commands=a.commands, local_commands=a.local_commands)
@@ -1122,16 +1122,16 @@ def read_session(main_file: Path, subagents: Iterable[Path] | None = None, *,
 
     for path in subagents:
         agent_id = path.stem.removeprefix("agent-")
-        sub_desc = Unknowns()
+        sub_unknowns = Unknowns()
         try:
-            b = _File(path, cutoff, sub_desc, agent_id)
+            b = _File(path, cutoff, sub_unknowns, agent_id)
         except FormatError as error:
             s.failures.append(ReadFailure(error.file, error.line, error.message))
             continue
         except OSError as error:
             s.failures.append(ReadFailure(path, 0, f"não foi possível ler: {error.strerror}"))
             continue
-        desc.add_up(sub_desc)
+        unknowns.add_up(sub_unknowns)
         if not b.lines or b.start is None:
             continue
         b.close()
@@ -1146,8 +1146,8 @@ def read_session(main_file: Path, subagents: Iterable[Path] | None = None, *,
             prompt_id=b.first_prompt_id if b.first_prompt_id in a.prompts else None,
             responses=list(b.responses.values()), calls=list(b.calls.values())))
 
-    # O pedido de um subagente é o da chamada que o acionou; subagentes
-    # aninhados resolvem pela chamada feita dentro de outro subagente.
+    # A subagent's prompt is that of the call that spawned it; nested
+    # subagents resolve through the call made inside another subagent.
     owner = {c.id: c.prompt_id for c in s.calls}
     changed = True
     while changed:
@@ -1174,10 +1174,10 @@ def read_session(main_file: Path, subagents: Iterable[Path] | None = None, *,
 
 def read_all(config: Path | None = None, *, cutoff: str | datetime | None = None,
              git_root: Callable[[Path], Path | None] = git_root_of) -> ReadResult:
-    """Lê todas as sessões do diretório de configuração.
+    """Read all sessions in the configuration directory.
 
-    Erro em um arquivo não impede a leitura dos outros (E12): a sessão com
-    arquivo principal ilegível fica de fora e entra em `falhas`.
+    An error in one file does not stop the others from being read (E12): a
+    session whose main file is unreadable is left out and goes into `failures`.
     """
     config = config_dir() if config is None else Path(config)
     cutoff = None if cutoff is None else instant(cutoff)
@@ -1193,26 +1193,26 @@ def read_all(config: Path | None = None, *, cutoff: str | datetime | None = None
                                         f"não foi possível ler: {error.strerror}"))
             continue
         reading.failures.extend(s.failures)
-        if s.start is not None:      # sem registro de conversa no intervalo: fora
+        if s.start is not None:      # no conversation record in the window: left out
             reading.sessions.append(s)
     return reading
 
 
 # --------------------------------------------------------------------------
-# Agregados de conferência e comando mínimo
+# Cross-check aggregates and minimal command
 # --------------------------------------------------------------------------
 
 def aggregates(sessions: Iterable[Session]) -> dict:
-    """Totais para conferir o leitor contra os documentos de investigação."""
+    """Totals to cross-check the reader against the investigation documents."""
     sessions = list(sessions)
-    desc = Unknowns()
+    unknowns = Unknowns()
     seen: Counter = Counter()
     for s in sessions:
-        desc.add_up(s.unknowns)
+        unknowns.add_up(s.unknowns)
         seen.update(r.message_id for r in s.responses if not r.copied)
         for sub in s.subagents:
             seen.update(r.message_id for r in sub.responses)
-    main_file = _sum(s.main_tokens for s in sessions)
+    main = _sum(s.main_tokens for s in sessions)
     subs = _sum(s.subagent_tokens for s in sessions)
     every = [c for s in sessions for c in s.calls]
     return {
@@ -1231,20 +1231,20 @@ def aggregates(sessions: Iterable[Session]) -> dict:
         "tool_results": sum(1 for c in every if c.result),
         "skill_calls": sum(1 for c in every if c.name == "Skill"),
         "subagent_calls": sum(1 for c in every if c.name == "Agent"),
-        "main_tokens": main_file.total,
+        "main_tokens": main.total,
         "subagent_tokens": subs.total,
-        "total_tokens": main_file.total + subs.total,
-        "main_output_tokens": main_file.output,
+        "total_tokens": main.total + subs.total,
+        "main_output_tokens": main.output,
         "interventions": dict(Counter(i.kind for s in sessions for i in s.interventions)),
         "hooks": dict(Counter(h.kind for s in sessions for h in s.hooks)),
         "truncated_lines": sum(s.truncated_lines for s in sessions),
-        "unknown_kinds": dict(desc.kinds),
-        "unknown_fields": dict(desc.fields),
+        "unknown_kinds": dict(unknowns.kinds),
+        "unknown_fields": dict(unknowns.fields),
     }
 
 
-# Rótulos impressos pelo comando de conferência: chaves internas em inglês,
-# texto em português.
+# Labels printed by the cross-check command: internal keys in English,
+# text in Portuguese.
 AGGREGATE_LABELS = {
     "sessions": "sessoes",
     "subagents": "subagentes",
@@ -1300,7 +1300,7 @@ def main(argv: list[str] | None = None) -> int:
     sessions = [s for s in reading.sessions if not excluded(s.project_dir)]
     failures = [f for f in reading.failures if not excluded(str(f.file))]
     if not sessions and not failures:
-        # Sem histórico não é erro (lote 005).
+        # No history is not an error (lote 005).
         print("nenhuma sessão encontrada", file=sys.stderr)
         return 0
     for name, value in aggregates(sessions).items():

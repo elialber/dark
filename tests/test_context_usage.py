@@ -1,8 +1,8 @@
-"""Testes da repartição do contexto (`/context` em modo não interativo).
+"""Tests for the context breakdown (`/context` in non-interactive mode).
 
-As amostras de tests/fixtures/context/ têm a estrutura da saída real do
-Claude Code 2.1.326, com nomes inventados. Nenhum teste chama o Claude Code:
-o executor é injetado.
+The samples in tests/fixtures/context/ have the structure of the real output of
+Claude Code 2.1.326, with made-up names. No test calls Claude Code:
+the executor is injected.
 """
 
 from pathlib import Path
@@ -22,7 +22,7 @@ def parse(name: str) -> context_usage.Breakdown:
     return context_usage.parse(read(name))
 
 
-# --- números ---------------------------------------------------------------
+# --- numbers ---------------------------------------------------------------
 
 @pytest.mark.parametrize("text, expected", [
     ("319", 319),
@@ -41,25 +41,25 @@ def parse(name: str) -> context_usage.Breakdown:
     ("1.18m", 1_180_000),
     (" 59 ", 59),
 ])
-def test_numero_com_separador_e_sufixo(text, expected):
+def test_number_with_separator_and_suffix(text, expected):
     assert context_usage.number(text) == expected
 
 
 @pytest.mark.parametrize("text", ["", "muitos", "1.2.3", "k", "12x", "-5"])
-def test_numero_invalido_devolve_none(text):
+def test_invalid_number_returns_none(text):
     assert context_usage.number(text) is None
 
 
-# --- saída completa ----------------------------------------------------------
+# --- complete output ---------------------------------------------------------
 
-def test_completa_cabecalho():
+def test_complete_header():
     r = parse("complete.md")
     assert r.model == "modelo-exemplo"
     assert r.total == 10900
     assert r.window == 200_000
 
 
-def test_completa_categorias_e_tipos():
+def test_complete_categories_and_kinds():
     r = parse("complete.md")
     by_name = {c.name: c for c in r.categories}
     assert list(by_name) == [
@@ -76,19 +76,19 @@ def test_completa_categorias_e_tipos():
     assert all(c.known for c in r.categories)
 
 
-def test_completa_soma_das_categorias_contra_total():
+def test_complete_categories_sum_against_total():
     r = parse("complete.md")
-    # 2500 + 5700 + 40 + 319 + 2300 + 10: só as que contam no total
+    # 2500 + 5700 + 40 + 319 + 2300 + 10: only those that count in the total
     assert r.categories_sum == 10869
-    assert r.total - r.categories_sum == 31          # arredondamento do texto
+    assert r.total - r.categories_sum == 31          # rounding in the text
 
 
-def test_completa_ferramentas_adiadas_fora_do_total():
+def test_complete_deferred_tools_outside_the_total():
     r = parse("complete.md")
     assert r.deferred == 16300 + 120
 
 
-def test_completa_skills_com_origem():
+def test_complete_skills_with_provenance():
     r = parse("complete.md")
     assert [(s.name, s.source, s.tokens) for s in r.skills] == [
         ("exemplo-skill", "User", 220),
@@ -99,7 +99,7 @@ def test_completa_skills_com_origem():
     ]
 
 
-def test_completa_mcp_agentes_e_memoria():
+def test_complete_mcp_agents_and_memory():
     r = parse("complete.md")
     assert [(f.name, f.source, f.tokens) for f in r.mcp_tools] == [
         ("mcp__servidor-a__ferramenta_um", "servidor-a", 59),
@@ -115,13 +115,13 @@ def test_completa_mcp_agentes_e_memoria():
     ]
 
 
-def test_completa_nada_fica_sem_reconhecer():
+def test_complete_nothing_left_unrecognized():
     assert parse("complete.md").unrecognized == []
 
 
-# --- variações ---------------------------------------------------------------
+# --- variations --------------------------------------------------------------
 
-def test_sem_skills():
+def test_no_skills():
     r = parse("no-skills.md")
     assert r.skills == [] and r.mcp_tools == [] and r.agents == []
     assert r.total == 8200 and r.categories_sum == 8210
@@ -129,7 +129,7 @@ def test_sem_skills():
     assert r.unrecognized == []
 
 
-def test_numeros_com_separador_e_sufixo_na_saida():
+def test_numbers_with_separator_and_suffix_in_output():
     r = parse("numbers.md")
     assert r.total == 1_200_000 and r.window == 2_000_000
     by_name = {c.name: c.tokens for c in r.categories}
@@ -142,41 +142,41 @@ def test_numeros_com_separador_e_sufixo_na_saida():
     assert r.unrecognized == []
 
 
-def test_secao_e_linhas_desconhecidas_sao_guardadas_e_nao_derrubam():
+def test_unknown_section_and_lines_are_kept_and_do_not_break():
     r = parse("unknown-section.md")
     assert r.total == 8300
-    # categoria nova entra (conta no total) mas é marcada e relatada
+    # a new category goes in (counts in the total) but is flagged and reported
     new_category = [c for c in r.categories if c.name == "Output styles"]
     assert len(new_category) == 1 and not new_category[0].known and new_category[0].kind == "used"
     assert r.categories_sum == 8300
     texts = "\n".join(r.unrecognized)
-    assert "Output styles" in texts                 # categoria desconhecida
-    assert "**Cache:**" in texts                    # linha de cabeçalho nova
-    assert "### Hooks" in texts                     # seção nova
-    assert "hook-exemplo" in texts                  # linhas da seção nova
-    assert "muitos" in texts                        # número ilegível
+    assert "Output styles" in texts                 # unknown category
+    assert "**Cache:**" in texts                    # new header line
+    assert "### Hooks" in texts                     # new section
+    assert "hook-exemplo" in texts                  # lines of the new section
+    assert "muitos" in texts                        # unreadable number
     assert "Linha solta no fim." in texts
-    assert r.skills == []                            # a linha ilegível não vira skill
+    assert r.skills == []                            # the unreadable line does not become a skill
 
 
-def test_saida_vazia_e_erro():
+def test_empty_output_is_error():
     with pytest.raises(context_usage.InvalidOutput):
         parse("empty.md")
 
 
-def test_saida_sem_categoria_e_erro():
+def test_output_without_category_is_error():
     with pytest.raises(context_usage.InvalidOutput):
         parse("no-categories.md")
 
 
-def test_analisar_nao_depende_de_fim_de_linha():
+def test_parse_does_not_depend_on_line_endings():
     text = read("complete.md").replace("\n", "\r\n")
     assert context_usage.parse(text) == parse("complete.md")
 
 
-# --- parte não atribuída -----------------------------------------------------
+# --- unattributed part -------------------------------------------------------
 
-def test_nao_atribuido_contra_usage():
+def test_unattributed_against_usage():
     r = parse("complete.md")
     unattr = context_usage.unattributed(r, 16350)
     assert unattr.measured == 16350 and unattr.given == 10900
@@ -184,20 +184,20 @@ def test_nao_atribuido_contra_usage():
     assert unattr.percent == pytest.approx(33.333, abs=0.001)
 
 
-def test_nao_atribuido_negativo_quando_usage_e_menor():
+def test_unattributed_negative_when_usage_is_smaller():
     unattr = context_usage.unattributed(parse("complete.md"), 10000)
     assert unattr.tokens == -900
     assert unattr.percent == pytest.approx(-9.0)
 
 
-def test_nao_atribuido_rejeita_usage_invalido():
+def test_unattributed_rejects_invalid_usage():
     with pytest.raises(ValueError):
         context_usage.unattributed(parse("complete.md"), 0)
 
 
-# --- execução ----------------------------------------------------------------
+# --- execution ---------------------------------------------------------------
 
-def test_executar_usa_executor_injetado(tmp_path):
+def test_execute_uses_injected_executor(tmp_path):
     calls = []
 
     def executor(arguments, directory):
@@ -209,15 +209,15 @@ def test_executar_usa_executor_injetado(tmp_path):
     [(arguments, directory)] = calls
     assert directory == tmp_path
     assert arguments[:3] == ["claude", "-p", "/context"]
-    # não deixa transcrição no diretório do usuário
+    # leaves no transcript in the user's directory
     assert "--no-session-persistence" in arguments
 
 
-def test_executar_rejeita_diretorio_inexistente(tmp_path):
+def test_execute_rejects_nonexistent_directory(tmp_path):
     with pytest.raises(FileNotFoundError):
-        context_usage.execute(tmp_path / "nao-existe", executor=lambda a, d: "")
+        context_usage.execute(tmp_path / "missing", executor=lambda a, d: "")
 
 
-def test_medir_junta_execucao_e_analise(tmp_path):
+def test_measure_combines_execution_and_parsing(tmp_path):
     r = context_usage.measure(tmp_path, executor=lambda a, d: read("no-skills.md"))
     assert r.total == 8200
