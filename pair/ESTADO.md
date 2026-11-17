@@ -26,6 +26,7 @@ Fase 1 em encerramento; Fase 2 começa pelo leitor (goal 005)
 | [001 — Formato das transcrições](goals/001-formato-transcricoes.md) | Aceito pelo revisor no [lote 002](entrada/lote-002.md) |
 | [002 — Viabilidade dos indicadores](goals/002-viabilidade-indicadores.md) | Aceito pelo revisor no [lote 003](entrada/lote-003.md) |
 | [003 — Auditoria manual](goals/003-auditoria-manual.md) | Bloqueado: aguarda escolha do repositório ([diário](diario/003.md)) |
+| [004 — Experimentos controlados](goals/004-experimentos-controlados.md) | Concluído, aguarda revisão ([relatório](diario/004.md) · [documento](../docs/experimentos-001.md)) |
 
 ## Decisões pendentes
 
@@ -36,5 +37,4 @@ Fechada: a linguagem da CLI é Python 3.12 ou mais recente
 
 ## Próximo passo
 
-Goal 004, depois goal 005. O goal 003 espera o usuário indicar o
-repositório.
+Goal 005. O goal 003 espera o usuário indicar o repositório.
