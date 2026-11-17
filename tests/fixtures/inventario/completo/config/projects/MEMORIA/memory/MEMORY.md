@@ -1,0 +1,1 @@
+- [Exemplo](exemplo.md) — memória inventada

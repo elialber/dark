@@ -1,0 +1,4 @@
+{
+  "permissions": {"deny": ["Bash(curl *)"], "disableBypassPermissionsMode": "disable"},
+  "hooks": {"UserPromptSubmit": [{"hooks": [{"type": "prompt", "prompt": "Confira o pedido."}]}]}
+}

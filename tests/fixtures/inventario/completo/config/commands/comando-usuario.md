@@ -1,0 +1,1 @@
+Comando pessoal sem cabeçalho.

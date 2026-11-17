@@ -1,0 +1,1 @@
+- Regra geral do usuário.
