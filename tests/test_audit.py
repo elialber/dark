@@ -25,7 +25,7 @@ from dark.reader import ReadFailure
 
 ROOT = Path(__file__).parent.parent
 CONFIG = Path(__file__).parent / "fixtures" / "config"
-INVALID = Path(__file__).parent / "fixtures" / "invalidos"
+INVALID = Path(__file__).parent / "fixtures" / "invalid"
 S1 = "aaaaaaaa-0000-4000-8000-000000000001"
 S3 = "aaaaaaaa-0000-4000-8000-000000000003"
 S4 = "aaaaaaaa-0000-4000-8000-000000000004"
@@ -140,7 +140,7 @@ def test_modos_que_suprimem_rejeicoes():
 
 
 def test_regra_de_falhas_de_leitura(sessions):
-    failure = ReadFailure(Path("/cfg/projects/-repo-alfa/x.jsonl"), 2, "campo ausente")
+    failure = ReadFailure(Path("/cfg/projects/-repo-alpha/x.jsonl"), 2, "campo ausente")
     a = audit.audit(only(sessions, S3), [failure])
     (finding,) = [x for x in a.findings if x.rule == "read_failures"]
     assert finding.section == "header" and finding.values["failures"] == 1
@@ -208,8 +208,8 @@ SECTIONS = ["# Auditoria do harness", "## O que chama atenção", "## Peso fixo"
 
 @pytest.fixture(scope="module")
 def text(sessions):
-    a = audit.audit(sessions, repository=Path("/repo/alfa"),
-                          directories=[Path("/repo/alfa")])
+    a = audit.audit(sessions, repository=Path("/repo/alpha"),
+                          directories=[Path("/repo/alpha")])
     return report.markdown(a)
 
 
@@ -227,7 +227,7 @@ def test_cada_secao_termina_com_como_ler(text):
 
 def test_cabecalho(text):
     hdr = text.split("\n## ")[0]
-    assert "/repo/alfa" in hdr
+    assert "/repo/alpha" in hdr
     assert "2026-01-01" in hdr and "2026-01-03" in hdr
     assert "Sessões: 5" in hdr and "Pedidos: 7" in hdr
     assert "2.1.300" in hdr and "2.1.326" in hdr
@@ -317,7 +317,7 @@ def config_pointing(tmp_path: Path, alpha: Path, beta: Path | None = None) -> Pa
     shutil.copytree(CONFIG, destination)
     for file in destination.rglob("*.jsonl"):
         t = file.read_text(encoding="utf-8")
-        t = t.replace('"/repo/alfa', f'"{alpha}')
+        t = t.replace('"/repo/alpha', f'"{alpha}')
         if beta is not None:
             t = t.replace('"/repo/beta', f'"{beta}')
         file.write_text(t, encoding="utf-8")
@@ -403,10 +403,10 @@ def test_falha_de_leitura_aparece_no_cabecalho(tmp_path, capsys):
     cfg = config_pointing(tmp_path, repo)
     folder = cfg / "projects" / audit.project_dir_of(repo)
     folder.mkdir()
-    shutil.copy(INVALID / "sem-uuid.jsonl", folder / "quebrada.jsonl")
+    shutil.copy(INVALID / "no-uuid.jsonl", folder / "quebrada.jsonl")
     other = cfg / "projects" / "-de-outro-repo"
     other.mkdir()
-    shutil.copy(INVALID / "sem-type.jsonl", other / "alheia.jsonl")
+    shutil.copy(INVALID / "no-type.jsonl", other / "alheia.jsonl")
     assert run_audit(repo, "--config", cfg) == 0
     hdr = capsys.readouterr().out.split("\n## ")[0]
     assert "quebrada.jsonl, linha 2" in hdr
@@ -418,7 +418,7 @@ def test_so_falhas_e_nenhuma_sessao_termina_com_erro(tmp_path, capsys):
     cfg = tmp_path / "config"
     folder = cfg / "projects" / audit.project_dir_of(repo)
     folder.mkdir(parents=True)
-    shutil.copy(INVALID / "sem-uuid.jsonl", folder / "quebrada.jsonl")
+    shutil.copy(INVALID / "no-uuid.jsonl", folder / "quebrada.jsonl")
     assert run_audit(repo, "--config", cfg) == 1
     assert "quebrada.jsonl" in capsys.readouterr().out
 

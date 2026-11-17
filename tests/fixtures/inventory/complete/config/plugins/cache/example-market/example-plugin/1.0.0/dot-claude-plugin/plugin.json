@@ -1,0 +1,1 @@
+{"name": "example-plugin", "version": "1.0.0", "mcpServers": {"servidor-manifesto": {"command": "m", "env": {"CHAVE_MANIFESTO": "valor-secreto-manifesto"}}}}

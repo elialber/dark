@@ -1,6 +1,6 @@
 """Testes do inventário estático do harness.
 
-Os arquivos sintéticos ficam em tests/fixtures/inventario/ com nomes
+Os arquivos sintéticos ficam em tests/fixtures/inventory/ com nomes
 neutros: `dot-x` no lugar de `.x` e `CLAUDE.md.fixture` no lugar de
 `CLAUDE.md`. Guardados com os nomes reais, eles seriam harness de verdade
 deste repositório (o Claude Code carrega CLAUDE.md aninhado e
@@ -22,7 +22,7 @@ import pytest
 from dark import inventory
 from dark.inventory import Inventory
 
-FIXTURES = Path(__file__).parent / "fixtures" / "inventario"
+FIXTURES = Path(__file__).parent / "fixtures" / "inventory"
 SRC = Path(__file__).parent.parent / "src"
 
 SECRETS = [
@@ -54,7 +54,7 @@ def mount(case: str, tmp_path: Path) -> tuple[Path, Path, Path]:
     """Copia o caso para tmp_path; devolve (repo, config, gerenciado)."""
     base = tmp_path / case
     _copy(FIXTURES / case, base)
-    repo, config, managed = base / "repo", base / "config", base / "gerenciado"
+    repo, config, managed = base / "repo", base / "config", base / "managed"
     for d in (repo, config, managed):
         d.mkdir(exist_ok=True)
     for fpath in base.rglob("*.json"):
@@ -74,7 +74,7 @@ def take_inventory(case: str, tmp_path: Path) -> Inventory:
 
 @pytest.fixture(scope="module")
 def complete(tmp_path_factory):
-    return take_inventory("completo", tmp_path_factory.mktemp("inv"))
+    return take_inventory("complete", tmp_path_factory.mktemp("inv"))
 
 
 def _single(inv: Inventory, kind: str, name: str):
@@ -89,32 +89,32 @@ EXPECTED = [
     # (tipo, nome, escopo, plugin, local, sob_demanda)
     ("instruction", "CLAUDE.md", "managed", None, False, False),
     ("instruction", "CLAUDE.md", "user", None, False, False),
-    ("instruction", "rules/geral.md", "user", None, False, False),
+    ("instruction", "rules/general.md", "user", None, False, False),
     ("instruction", "CLAUDE.md", "project", None, False, False),
     ("instruction", "CLAUDE.local.md", "project", None, True, False),
     ("instruction", "sub/CLAUDE.md", "project", None, False, True),
-    ("instruction", "rules/estilo.md", "project", None, False, False),
+    ("instruction", "rules/style.md", "project", None, False, False),
     ("instruction", "rules/api.md", "project", None, False, True),
     ("instruction", "memory/MEMORY.md", "project", None, True, False),
-    ("instruction", "@docs/importado.md", "project", None, False, False),
-    ("skill", "skill-gerenciada", "managed", None, False, False),
-    ("skill", "skill-usuario", "user", None, False, False),
-    ("skill", "comando-usuario", "user", None, False, False),
-    ("skill", "skill-projeto", "project", None, False, False),
-    ("skill", "comando-projeto", "project", None, False, False),
-    ("skill", "sub:skill-aninhada", "project", None, False, True),
-    ("skill", "plugin-exemplo:skill-plugin", "plugin", "plugin-exemplo", False, False),
-    ("skill", "plugin-exemplo:comando-plugin", "plugin", "plugin-exemplo", False, False),
-    ("subagent", "agente-usuario", "user", None, False, False),
-    ("subagent", "agente-em-subpasta", "user", None, False, False),
-    ("subagent", "agente-projeto", "project", None, False, False),
-    ("subagent", "plugin-exemplo:agente-plugin", "plugin", "plugin-exemplo", False, False),
+    ("instruction", "@docs/imported.md", "project", None, False, False),
+    ("skill", "managed-skill", "managed", None, False, False),
+    ("skill", "user-skill", "user", None, False, False),
+    ("skill", "user-command", "user", None, False, False),
+    ("skill", "project-skill", "project", None, False, False),
+    ("skill", "project-command", "project", None, False, False),
+    ("skill", "sub:nested-skill", "project", None, False, True),
+    ("skill", "example-plugin:skill-plugin", "plugin", "example-plugin", False, False),
+    ("skill", "example-plugin:plugin-command", "plugin", "example-plugin", False, False),
+    ("subagent", "user-agent", "user", None, False, False),
+    ("subagent", "agent-in-subdir", "user", None, False, False),
+    ("subagent", "project-agent", "project", None, False, False),
+    ("subagent", "example-plugin:plugin-agent", "plugin", "example-plugin", False, False),
     ("mcp", "servidor-gerenciado", "managed", None, False, False),
     ("mcp", "servidor-usuario", "user", None, False, False),
     ("mcp", "servidor-local", "project", None, True, False),
     ("mcp", "servidor-projeto", "project", None, False, False),
-    ("mcp", "servidor-plugin", "plugin", "plugin-exemplo", False, False),
-    ("mcp", "servidor-manifesto", "plugin", "plugin-exemplo", False, False),
+    ("mcp", "servidor-plugin", "plugin", "example-plugin", False, False),
+    ("mcp", "servidor-manifesto", "plugin", "example-plugin", False, False),
 ]
 
 
@@ -155,11 +155,11 @@ def test_hooks_de_cada_escopo(complete):
     assert (stop.matcher, stop.kind, stop.command) == (None, "http", "http://localhost:9/aviso")
     assert stop.headers == ["Authorization"] and stop.variables == ["CHAVE_AVISO"]
     plugin = hooks[("plugin", False, "PreToolUse")]
-    assert plugin.plugin == "plugin-exemplo"
+    assert plugin.plugin == "example-plugin"
     assert plugin.hook.command == "${CLAUDE_PLUGIN_ROOT}/bin/checa"
     assert hooks[("managed", False, "UserPromptSubmit")].hook.kind == "prompt"
     header = hooks[("user", False, None)]
-    assert header.name == "skill-com-hook" and header.hook.parsed is False
+    assert header.name == "skill-with-hook" and header.hook.parsed is False
 
 
 def test_permissoes_de_cada_escopo(complete):
@@ -189,7 +189,7 @@ def test_instrucao_conta_itens_e_motivos(complete):
     assert d.item_count == 6                 # 4 com marcador, 2 numerados; bloco de código fora
     assert d.with_reason == 3            # "Motivo:", "porque", "para que"
     assert d.estimated_reason is True
-    assert d.imports == ["docs/importado.md"]
+    assert d.imports == ["docs/imported.md"]
 
 
 def test_instrucao_sem_motivo(complete):
@@ -199,11 +199,11 @@ def test_instrucao_sem_motivo(complete):
 
 def test_importacoes_seguem_ate_quatro_saltos(complete):
     names = {p.name for p in complete.items if p.kind == "instruction"}
-    assert {"@docs/importado.md", "@docs/nivel2.md", "@docs/nivel3.md",
-            "@docs/nivel4.md"} <= names
-    assert "@docs/nivel5.md" not in names
+    assert {"@docs/imported.md", "@docs/level2.md", "@docs/level3.md",
+            "@docs/level4.md"} <= names
+    assert "@docs/level5.md" not in names
     assert not any("nao-importado" in n or "tambem-nao" in n for n in names)
-    imp = _single(complete, "instruction", "@docs/importado.md")
+    imp = _single(complete, "instruction", "@docs/imported.md")
     assert imp.instruction.imported_by.name == "CLAUDE.md"
     assert (imp.instruction.item_count, imp.instruction.with_reason) == (2, 1)
 
@@ -217,7 +217,7 @@ def test_memoria_de_topico_e_claude_md_de_plugin_ficam_fora(complete):
 # --- skills e subagentes ----------------------------------------------------------------
 
 def test_skill_com_descricao_curta_e_corpo_longo(complete):
-    s = _single(complete, "skill", "skill-projeto")
+    s = _single(complete, "skill", "project-skill")
     assert s.description.chars == len("Faz uma coisa curta.")
     assert s.description.body_chars > 2000
     assert s.description.body_lines > 40
@@ -225,20 +225,20 @@ def test_skill_com_descricao_curta_e_corpo_longo(complete):
 
 
 def test_descricao_em_bloco_dobrado_e_entre_aspas(complete):
-    a = _single(complete, "subagent", "agente-projeto")
+    a = _single(complete, "subagent", "project-agent")
     assert a.description.chars == len("Revisa mudanças de exemplo em duas linhas.")
-    s = _single(complete, "skill", "skill-usuario")
+    s = _single(complete, "skill", "user-skill")
     assert s.description.chars == len("Skill pessoal de exemplo.")
     assert s.description.model_invocable is False
-    assert _single(complete, "skill", "comando-usuario").description.chars == 0
+    assert _single(complete, "skill", "user-command").description.chars == 0
 
 
 def test_plugins_inativos_nao_entram_mas_sao_relatados(complete):
     assert not any("inativa" in p.name for p in complete.items)
     state = {p.name: p.active for p in complete.plugins}
-    assert state == {"plugin-exemplo@mercado-exemplo": True,
-                      "plugin-desligado@mercado-exemplo": False,
-                      "plugin-outro-projeto@mercado-exemplo": False}
+    assert state == {"example-plugin@example-market": True,
+                      "disabled-plugin@example-market": False,
+                      "other-project-plugin@example-market": False}
 
 
 # --- servidores MCP e segredos -------------------------------------------------------
@@ -262,7 +262,7 @@ def test_nenhum_valor_secreto_aparece_no_resultado(complete):
 
 
 def test_arquivo_de_credenciais_nunca_e_aberto(tmp_path, monkeypatch):
-    repo, config, managed = mount("completo", tmp_path)
+    repo, config, managed = mount("complete", tmp_path)
     opened = []
     original = Path.read_text
 
@@ -278,22 +278,22 @@ def test_arquivo_de_credenciais_nunca_e_aberto(tmp_path, monkeypatch):
 # --- falhas, vazio, somente leitura ---------------------------------------------------
 
 def test_configuracao_malformada_relata_e_segue(tmp_path):
-    inv = take_inventory("quebrado", tmp_path)
+    inv = take_inventory("broken", tmp_path)
     failures = {(f.file.name, f.file.parent.name) for f in inv.failures}
     assert ("settings.json", ".claude") in failures        # projeto, JSON cortado
     assert ("settings.json", "config") in failures         # usuário, não é JSON
     assert (".claude.json", "config") in failures
     assert (".mcp.json", "repo") in failures               # mcpServers não é objeto
-    assert ("SKILL.md", "skill-sem-fim") in failures
+    assert ("SKILL.md", "skill-without-end") in failures
     assert ("installed_plugins.json", "plugins") in failures   # pasta do plugin ausente
     assert any(f.file.name == "nao-existe.md" for f in inv.failures)
     assert all(f.message for f in inv.failures)
     names = {p.name for p in inv.items}
-    assert {"skill-boa", "agente-bom", "CLAUDE.md"} <= names
+    assert {"good-skill", "good-agent", "CLAUDE.md"} <= names
 
 
 def test_repositorio_sem_harness(tmp_path):
-    inv = take_inventory("vazio", tmp_path)
+    inv = take_inventory("empty", tmp_path)
     assert inv.items == [] and inv.failures == [] and inv.plugins == []
 
 
@@ -303,7 +303,7 @@ def _snapshot(root: Path) -> dict:
 
 
 def test_somente_leitura(tmp_path):
-    repo, config, managed = mount("completo", tmp_path)
+    repo, config, managed = mount("complete", tmp_path)
     before = _snapshot(tmp_path)
     inventory.take_inventory(repo, config, managed=managed, environment={})
     assert _snapshot(tmp_path) == before
@@ -317,10 +317,10 @@ def test_diretorio_de_configuracao_respeita_variavel(tmp_path):
 
 
 def test_config_padrao_vem_do_ambiente(tmp_path):
-    repo, config, managed = mount("completo", tmp_path)
+    repo, config, managed = mount("complete", tmp_path)
     inv = inventory.take_inventory(repo, managed=managed,
                                  environment={"CLAUDE_CONFIG_DIR": str(config)})
-    assert any(p.name == "skill-usuario" for p in inv.items)
+    assert any(p.name == "user-skill" for p in inv.items)
 
 
 def test_claude_json_fica_ao_lado_da_pasta_padrao(tmp_path):
@@ -356,9 +356,9 @@ def test_pecas_sao_dataclasses_congeladas(complete):
 # --- comando mínimo -----------------------------------------------------------------------
 
 def test_comando_imprime_contagens(tmp_path, capsys):
-    repo, config, managed = mount("completo", tmp_path)
+    repo, config, managed = mount("complete", tmp_path)
     assert inventory.main([str(repo), "--config", str(config),
                             "--gerenciado", str(managed)]) == 0
     output = capsys.readouterr().out
     assert "skill" in output and "usuario" in output and "falhas: 0" in output
-    assert "skill-projeto" not in output            # nomes só com --nomes
+    assert "project-skill" not in output            # nomes só com --nomes

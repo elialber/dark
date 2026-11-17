@@ -1,6 +1,6 @@
 """Testes do leitor de transcrições.
 
-Só arquivos sintéticos de tests/fixtures/ (gerados por gerar.py) ou criados
+Só arquivos sintéticos de tests/fixtures/ (gerados por generate.py) ou criados
 em diretório temporário. Nenhum teste lê o diretório real do usuário.
 """
 
@@ -16,13 +16,13 @@ from dark.reader import FormatError, Tokens
 
 FIXTURES = Path(__file__).parent / "fixtures"
 CONFIG = FIXTURES / "config"
-INVALID = FIXTURES / "invalidos"
+INVALID = FIXTURES / "invalid"
 S1 = "aaaaaaaa-0000-4000-8000-000000000001"
 S3 = "aaaaaaaa-0000-4000-8000-000000000003"
 S4 = "aaaaaaaa-0000-4000-8000-000000000004"
 S5 = "aaaaaaaa-0000-4000-8000-000000000005"
 S6 = "aaaaaaaa-0000-4000-8000-000000000006"
-CONFIG_WITH_FAILURE = FIXTURES / "config-com-falha"
+CONFIG_WITH_FAILURE = FIXTURES / "config-with-failure"
 
 
 def utc(*parts):
@@ -52,7 +52,7 @@ def test_diretorio_config_padrao_e_dot_claude_na_home():
 def test_localiza_arquivos_principais_e_de_subagente():
     findings = {a.main_file.stem: a for a in reader.find_sessions(CONFIG)}
     assert set(findings) == {S1, S3, S4, S5, S6}
-    assert findings[S1].project_dir == "-repo-alfa"
+    assert findings[S1].project_dir == "-repo-alpha"
     assert [p.name for p in findings[S1].subagents] == ["agent-agt0000000000001.jsonl"]
     assert findings[S3].subagents == []
 
@@ -177,8 +177,8 @@ def test_subagente_fica_dentro_da_sessao_mae(sessions, s1):
 # --- armadilha: mudança de cwd -----------------------------------------------
 
 def test_cwds_da_sessao_em_ordem(s1):
-    assert s1.cwds == ["/repo/alfa", "/repo/alfa/sub"]
-    assert s1.project_dir == "-repo-alfa"
+    assert s1.cwds == ["/repo/alpha", "/repo/alpha/sub"]
+    assert s1.project_dir == "-repo-alpha"
 
 
 def _minimal_session(path, cwds):
@@ -279,7 +279,7 @@ def test_resposta_sintetica_sem_usage_nao_e_erro_e_conta_zero(sessions):
 
 
 def test_resposta_de_modelo_real_sem_usage_continua_sendo_erro(tmp_path):
-    lines = [json.loads(l) for l in (INVALID / "sem-message-id.jsonl").read_text().splitlines()]
+    lines = [json.loads(l) for l in (INVALID / "no-message-id.jsonl").read_text().splitlines()]
     lines[-1]["message"]["id"] = "msg_X1"
     lines[-1]["message"].pop("usage")
     fpath = tmp_path / "sem-usage.jsonl"
@@ -309,7 +309,7 @@ def test_corte_compara_instantes_e_nao_texto():
 
 def test_horario_ilegivel_e_erro_de_formato():
     with pytest.raises(FormatError, match="timestamp"):
-        reader.read_session(INVALID / "horario-ilegivel.jsonl")
+        reader.read_session(INVALID / "unreadable-timestamp.jsonl")
 
 
 # --- falha isolada por sessão (E12) --------------------------------------------
@@ -343,7 +343,7 @@ def test_comando_imprime_sessoes_e_falhas_e_termina_bem(capsys):
 def test_comando_termina_com_erro_se_so_houver_falhas(tmp_path, capsys):
     folder = tmp_path / "projects" / "-so-invalida"
     folder.mkdir(parents=True)
-    shutil.copy(INVALID / "sem-uuid.jsonl", folder / "x.jsonl")
+    shutil.copy(INVALID / "no-uuid.jsonl", folder / "x.jsonl")
     assert reader.main(["--config", str(tmp_path)]) == 1
     assert "falhas: 1" in capsys.readouterr().out
 
@@ -372,12 +372,12 @@ def test_fixtures_validas_nao_tem_mais_nada_desconhecido(sessions):
 # --- armadilha: campo obrigatório ausente ou de tipo errado ------------------
 
 @pytest.mark.parametrize("file, snippet", [
-    ("sem-message-id.jsonl", "message.id"),
-    ("usage-tipo-errado.jsonl", "output_tokens"),
-    ("sem-uuid.jsonl", "uuid"),
-    ("sem-type.jsonl", "type"),
-    ("lixo-no-meio.jsonl", "JSON"),
-    ("horario-ilegivel.jsonl", "timestamp"),
+    ("no-message-id.jsonl", "message.id"),
+    ("usage-wrong-type.jsonl", "output_tokens"),
+    ("no-uuid.jsonl", "uuid"),
+    ("no-type.jsonl", "type"),
+    ("garbage-in-middle.jsonl", "JSON"),
+    ("unreadable-timestamp.jsonl", "timestamp"),
 ])
 def test_campo_de_que_o_leitor_depende_ausente_ou_trocado_e_erro(file, snippet):
     with pytest.raises(FormatError) as error:
@@ -388,7 +388,7 @@ def test_campo_de_que_o_leitor_depende_ausente_ou_trocado_e_erro(file, snippet):
 
 
 def test_ultima_linha_cortada_e_tolerada_e_contada():
-    s = reader.read_session(INVALID / "ultima-linha-cortada.jsonl")
+    s = reader.read_session(INVALID / "truncated-last-line.jsonl")
     assert s.truncated_lines == 1
     assert len(s.responses) == 1
 
@@ -480,7 +480,7 @@ def test_chamadas_de_commit_trazem_hash_e_amend(sessions):
     ("git commit -q -m 'x'", (1, False, True)),                             # -q
     ("git commit -qm 'x'", (1, False, True)),
     ("git commit --quiet -m 'x'", (1, False, True)),
-    ("git -C /repo/alfa commit -m 'x'", (1, False, False)),
+    ("git -C /repo/alpha commit -m 'x'", (1, False, False)),
     ("GIT_AUTHOR_NAME=x git commit -m 'x'", (1, False, False)),
     ("cd sub\ngit commit -m 'x'", (1, False, False)),
     ("git commit -m 'a' && git commit --amend -m 'b'", (2, True, False)),
@@ -538,7 +538,7 @@ def test_pedido_guarda_o_modo_de_permissao(sessions):
 
 
 def test_pedido_sem_modo_de_permissao_fica_sem_modo(tmp_path):
-    lines = (CONFIG / "projects" / "-repo-gama" / f"{S5}.jsonl").read_text().splitlines()
+    lines = (CONFIG / "projects" / "-repo-gamma" / f"{S5}.jsonl").read_text().splitlines()
     regs = [json.loads(l) for l in lines]
     for r in regs:
         r.pop("permissionMode", None)

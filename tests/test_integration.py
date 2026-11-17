@@ -266,27 +266,27 @@ def item(kind, scope, name, *, plugin=None, invocable=True, on_demand=False,
 
 
 ITEMS = [
-    item("skill", "project", "skill-projeto"),
-    item("skill", "user", "skill-usuario"),
-    item("skill", "plugin", "plugin-exemplo:skill-plugin", plugin="plugin-exemplo"),
+    item("skill", "project", "project-skill"),
+    item("skill", "user", "user-skill"),
+    item("skill", "plugin", "example-plugin:skill-plugin", plugin="example-plugin"),
     item("skill", "user", "skill-oculta", invocable=False),    # instalada, não anunciada
-    item("skill", "project", "web:skill-aninhada", on_demand=True),
-    item("subagent", "project", "agente-projeto"),
+    item("skill", "project", "web:nested-skill", on_demand=True),
+    item("subagent", "project", "project-agent"),
     item("subagent", "user", "agente-parado"),                # instalado, não anunciado
     item("mcp", "project", "servidor-a"),
-    item("mcp", "plugin", "servidor-p", plugin="plugin-exemplo"),
+    item("mcp", "plugin", "servidor-p", plugin="example-plugin"),
 ]
-PLUGINS = [Plugin("plugin-exemplo@mercado", "user", Path("/inv/plug"), True),
-           Plugin("plugin-desligado@mercado", "user", Path("/inv/off"), False)]
+PLUGINS = [Plugin("example-plugin@mercado", "user", Path("/inv/plug"), True),
+           Plugin("disabled-plugin@mercado", "user", Path("/inv/off"), False)]
 
 ANNOUNCED = provenance.Announced(
-    skills={"skill-projeto", "skill-usuario", "plugin-exemplo:skill-plugin",
+    skills={"project-skill", "user-skill", "example-plugin:skill-plugin",
             "conta-exemplo:skill-da-conta", "skill-embutida",
-            "plugin-desligado:skill-sumida"},
-    subagent_types={"agente-projeto", "Explore", "agente-sumido"},
+            "disabled-plugin:skill-sumida"},
+    subagent_types={"project-agent", "Explore", "agente-sumido"},
     builtin_types={"Explore"},
     tools={"Bash", "WebFetch", "mcp__servidor-a__buscar", "mcp__servidor-a__criar",
-                 "mcp__claude_ai_Exemplo__ler", "mcp__plugin_plugin-exemplo_servidor-p__x",
+                 "mcp__claude_ai_Exemplo__ler", "mcp__plugin_example-plugin_servidor-p__x",
                  "mcp__servidor-sumido__y"})
 
 
@@ -297,19 +297,19 @@ def provenances():
 
 def test_origem_das_skills(provenances):
     o = provenances.skills
-    assert (o["skill-projeto"].provenance, o["skill-projeto"].path) == (
-        "project", Path("/inv/project/skill/skill-projeto.md"))
-    assert o["skill-usuario"].provenance == "user"
-    assert o["plugin-exemplo:skill-plugin"].provenance == "plugin"
+    assert (o["project-skill"].provenance, o["project-skill"].path) == (
+        "project", Path("/inv/project/skill/project-skill.md"))
+    assert o["user-skill"].provenance == "user"
+    assert o["example-plugin:skill-plugin"].provenance == "plugin"
     assert o["conta-exemplo:skill-da-conta"] == provenance.Provenance("account")
     assert o["skill-embutida"] == provenance.Provenance("builtin")
     # Prefixo de um plugin instalado, mas sem arquivo ativo: não é da conta.
-    assert o["plugin-desligado:skill-sumida"] == provenance.Provenance("no_file")
+    assert o["disabled-plugin:skill-sumida"] == provenance.Provenance("no_file")
 
 
 def test_origem_dos_tipos_de_subagente(provenances):
     o = provenances.subagent_types
-    assert o["agente-projeto"].provenance == "project" and o["agente-projeto"].path
+    assert o["project-agent"].provenance == "project" and o["project-agent"].path
     assert o["Explore"] == provenance.Provenance("builtin")       # o próprio anúncio diz
     assert o["agente-sumido"] == provenance.Provenance("no_file")
 
@@ -318,7 +318,7 @@ def test_origem_dos_servidores_e_das_ferramentas(provenances):
     s = provenances.mcp_servers
     assert s["servidor-a"].provenance == "project"
     assert s["claude_ai_Exemplo"] == provenance.Provenance("account")
-    assert s["plugin_plugin-exemplo_servidor-p"].provenance == "plugin"
+    assert s["plugin_example-plugin_servidor-p"].provenance == "plugin"
     assert s["servidor-sumido"] == provenance.Provenance("no_file")
     f = provenances.tools
     assert f["Bash"] == f["WebFetch"] == provenance.Provenance("builtin")
@@ -328,7 +328,7 @@ def test_origem_dos_servidores_e_das_ferramentas(provenances):
 
 def test_so_o_que_tem_arquivo_o_usuario_pode_mudar(provenances):
     mutable_items = {n for n, o in provenances.skills.items() if o.mutable}
-    assert mutable_items == {"skill-projeto", "skill-usuario", "plugin-exemplo:skill-plugin"}
+    assert mutable_items == {"project-skill", "user-skill", "example-plugin:skill-plugin"}
     assert not provenance.Provenance("no_file").mutable
     assert provenance.Provenance("managed", Path("/etc/x")).mutable
     assert {o for o in provenance.PROVENANCES if provenance.Provenance(o).platform} == {"account", "builtin"}
@@ -670,8 +670,8 @@ def integrated_text(s6, tmp_path):
         reverted={"a" * 40}, replaced_commits=set())
     inv = _inventory_s6()
     inv.items.append(item("instruction", "project", "CLAUDE.md", item_count=4, with_reason=1))
-    a = audit.audit(sessions, repository=Path("/repo/alfa"),
-                          directories=[Path("/repo/alfa")], inventory=inv, commit_linking=links)
+    a = audit.audit(sessions, repository=Path("/repo/alpha"),
+                          directories=[Path("/repo/alpha")], inventory=inv, commit_linking=links)
     return report.markdown(a)
 
 

@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "plugins": {
+    "example-plugin@example-market": [
+      {"scope": "user", "installPath": "{CONFIG}/plugins/cache/example-market/example-plugin/1.0.0", "version": "1.0.0"}
+    ],
+    "disabled-plugin@example-market": [
+      {"scope": "user", "installPath": "{CONFIG}/plugins/cache/example-market/disabled-plugin/1.0.0", "version": "1.0.0"}
+    ],
+    "other-project-plugin@example-market": [
+      {"scope": "project", "projectPath": "/outro/projeto", "installPath": "{CONFIG}/plugins/cache/example-market/other-project-plugin/1.0.0", "version": "1.0.0"}
+    ]
+  }
+}

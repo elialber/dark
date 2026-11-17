@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "defaultMode": "plan",
+    "allow": ["WebSearch"],
+    "deny": [],
+    "ask": []
+  },
+  "hooks": {
+    "SessionStart": [
+      {"matcher": "startup", "hooks": [{"type": "command", "command": "echo inicio"}]}
+    ]
+  },
+  "enabledPlugins": {
+    "example-plugin@example-market": true,
+    "disabled-plugin@example-market": true,
+    "other-project-plugin@example-market": true
+  },
+  "env": {"VARIAVEL_GLOBAL": "valor-secreto-env-settings"}
+}
