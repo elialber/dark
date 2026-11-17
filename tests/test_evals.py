@@ -217,6 +217,16 @@ def test_comando_de_aceite_inexistente(repo_calc, tmp_path, comando):
     assert not r.valido and r.motivo == validacao.Motivo.COMANDO_NAO_RODA
 
 
+@pytest.mark.parametrize("comando", ["", "   ", []])
+def test_comando_vazio_nao_roda(repo_calc, tmp_path, comando):
+    """`sh -c ""` sai com 0; sem esta regra o rascunho sem comando "passaria"."""
+    repo, c1, c2, _ = repo_calc
+    caso = _caso_calc(c1, c2)
+    caso.aceite.comando = comando
+    r = validacao.validar(caso, repo, dir_trabalho=tmp_path)
+    assert r.motivo == validacao.Motivo.COMANDO_NAO_RODA
+
+
 def test_tempo_esgotado(repo_calc, tmp_path):
     repo, c1, c2, _ = repo_calc
     dorme = [sys.executable, "-c", "import time; time.sleep(60)"]
