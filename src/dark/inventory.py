@@ -151,6 +151,31 @@ def config_dir(environment: Mapping[str, str] | None = None) -> Path:
     return Path(defined).expanduser() if defined else Path.home() / ".claude"
 
 
+def cleanup_period_days(config: Path | None = None, managed: Path | None = None, *,
+                        environment: Mapping[str, str] | None = None) -> int | None:
+    """`cleanupPeriodDays`, the transcript retention, when a setting defines it.
+
+    The managed policy wins over the user's settings. None when no settings
+    file defines a positive whole number (Claude Code then uses 30 days).
+    """
+    config = Path(config) if config is not None else config_dir(environment)
+    if managed is None:
+        managed = DEFAULT_MANAGED.get(sys.platform, DEFAULT_MANAGED["linux"])
+    managed = Path(managed)
+    files = [managed / "managed-settings.json",
+             *sorted(a for a in _children(managed / "managed-settings.d") if a.suffix == ".json"),
+             config / "remote-settings.json", config / "settings.json"]
+    for path in files:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        value = data.get("cleanupPeriodDays") if isinstance(data, dict) else None
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+            return value
+    return None
+
+
 def project_dir(repo: Path) -> str:
     """Name of the project folder under <config>/projects/."""
     return re.sub(r"[^A-Za-z0-9]", "-", str(repo))

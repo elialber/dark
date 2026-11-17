@@ -24,6 +24,7 @@ from pathlib import Path
 from dark import audit, console, inventory, reader, commit_linking, report
 
 _GIT_READ_ONLY = {"GIT_OPTIONAL_LOCKS": "0"}
+DEFAULT_RETENTION_DAYS = 30        # Claude Code's `cleanupPeriodDays` when not set
 
 
 def _git(*args: str) -> subprocess.CompletedProcess | None:
@@ -156,9 +157,14 @@ def _audit(args: argparse.Namespace) -> int:
     valid_sessions = [s for s in sessions if not s.local_command_only]
     links = None if args.no_git else commit_linking.link_commits(valid_sessions)
 
+    # Retention (S7.2): Claude Code deletes transcripts older than this.
+    retention_days = inventory.cleanup_period_days(args.config, args.managed)
+    retention_start = (datetime.now(timezone.utc)
+                       - timedelta(days=retention_days or DEFAULT_RETENTION_DAYS))
     result = audit.audit(sessions, failures, repository=root, directories=directories,
                                   since=since, cutoff=cutoff, inventory=inv, commit_linking=links,
-                                  no_git=args.no_git)
+                                  no_git=args.no_git, retention_days=retention_days,
+                                  retention_start=retention_start)
     text = report.markdown(result)
     code = 1 if failures and not sessions else 0
 

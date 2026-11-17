@@ -484,7 +484,7 @@ def test_builtin_by_rule_is_warned(sessions):
     inv = Inventory(items=[_item("exemplo-skill", "project",
                                  Path(".claude/skills/exemplo-skill/SKILL.md"))])
     a = audit.audit(s6, inventory=inv)
-    assert a.builtin_by_rule == ["nunca-usada", "por-comando"] or a.builtin_by_rule
+    assert a.builtin_by_rule == ["nunca-usada", "por-comando"]
     hdr = report.markdown(a).split("\n## ")[0]
     line = next(l for l in hdr.splitlines() if "embutidas pela regra" in l)
     assert line.startswith("- **Aviso:**")

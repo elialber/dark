@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from datetime import datetime
+from pathlib import PurePath
 
 from dark import indicators as ind
 from dark import reader
@@ -35,6 +36,11 @@ SECTIONS = {
 
 # How many names a list shows in the body; the rest goes to the appendix.
 FIRST_NAMES = 5
+
+
+def path_text(path: object) -> str:
+    """A path with forward slashes on every system (S1.2)."""
+    return path.as_posix() if isinstance(path, PurePath) else str(path)
 
 PROVENANCE_NAMES = {
     "project": "projeto",
@@ -138,11 +144,11 @@ def _header(a: Audit) -> list[str]:
     if a.repository is None:
         lines.append("- Repositório: todos os repositórios (`--todos`)")
     else:
-        lines.append(f"- Repositório: `{a.repository}`")
+        lines.append(f"- Repositório: `{path_text(a.repository)}`")
         merged = [d for d in a.directories if d != a.repository]
         if merged:
             lines.append(f"- Diretórios juntados (mesmo commit inicial): "
-                          f"{', '.join(f'`{d}`' for d in a.directories)}")
+                          f"{', '.join(f'`{path_text(d)}`' for d in a.directories)}")
     lines.append(f"- Período coberto: {when(a.start)} a {when(a.end)}")
     selection_ = []
     if a.since:
@@ -156,8 +162,25 @@ def _header(a: Audit) -> list[str]:
         version_range = (a.versions[0] if len(a.versions) == 1
                  else f"de {a.versions[0]} a {a.versions[-1]}")
         lines.append(f"- Versões do Claude Code: {len(a.versions)} ({version_range})")
-    lines.append("- Alcance: a retenção padrão das transcrições é de 30 dias; "
-                  "sessões mais antigas podem já ter sido apagadas pelo Claude Code.")
+    if a.sessions_outside_tested:
+        low, high = reader.TESTED_VERSIONS
+        lines.append(f"- **Aviso:** {plural(a.sessions_outside_tested, 'sessão', 'sessões')} "
+                      f"com versão fora do intervalo testado ({low} a {high}): "
+                      f"{code(a.versions_outside_tested)}. Campos que o leitor usa podem "
+                      f"faltar ou ter mudado nessas versões, e uma seção pode ficar sem dado "
+                      f"sem outro aviso.")
+    if a.retention_days is None:
+        lines.append("- Alcance: a retenção padrão das transcrições é de 30 dias; "
+                      "sessões mais antigas podem já ter sido apagadas pelo Claude Code.")
+    else:
+        lines.append(f"- Alcance: o Claude Code apaga transcrições com mais de "
+                      f"{plural(a.retention_days, 'dia', 'dias')} (`cleanupPeriodDays` nas "
+                      f"configurações); sessões mais antigas podem já ter sido apagadas.")
+    if a.since and a.retention_start and a.since < a.retention_start:
+        lines.append(f"- **Aviso:** o recorte pedido começa em {when(a.since)}, antes do "
+                      f"limite de retenção ({when(a.retention_start)}): sessões entre as "
+                      f"duas datas podem já ter sido apagadas, e os números do período "
+                      f"ficam incompletos sem outro sinal.")
     if a.failures:
         lines.append(f"- Falhas de leitura: {len(a.failures)} arquivo(s) não lido(s)")
         lines += [f"  - {f}" for f in a.failures]
@@ -169,6 +192,11 @@ def _header(a: Audit) -> list[str]:
                       f"{sum(a.unknowns.kinds.values())} registro(s) de tipo "
                       f"desconhecido, {sum(a.unknowns.fields.values())} campo(s) "
                       f"desconhecido(s); detalhe no {link('appendix')}")
+    if a.builtin_by_rule:
+        lines.append(f"- **Aviso:** {plural(len(a.builtin_by_rule), 'skill', 'skills')} sem "
+                      f"arquivo e sem prefixo, contadas como embutidas pela regra (E16): "
+                      f"{first_items(a.builtin_by_rule)}. Uma skill sua apagada no período "
+                      f"também cai nessa regra e fica fora de \"O que chama atenção\".")
     if not a.sessions:
         lines += ["", "Nenhuma sessão encontrada para este repositório no período. "
                    "Repositório sem histórico é um estado normal; o relatório passa a "
@@ -580,7 +608,7 @@ def _appendix(a: Audit) -> list[str]:
             if o is None:
                 lines.append(f"- `{name}`")
             else:
-                path = f" — `{o.path}`" if o.path else ""
+                path = f" — `{path_text(o.path)}`" if o.path else ""
                 lines.append(f"- `{name}` ({PROVENANCE_NAMES[o.provenance]}){path}")
         lines.append("")
     if a.not_announced:
@@ -588,9 +616,15 @@ def _appendix(a: Audit) -> list[str]:
         if items:
             empty = False
             lines += [f"### Instalados e não anunciados ({n(len(items))})", ""]
-            lines += [f"- `{p.name}` ({p.kind}, {PROVENANCE_NAMES[p.scope]}) — `{p.source}`"
+            lines += [f"- `{p.name}` ({p.kind}, {PROVENANCE_NAMES[p.scope]}) — "
+                       f"`{path_text(p.source)}`"
                        for p in items]
             lines.append("")
+    if len(a.builtin_by_rule) > FIRST_NAMES:
+        empty = False
+        lines += [f"### Skills embutidas pela regra ({n(len(a.builtin_by_rule))})", ""]
+        lines += [f"- `{name}`" for name in a.builtin_by_rule]
+        lines.append("")
     if a.unknowns.kinds or a.unknowns.fields:
         empty = False
         lines += ["### Formato desconhecido", ""]

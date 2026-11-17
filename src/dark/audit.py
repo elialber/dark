@@ -19,6 +19,7 @@ from pathlib import Path
 
 from dark import indicators as ind
 from dark import provenance as prov
+from dark import reader
 from dark.inventory import Inventory
 from dark.reader import Unknowns, ReadFailure, Session
 from dark.commit_linking import CommitLinks
@@ -179,6 +180,21 @@ class Audit:
     not_announced: dict[str, list] | None = None
     commit_linking: CommitLinks | None = None
     no_git: bool = False
+    # Retention (S7.2): `cleanupPeriodDays` when set, and the instant before
+    # which Claude Code may already have deleted transcripts.
+    retention_days: int | None = None
+    retention_start: datetime | None = None
+    # Sessions with a Claude Code version outside reader.TESTED_VERSIONS (S2.1).
+    sessions_outside_tested: int = 0
+    versions_outside_tested: list[str] = field(default_factory=list)
+
+    @property
+    def builtin_by_rule(self) -> list[str]:
+        """Skills counted as built-in only because they have no file and no prefix (S3.3)."""
+        if self.provenances is None:
+            return []
+        return sorted(name for name, o in self.provenances.skills.items()
+                      if o.provenance == "builtin")
 
     def provenance(self, category: str, name: str) -> prov.Provenance | None:
         if self.provenance_of is None:
@@ -240,7 +256,8 @@ def audit(sessions: Iterable[Session], failures: Iterable[ReadFailure] = (), *,
             repository: Path | None = None, directories: Iterable[Path] = (),
             since: datetime | None = None, cutoff: datetime | None = None,
             inventory: Inventory | None = None, commit_linking: CommitLinks | None = None,
-            no_git: bool = False) -> Audit:
+            no_git: bool = False, retention_days: int | None = None,
+            retention_start: datetime | None = None) -> Audit:
     every = list(sessions)
     # A local-command session (lote 006) does not enter any indicator.
     sessions = [s for s in every if not s.local_command_only]
@@ -261,7 +278,12 @@ def audit(sessions: Iterable[Session], failures: Iterable[ReadFailure] = (), *,
         interventions=ind.interventions(sessions), hooks=ind.hooks(sessions),
         commits=ind.commits(sessions), since=since, cutoff=cutoff,
         excluded_local_command=len(every) - len(sessions),
-        breakdown=ind.breakdown(sessions), commit_linking=commit_linking, no_git=no_git)
+        breakdown=ind.breakdown(sessions), commit_linking=commit_linking, no_git=no_git,
+        retention_days=retention_days, retention_start=retention_start)
+    outside = [s for s in sessions if any(not reader.version_tested(v) for v in s.versions)]
+    a.sessions_outside_tested = len(outside)
+    a.versions_outside_tested = sorted({v for s in outside for v in s.versions
+                                        if not reader.version_tested(v)}, key=_version_key)
     if inventory is not None:
         a.provenances = prov.classify(prov.announced_from(sessions), inventory.items,
                                     inventory.plugins)

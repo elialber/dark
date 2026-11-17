@@ -31,6 +31,24 @@ from dark import console
 # What the reader knows about the format
 # --------------------------------------------------------------------------
 
+# Claude Code versions whose transcripts were observed and tested
+# (docs/formato-transcricoes.md). Outside them a field may be missing or
+# have changed without any error (docs/portabilidade.md, S2.1).
+TESTED_VERSIONS = ("2.1.295", "2.1.326")
+
+
+def _version_numbers(version: str) -> tuple[int, ...] | None:
+    parts = version.split("-", 1)[0].split(".")
+    return tuple(int(x) for x in parts) if all(x.isdigit() for x in parts) else None
+
+
+def version_tested(version: str) -> bool:
+    """True when the version falls inside TESTED_VERSIONS."""
+    v = _version_numbers(version)
+    low, high = (_version_numbers(x) for x in TESTED_VERSIONS)
+    return v is not None and low <= v <= high
+
+
 _ENVELOPE = {
     "type", "uuid", "parentUuid", "timestamp", "sessionId", "session_id",
     "isSidechain", "cwd", "gitBranch", "version", "entrypoint", "userType",
