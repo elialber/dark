@@ -483,7 +483,7 @@ def test_platform_goes_on_separate_line(s6):
     assert p["subagent_types"] == 1            # Explore
     assert p["tools"] == 5                # Bash, Read, Skill, Agent, WebFetch
     assert p["mcp_servers"] == 0
-    assert not any(x.rule == "plataforma" for x in a.findings)
+    assert not any(x.rule == "platform" for x in a.findings)
 
 
 def test_without_inventory_rule_counts_everything_as_before(s6):
