@@ -359,5 +359,28 @@ precisa ser coletada na época.
 3. De onde vêm os cerca de 8 mil tokens que o `/context` não atribui, e
    por que `--disable-slash-commands` quase não muda o `usage`?
 4. Como `/context` mostra instruções, servidores MCP e subagentes?
+
+> **Respostas de 2026-11-17 (goal 010; ver o
+> [diário 010](../pair/diario/010.md)).**
+>
+> **Pergunta 3, resposta parcial.** O `/context` em modo não interativo
+> mede outra sessão: o conjunto de ferramentas e de anexos é outro. O
+> primeiro pedido da sessão interativa, lido por caracteres na
+> transcrição, explica a maior parte: ferramentas (cerca de 22,5 mil
+> tokens contra 5,7 mil no `/context -p`), a lista de nomes das
+> ferramentas adiadas (cerca de 5 mil, que o `/context` põe fora do
+> total), a lista de subagentes e as instruções de servidores MCP. Sobra
+> cerca de 16% do medido sem explicação, parecido com os 8 mil deste
+> experimento; a hipótese, não verificada, é marcação de mensagens e
+> esquemas de ferramenta. A parte sobre `--disable-slash-commands` não foi
+> investigada.
+>
+> **Pergunta 4, respondida.** Instruções e memória aparecem na linha
+> `Memory files` e na seção `### Memory Files` (tipo, caminho, tokens).
+> Servidores MCP aparecem como `MCP tools` ou `MCP tools (deferred)` e na
+> seção `### MCP Tools`, por ferramenta, com o servidor na segunda
+> coluna. Subagentes aparecem só os personalizados, em `Custom agents` e
+> `### Custom Agents`; os embutidos ficam dentro de `System tools`. Em
+> modo não interativo, os conectores da conta não entram.
 5. `/branch` e a retomada interativa deixam os mesmos sinais que
    `--fork-session` e `--continue`?

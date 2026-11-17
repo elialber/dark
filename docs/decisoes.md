@@ -11,7 +11,10 @@ goal 001. As revisões de E1, E5, E6 e E7 e as entradas E9 a E11 vêm do
 005, traz o complemento de E4, as novas versões de E6, E7 e E11, a exceção
 de E9 e as entradas E12 a E14. O [lote 005](../pair/entrada/lote-005.md),
 depois da revisão dos goals 006 e 007, confirma as decisões tomadas nesses
-goals, altera duas delas e traz a entrada E15. A base de cada uma está em
+goals, altera duas delas e traz a entrada E15. O
+[lote 006](../pair/entrada/lote-006.md), depois da revisão dos goals 008 a
+012, confirma as decisões desses goals, traz a terceira versão da E11, os
+acréscimos à E7 e a entrada E16. A base de cada uma está em
 [formato-transcricoes.md](formato-transcricoes.md).
 
 ## E1. Leitor isolado
@@ -181,6 +184,9 @@ sumir depois.
 
 ## E7, terceira versão. Hash registrado, depois janela
 
+> **Complementada em 2026-11-17.** Ver "E7, acréscimos", no fim do
+> arquivo.
+
 **Data:** 2026-11-17 ([lote 004](../pair/entrada/lote-004.md))
 
 Ordem de preferência para ligar chamada a commit:
@@ -254,6 +260,9 @@ cobre cerca de um terço do contexto inicial. Leitura de quem registrou,
 não texto do revisor.
 
 ## E11 revista. Peso fixo: total e repartição
+
+> **Revista de novo em 2026-11-17.** Vale a terceira versão, no fim do
+> arquivo. O texto fica como registro.
 
 **Data:** 2026-11-17 ([lote 004](../pair/entrada/lote-004.md))
 
@@ -439,3 +448,377 @@ identidade.
 
 **Motivo:** o mesmo repositório aberto por dois caminhos aparece como
 dois na regra E3.
+
+## Decisões dos goals 008 a 012
+
+Tomadas nos diários [008](../pair/diario/008.md),
+[009](../pair/diario/009.md), [011](../pair/diario/011.md) e
+[012](../pair/diario/012.md) e confirmadas pelo revisor, sem alteração, no
+[lote 006](../pair/entrada/lote-006.md), em 2026-11-17. O lote não traz
+motivo explícito para as confirmadas; o motivo de cada uma é o registrado
+no diário de origem.
+
+O diário 009 não tem uma lista com o título "Decisões tomadas aqui, para
+confirmar". As entradas dele abaixo são as quatro que o diário propôs
+para este arquivo (item 3 de "Mudanças em arquivos existentes"). Leitura
+de quem registrou.
+
+### Goal 008: modos que suprimem rejeições
+
+**Data:** 2026-11-17 ([diário 008](../pair/diario/008.md))
+
+`bypassPermissions` e `dontAsk`. O `auto` fica de fora. A lista está na
+constante `MODOS_SEM_REJEICAO`.
+
+**Motivo:** no `auto` ainda há consulta em parte das chamadas.
+
+### Goal 008: `--dias N`
+
+**Data:** 2026-11-17 ([diário 008](../pair/diario/008.md))
+
+Filtra sessões pelo início: entra a sessão inteira que começou nos
+últimos N dias, contados a partir de `--ate` ou do momento atual.
+
+**Motivo:** o diário não traz motivo além da regra.
+
+### Goal 008: identidade (E15)
+
+**Data:** 2026-11-17 ([diário 008](../pair/diario/008.md))
+
+A identidade é o conjunto de commits sem pai alcançáveis de `HEAD`, em
+ordem. Sem commit, ou com a raiz que não existe mais, não há identidade e
+a seleção compara só o caminho. Limite conhecido: dois repositórios
+criados com o mesmo conteúdo, autor e mensagem, no mesmo segundo, têm o
+mesmo commit inicial e passam a ser o mesmo repositório.
+
+**Motivo:** é o que a E15 pede; o limite foi observado nos testes e é
+improvável fora deles.
+
+### Goal 008: atribuição das falhas de leitura
+
+**Data:** 2026-11-17 ([diário 008](../pair/diario/008.md))
+
+Falha de leitura é atribuída ao repositório pela pasta de projeto: a
+pasta de cada diretório juntado e a de cada sessão selecionada. Uma
+sessão ilegível aberta num subdiretório, numa pasta sem nenhuma sessão
+legível, fica de fora, e o cabeçalho do relatório diz isso.
+
+**Motivo:** sessão ilegível não tem `cwd` legível; a pasta é o que resta.
+
+### Goal 008: `/comando`
+
+**Data:** 2026-11-17 ([diário 008](../pair/diario/008.md))
+
+`/comando` é lido só de registro `user` sem resultado de ferramenta e
+sem `isMeta`, cujo texto começa por `<command-`.
+
+**Motivo:** texto de comando dentro de um resultado (um arquivo lido,
+por exemplo) não é comando digitado.
+
+### Goal 008: `--saida` dentro de repositório
+
+**Data:** 2026-11-17 ([diário 008](../pair/diario/008.md))
+
+Se o arquivo cai dentro de um repositório git e não está ignorado: aviso
+na saída de erro e, com terminal, pergunta antes de gravar. Sem
+terminal, grava depois do aviso.
+
+**Motivo:** quem passou `--saida` escolheu o lugar.
+
+### Goal 008: códigos de saída
+
+**Data:** 2026-11-17 ([diário 008](../pair/diario/008.md))
+
+0 normal (inclusive sem sessões); 1 só falhas e nenhuma sessão; 2 erro
+de uso (caminho que não é repositório git, `--ate` ilegível, caminho e
+`--todos` juntos ou nenhum dos dois).
+
+**Motivo:** segue a decisão "Diretório sem sessões não é erro".
+
+### Goal 008: ferramentas nunca usadas
+
+**Data:** 2026-11-17 ([diário 008](../pair/diario/008.md))
+
+Aparecem pelo nome; as MCP, agrupadas por servidor ("k de m").
+
+**Motivo:** para a lista caber no terminal.
+
+### Goal 008: peso fixo por semana
+
+**Data:** 2026-11-17 ([diário 008](../pair/diario/008.md))
+
+Usa a semana ISO do início da sessão.
+
+**Motivo:** o diário não traz motivo além da regra.
+
+### Goal 009: escopos do inventário
+
+**Data:** 2026-11-17 ([diário 009](../pair/diario/009.md))
+
+`gerenciado`, `usuario`, `projeto` e `plugin`, com a marca `local`
+(`CLAUDE.local.md`, `settings.local.json`, MCP local de `~/.claude.json`,
+memória automática) e a marca `sob_demanda` (CLAUDE.md aninhado, regra
+com `paths`, skill de subdiretório).
+
+**Motivo:** os arquivos gerenciados têm precedência sobre todos os
+outros; a variante local e o carregamento sob demanda cabem como marca
+sem ampliar a lista de tipos.
+
+### Goal 009: plugin ativo
+
+**Data:** 2026-11-17 ([diário 009](../pair/diario/009.md))
+
+Plugin ativo é o instalado com `scope: user`, ou com `projectPath` igual
+ao repositório (ou ao principal, em worktree), e com `enabledPlugins`
+verdadeiro depois de mesclar usuário < projeto < local < gerenciado.
+Plugin inativo não gera peças, mas aparece em `Inventario.plugins`.
+
+**Motivo:** nesta máquina, um dos dois plugins instalados é de outro
+projeto e não carrega aqui.
+
+### Goal 009: motivo nas instruções (estimativa)
+
+**Data:** 2026-11-17 ([diário 009](../pair/diario/009.md))
+
+Item de lista é linha com `-`, `*`, `+`, `N.` ou `N)`, fora de bloco de
+código, mais as linhas seguintes com recuo maior. Conta como "com motivo"
+se tiver rótulo (`Motivo:`, `Razão:`, `Reason:`, `Why:`) ou conjunção
+causal ou final da lista do diário. O número é sempre marcado como
+estimativa (`motivo_estimado`).
+
+**Motivo:** não há marcação estruturada de motivo; a regra erra nos dois
+sentidos, e o diário dá exemplos.
+
+### Goal 009: tamanho de hook, servidor MCP e permissão
+
+**Data:** 2026-11-17 ([diário 009](../pair/diario/009.md))
+
+É o tamanho do trecho JSON reescrito com os valores secretos trocados ou
+removidos.
+
+**Motivo:** essas peças não têm arquivo próprio.
+
+### Goal 011: janela
+
+**Data:** 2026-11-17 ([diário 011](../pair/diario/011.md))
+
+Fechada nas duas pontas, com o início truncado ao segundo.
+
+**Motivo:** o git grava segundos inteiros.
+
+### Goal 011: HEAD destacado
+
+**Data:** 2026-11-17 ([diário 011](../pair/diario/011.md))
+
+Commit alcançado só por HEAD destacado não é "só reflog"; vem marcado
+como `head_destacado`.
+
+**Motivo:** ele ainda é alcançável por um worktree existente.
+
+### Goal 011: branch padrão
+
+**Data:** 2026-11-17 ([diário 011](../pair/diario/011.md))
+
+Primeiro o parâmetro, depois `origin/HEAD`, depois `main`/`master`. Se a
+branch local existe, tem preferência sobre a remota.
+
+**Motivo:** `origin/HEAD` pode não existir (não existe no clone
+anterior deste repositório).
+
+### Goal 011: amend pela estrutura
+
+**Data:** 2026-11-17 ([diário 011](../pair/diario/011.md))
+
+Aceita substituto com a mesma data de commit do original. Num amend
+feito no mesmo segundo, sem reflog, cada um aparece como substituto do
+outro.
+
+**Motivo:** é a evidência que continua valendo depois que o reflog
+expira.
+
+### Goal 011: reversão
+
+**Data:** 2026-11-17 ([diário 011](../pair/diario/011.md))
+
+Exige data de commit igual ou posterior. A conferência por conteúdo só
+vale para candidato com um pai só e original que não é raiz; nos outros
+casos, `conteudo_inverso=None`.
+
+**Motivo:** `patch-id` compara um patch contra o primeiro pai.
+
+### Goal 011: retoque
+
+**Data:** 2026-11-17 ([diário 011](../pair/diario/011.md))
+
+A definição do diário 011 (descendente, não merge nem reversão, ao menos
+um arquivo em comum, até N dias), com o parâmetro `ignorar` e a
+confiança fixa "baixa". Ver também "Retoque fica fora do relatório",
+abaixo.
+
+**Motivo:** o diário explica cada condição.
+
+### Goal 011: horário sem fuso
+
+**Data:** 2026-11-17 ([diário 011](../pair/diario/011.md))
+
+Levanta `ValueError`.
+
+**Motivo:** é erro do chamador, não estado do repositório.
+
+### Goal 012: base do par
+
+**Data:** 2026-11-17 ([diário 012](../pair/diario/012.md))
+
+A base do par é o commit de testes, não o pai dele. O commit de testes
+não vira candidato sozinho.
+
+**Motivo:** o agente parte com os testes visíveis, como no fluxo do
+próprio repositório.
+
+### Goal 012: par exige commit sobretudo de testes
+
+**Data:** 2026-11-17 ([diário 012](../pair/diario/012.md))
+
+Mais arquivos de teste do que outros.
+
+**Motivo:** sem isso, qualquer commit com um teste seguido de um commit
+de código formava par.
+
+### Goal 012: arquivos do aceite
+
+**Data:** 2026-11-17 ([diário 012](../pair/diario/012.md))
+
+Num par, os testes dos dois commits que existem na solução, na versão da
+solução. Os arquivos trazidos vêm de `arquivos_de`, que por omissão é
+`commit_solucao`.
+
+**Motivo:** o campo extra é necessário para caso sem solução conhecida.
+
+### Goal 012: forma do comando
+
+**Data:** 2026-11-17 ([diário 012](../pair/diario/012.md))
+
+Comando em texto roda por `sh -c`; em lista, direto. Pelo shell, 126 e
+127 contam como "comando não roda".
+
+**Motivo:** o diário não traz motivo além da regra; nota que um script
+que chama programa ausente também cai aqui.
+
+### Goal 012: erro de preparação
+
+**Data:** 2026-11-17 ([diário 012](../pair/diario/012.md))
+
+Motivo extra de invalidez: commit inexistente, arquivo de teste ausente
+no commit de origem, falha no clone.
+
+**Motivo:** os quatro motivos do lote não cobriam esses casos.
+
+### Goal 012: tempo esgotado
+
+**Data:** 2026-11-17 ([diário 012](../pair/diario/012.md))
+
+Mata o grupo de processos, não só o processo direto.
+
+**Motivo:** processos filhos do teste sobreviveriam ao limite.
+
+### Goal 012: ordem da validação
+
+**Data:** 2026-11-17 ([diário 012](../pair/diario/012.md))
+
+Base que passa dispensa a solução; base que falha não dispensa.
+
+**Motivo:** caso que já passa na base é inválido de qualquer jeito.
+
+### Goal 012: rascunho sem comando
+
+**Data:** 2026-11-17 ([diário 012](../pair/diario/012.md))
+
+Rascunho minerado leva `comando` em branco se não for dado `--comando`;
+validá-lo assim dá "comando não roda".
+
+**Motivo:** `sh -c ""` sai com 0 e daria um falso "não falha na base".
+
+## Fase 2 concluída
+
+**Data:** 2026-11-17 ([lote 006](../pair/entrada/lote-006.md))
+
+**Motivo:** o usuário reconheceu 3 ou mais achados desconhecidos no
+primeiro relatório real ([diário 008](../pair/diario/008.md)).
+
+## E11, terceira versão. Peso fixo repartido pela transcrição
+
+**Data:** 2026-11-17 ([lote 006](../pair/entrada/lote-006.md))
+
+A repartição do peso fixo sai da própria transcrição: tamanho do prompt
+de sistema e das ferramentas (`api-request-shape`) e dos anexos do
+primeiro pedido, convertidos em tokens por um fator declarado e marcados
+como estimativa. O `/context` em modo não interativo mede outra sessão e
+deixa de 70% a 80% sem atribuir; o módulo `contexto.py` fica como
+conferência do peso de skills, memória e subagentes, fora do relatório
+por enquanto.
+
+**Motivo:** [diário 010](../pair/diario/010.md).
+
+## E16. Origem de cada peça
+
+**Data:** 2026-11-17 ([lote 006](../pair/entrada/lote-006.md))
+
+Toda peça anunciada é classificada como plataforma (embutida no Claude
+Code ou sincronizada da conta), usuário, projeto ou plugin, cruzando o
+anúncio com o inventário. Só o que tem arquivo é tratado como algo que o
+usuário pode mudar.
+
+**Motivo:** das 74 skills anunciadas, 25 não têm arquivo; das
+instaladas, 30 não são anunciadas ([diário 009](../pair/diario/009.md)).
+
+## E7, acréscimos
+
+**Data:** 2026-11-17 ([lote 006](../pair/entrada/lote-006.md))
+
+O amend é decidido pela análise do comando; o `kind` gravado pelo Claude
+Code é guardado à parte e não entra na decisão; quando o repositório
+existe, o histórico git é o árbitro. O início da janela é truncado ao
+segundo. Comando que faz `cd` para outro repositório é um limite
+conhecido da E3.
+
+**Motivo:** o `kind` dá falso positivo com `--amend` dentro de heredoc
+([diário 011](../pair/diario/011.md)).
+
+## Retoque fica fora do relatório
+
+**Data:** 2026-11-17 ([lote 006](../pair/entrada/lote-006.md))
+
+A definição do diário 011 fica registrada, com confiança baixa, e a
+função permanece. O relatório mostra só reversões e amends.
+
+**Motivo:** nesta escala o retoque mede o ritmo do trabalho, não
+retrabalho.
+
+## Sessão de comando local não entra nos indicadores
+
+**Data:** 2026-11-17 ([lote 006](../pair/entrada/lote-006.md))
+
+Sessão sem resposta de modelo, cujos pedidos são todos comandos locais,
+é marcada e excluída.
+
+**Motivo:** [diário 010](../pair/diario/010.md); elas puxam as medianas
+para baixo.
+
+## Requisito de git
+
+**Data:** 2026-11-17 ([lote 006](../pair/entrada/lote-006.md))
+
+Git 2.36 ou mais recente.
+
+**Motivo:** o lote não traz motivo explícito. O diário 011 registra que
+`historico.py` usa `worktree list -z`, que exige essa versão. Leitura de
+quem registrou.
+
+## Casos de eval dos goals 006 e 007
+
+**Data:** 2026-11-17 ([lote 006](../pair/entrada/lote-006.md))
+
+Continuam como candidatos, sem caso gravado.
+
+**Motivo:** o aceite deles depende de dados reais, que um caso
+reproduzível não pode ter.

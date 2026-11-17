@@ -16,3 +16,8 @@
   para um diretório descartável.
   **Motivo:** no goal 004, 14 sessões de experimento gravaram transcrições
   no diretório do usuário e se misturaram ao histórico real.
+- Arquivos sintéticos que imitam harness (`CLAUDE.md`, `.claude/`,
+  `.mcp.json`) ficam no repositório com nomes neutros e são montados em
+  diretório temporário pelo teste.
+  **Motivo:** com os nomes reais, o Claude Code os carrega como harness
+  aninhado de qualquer sessão que toque em `tests/` (goal 009).

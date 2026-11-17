@@ -256,6 +256,13 @@ No conjunto das 29 sessões:
 Ou seja, mais de 90% das skills e cerca de dois terços dos tipos de
 subagente anunciados nunca foram acionados em um mês. **[M]**
 
+> **Nota de 2026-11-17 (goal 009).** Das 74 skills anunciadas, 25 não têm
+> arquivo em disco: 9 são sincronizadas da conta no claude.ai e 16 vêm
+> embutidas no Claude Code. Dos 16 tipos de subagente, 7 são embutidos.
+> Essas peças não podem ser removidas pelo usuário em nenhum arquivo. Ver
+> o [diário 009](../pair/diario/009.md) e a E16 em
+> [decisoes.md](decisoes.md).
+
 ### Casos de borda
 
 - **Comandos embutidos não são skills.** `<command-name>` no texto pega

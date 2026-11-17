@@ -2,7 +2,7 @@
 
 Ferramenta que instala e mantém o harness do Claude Code em um repositório, mede a saúde dele e indica o que mudar, com evidência.
 
-Fase atual: Fase 2, auditoria e placar. A primeira entrega de uso é o comando de auditoria.
+Fase atual: Fase 2 concluída; Fase 3 (evals) iniciada. A primeira entrega de uso é o comando de auditoria.
 
 ## Auditoria
 
@@ -22,7 +22,7 @@ O estado do projeto, os goals e o diário estão em [pair/ESTADO.md](pair/ESTADO
 
 ## Desenvolvimento
 
-Requer Python 3.12 ou mais recente.
+Requer Python 3.12 ou mais recente e git 2.36 ou mais recente.
 
 ```bash
 python -m venv .venv
@@ -42,3 +42,24 @@ Os indicadores (`src/dark/indicadores.py`) são funções puras sobre o que o le
 ```bash
 .venv/bin/python -m dark.indicadores --config tests/fixtures/config
 ```
+
+O inventário (`src/dark/inventario.py`) lista o harness instalado (instruções, skills, subagentes, hooks, servidores MCP e permissões) por escopo, só lendo arquivos. Sem `--nomes`, imprime só a tabela de contagens; com `--nomes`, imprime nomes e falhas, e essa saída não deve ser publicada.
+
+```bash
+.venv/bin/python -m dark.inventario <repo> [--config DIR] [--gerenciado DIR] [--nomes]
+```
+
+A repartição do contexto (`src/dark/contexto.py`) roda `claude -p /context --no-session-persistence` no repositório e analisa a saída. Serve de conferência do peso de skills, memória e subagentes; não entra no relatório (E11, terceira versão).
+
+```bash
+.venv/bin/python -m dark.contexto [repo] [--arquivo F] [--usage N] [--nomes]
+```
+
+Os casos de eval (`src/dark/evals/`, formato em [evals/README.md](evals/README.md)) têm mineração e validação:
+
+```bash
+.venv/bin/python -m dark.evals minerar --repo . --ref origin/main
+.venv/bin/python -m dark.evals validar --repo . evals/casos/goal-005-leitor.toml
+```
+
+> **Atenção.** Validar um caso executa o comando de aceite, isto é, código do repositório avaliado, em cada commit indicado. Use só em repositórios seus. O venv de desenvolvimento tem o `dark` instalado em modo editável e pode vazar para a cópia validada em commits sem `pyproject.toml` (ver `evals/README.md`).
