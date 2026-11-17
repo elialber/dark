@@ -34,7 +34,7 @@ Fase 1: piloto manual
 
 - Qual repositório auditar no goal 003 (decisão do usuário).
 
-Fechada: a linguagem da CLI foi fechada: Python 3.12 ou mais recente
+Fechada: a linguagem da CLI é Python 3.12 ou mais recente
 ([E8](../docs/decisoes.md)).
 
 ## Próximo passo
