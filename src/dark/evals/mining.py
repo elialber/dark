@@ -48,13 +48,13 @@ class Candidate:
 
     def draft(self, command: str | list[str] = "") -> Case:
         notes = [f"Assunto do commit: {self.subject}"]
-        if self.kind == "commits_seguidos":
+        if self.kind == "consecutive_commits":
             notes.append(f"Testes entraram antes, em {self.tests_commit[:7]}: "
                          f"{self.tests_subject}")
         notes.append("Rascunho minerado: escreva o pedido e confira o comando de aceite.")
         return Case(
             id=f"minerado-{self.solution_commit[:7]}",
-            source="minerado",
+            source="mined",
             base_commit=self.base_commit,
             prompt="",
             acceptance=Acceptance(command=command, files=list(self.test_files),
@@ -104,19 +104,19 @@ def mine(repo: Path, *, patterns: Sequence[str] = TEST_PATTERNS, ref: str = "HEA
             parent_tests, _ = changes[parent_commit]
             existing = set(_tests_in_tree(git, c, parent_tests)) | set(tests)
             candidates.append(Candidate(
-                kind="commits_seguidos", base_commit=parent_commit, tests_commit=parent_commit,
+                kind="consecutive_commits", base_commit=parent_commit, tests_commit=parent_commit,
                 solution_commit=c, test_files=sorted(existing),
                 subject=git.subject(c), tests_subject=git.subject(parent_commit)))
             pair_heads.add(parent_commit)
         elif tests and others:
             candidates.append(Candidate(
-                kind="mesmo_commit", base_commit=parent_commit, tests_commit=c,
+                kind="same_commit", base_commit=parent_commit, tests_commit=c,
                 solution_commit=c, test_files=sorted(tests),
                 subject=git.subject(c)))
 
     # Um commit de testes que abriu um par não fica também como mesmo_commit.
     return [k for k in candidates
-            if not (k.kind == "mesmo_commit" and k.solution_commit in pair_heads)]
+            if not (k.kind == "same_commit" and k.solution_commit in pair_heads)]
 
 
 def _tests_in_tree(git: Git, commit: str, paths: list[str]) -> list[str]:

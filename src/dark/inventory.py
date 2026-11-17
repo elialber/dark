@@ -33,8 +33,8 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
-TYPES = ("instrucao", "skill", "subagente", "hook", "mcp", "permissao")
-SCOPES = ("gerenciado", "usuario", "projeto", "plugin")
+TYPES = ("instruction", "skill", "subagent", "hook", "mcp", "permission")
+SCOPES = ("managed", "user", "project", "plugin")
 
 DEFAULT_MANAGED = {
     "linux": Path("/etc/claude-code"),
@@ -404,7 +404,7 @@ class _Collector:
             on_demand = on_demand or "paths" in fields
         item_count, with_reason = count_items(text)
         imports = find_imports(text) if follow_imports else []
-        self.item(kind="instrucao", scope=scope, name=name, source=path,
+        self.item(kind="instruction", scope=scope, name=name, source=path,
                   chars=len(text), lines=_lines(text), local=local,
                   on_demand=on_demand,
                   instruction=InstructionDetail(item_count, with_reason, True, imports, imported_by))
@@ -425,12 +425,12 @@ class _Collector:
     def instructions(self) -> None:
         g = self.managed / "CLAUDE.md"
         if g.is_file():
-            self.instruction(g, "CLAUDE.md", "gerenciado")
+            self.instruction(g, "CLAUDE.md", "managed")
         u = self.config / "CLAUDE.md"
         if u.is_file():
-            self.instruction(u, "CLAUDE.md", "usuario")
+            self.instruction(u, "CLAUDE.md", "user")
         for rule in _recursive_md(self.config / "rules"):
-            self.instruction(rule, _relative(rule, self.config), "usuario")
+            self.instruction(rule, _relative(rule, self.config), "user")
 
         found_claude = False
         for name, local in (("CLAUDE.md", False), (".claude/CLAUDE.md", False),
@@ -438,22 +438,22 @@ class _Collector:
             fpath = self.repo / name
             if fpath.is_file():
                 found_claude = True
-                self.instruction(fpath, name, "projeto", local=local)
+                self.instruction(fpath, name, "project", local=local)
         if not found_claude and (self.repo / "AGENTS.md").is_file():
-            self.instruction(self.repo / "AGENTS.md", "AGENTS.md", "projeto")
+            self.instruction(self.repo / "AGENTS.md", "AGENTS.md", "project")
         for rule in _recursive_md(self.repo / ".claude" / "rules"):
-            self.instruction(rule, _relative(rule, self.repo / ".claude"), "projeto")
+            self.instruction(rule, _relative(rule, self.repo / ".claude"), "project")
         for folder in _subdirs(self.repo):
             for name, local in (("CLAUDE.md", False), ("CLAUDE.local.md", True)):
                 fpath = folder / name
                 if fpath.is_file():
-                    self.instruction(fpath, _relative(fpath, self.repo), "projeto",
+                    self.instruction(fpath, _relative(fpath, self.repo), "project",
                                    local=local, on_demand=True)
 
         memory = (self.config / "projects" / project_dir(_main_root(self.repo))
                    / "memory" / "MEMORY.md")
         if memory.is_file():
-            self.instruction(memory, "memory/MEMORY.md", "projeto", local=True, follow_imports=False)
+            self.instruction(memory, "memory/MEMORY.md", "project", local=True, follow_imports=False)
 
     # --- skills e subagentes -------------------------------------------------------
 
@@ -502,31 +502,31 @@ class _Collector:
 
     def agents_in(self, folder: Path, scope: str, *, prefix="", plugin=None) -> None:
         for fpath in _recursive_md(folder):
-            self._described(fpath, "subagente", fpath.stem, scope, prefix=prefix, plugin=plugin)
+            self._described(fpath, "subagent", fpath.stem, scope, prefix=prefix, plugin=plugin)
 
     def skills_and_agents(self) -> None:
-        self.skills_in(self.managed / ".claude" / "skills", "gerenciado")
-        self.skills_in(self.config / "skills", "usuario")
-        self.commands_in(self.config / "commands", "usuario")
-        self.agents_in(self.config / "agents", "usuario")
-        self.skills_in(self.repo / ".claude" / "skills", "projeto")
-        self.commands_in(self.repo / ".claude" / "commands", "projeto")
-        self.agents_in(self.repo / ".claude" / "agents", "projeto")
+        self.skills_in(self.managed / ".claude" / "skills", "managed")
+        self.skills_in(self.config / "skills", "user")
+        self.commands_in(self.config / "commands", "user")
+        self.agents_in(self.config / "agents", "user")
+        self.skills_in(self.repo / ".claude" / "skills", "project")
+        self.commands_in(self.repo / ".claude" / "commands", "project")
+        self.agents_in(self.repo / ".claude" / "agents", "project")
         for folder in _subdirs(self.repo):
-            self.skills_in(folder / ".claude" / "skills", "projeto",
+            self.skills_in(folder / ".claude" / "skills", "project",
                            prefix=_relative(folder, self.repo) + ":", on_demand=True)
 
     # --- configurações: hooks e permissões ------------------------------------------
 
     def settings_files(self) -> list[tuple[Path, str, bool]]:
-        files = [(self.managed / "managed-settings.json", "gerenciado", False)]
-        files += [(a, "gerenciado", False)
+        files = [(self.managed / "managed-settings.json", "managed", False)]
+        files += [(a, "managed", False)
                      for a in sorted(_children(self.managed / "managed-settings.d"))
                      if a.suffix == ".json"]
-        files += [(self.config / "remote-settings.json", "gerenciado", False),
-                     (self.config / "settings.json", "usuario", False),
-                     (self.repo / ".claude" / "settings.json", "projeto", False),
-                     (self.repo / ".claude" / "settings.local.json", "projeto", True)]
+        files += [(self.config / "remote-settings.json", "managed", False),
+                     (self.config / "settings.json", "user", False),
+                     (self.repo / ".claude" / "settings.json", "project", False),
+                     (self.repo / ".claude" / "settings.local.json", "project", True)]
         return [a for a in files if a[0].is_file()]
 
     def hooks(self, data: object, source: Path, scope: str, *, local=False,
@@ -576,7 +576,7 @@ class _Collector:
     def enabled_plugins(self) -> dict[str, bool]:
         """Hooks e permissões de cada arquivo; devolve enabledPlugins já mesclado."""
         enabled: dict[str, bool] = {}
-        order = {"usuario": 0, "projeto": 1, "gerenciado": 3}
+        order = {"user": 0, "project": 1, "managed": 3}
         loaded = []
         for fpath, scope, local in self.settings_files():
             data = self.read_object(fpath)
@@ -589,7 +589,7 @@ class _Collector:
                     snippet = json.dumps(perms, indent=2, ensure_ascii=False)
                     tally = lambda k: len(perms.get(k) or []) if isinstance(
                         perms.get(k) or [], list) else 0
-                    self.item(kind="permissao", scope=scope, name="permissões", source=fpath,
+                    self.item(kind="permission", scope=scope, name="permissões", source=fpath,
                               chars=len(snippet), lines=_lines(snippet), local=local,
                               permissions=PermissionsDetail(perms.get("defaultMode"),
                                                            tally("allow"), tally("deny"),
@@ -617,7 +617,7 @@ class _Collector:
                 continue
             kind = input.get("type")
             transport = str(kind) if kind else ("stdio" if "command" in input
-                                                 else "desconhecido")
+                                                 else "unknown")
             env = input.get("env") if isinstance(input.get("env"), dict) else {}
             hdr = input.get("headers") if isinstance(input.get("headers"), dict) else {}
             visible = {k: v for k, v in input.items() if k in ("type", "command", "url")}
@@ -634,19 +634,19 @@ class _Collector:
         g = self.read_object(self.managed / "managed-mcp.json")
         if g is not None:
             self.servers(g.get("mcpServers", {}), self.managed / "managed-mcp.json",
-                            "gerenciado")
+                            "managed")
         cj = self.read_object(self.claude_json)
         if cj is not None:
             if "mcpServers" in cj:
-                self.servers(cj["mcpServers"], self.claude_json, "usuario")
+                self.servers(cj["mcpServers"], self.claude_json, "user")
             projects = cj.get("projects") if isinstance(cj.get("projects"), dict) else {}
             for key in dict.fromkeys([str(self.repo), str(self.repo.resolve())]):
                 p = projects.get(key)
                 if isinstance(p, dict) and p.get("mcpServers"):
-                    self.servers(p["mcpServers"], self.claude_json, "projeto", local=True)
+                    self.servers(p["mcpServers"], self.claude_json, "project", local=True)
         mj = self.read_object(self.repo / ".mcp.json")
         if mj is not None:
-            self.servers(mj.get("mcpServers", {}), self.repo / ".mcp.json", "projeto")
+            self.servers(mj.get("mcpServers", {}), self.repo / ".mcp.json", "project")
 
     # --- plugins ----------------------------------------------------------------------
 
@@ -785,20 +785,25 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--nomes", dest="names", action="store_true",
                             help="imprime também nomes e falhas (não publique a saída)")
     args = parser.parse_args(argv)
+    # Rótulos impressos: os valores internos em inglês, o texto em português.
+    scope_label = {"project": "projeto", "user": "usuario", "plugin": "plugin",
+                   "managed": "gerenciado"}
+    kind_label = {"instruction": "instrucao", "skill": "skill", "subagent": "subagente",
+                  "hook": "hook", "mcp": "mcp", "permission": "permissao"}
     inv = take_inventory(args.repo, args.config, managed=args.managed)
     active_plugins = sum(1 for p in inv.plugins if p.active)
     print(f"pecas: {len(inv.items)}  falhas: {len(inv.failures)}  "
           f"plugins: {active_plugins} ativos de {len(inv.plugins)}")
     cnt = tallies(inv)
-    print(f"{'tipo':<10}" + "".join(f"{e:>11}" for e in SCOPES) + f"{'total':>8}")
+    print(f"{'tipo':<10}" + "".join(f"{scope_label[e]:>11}" for e in SCOPES) + f"{'total':>8}")
     for t in TYPES:
-        print(f"{t:<10}" + "".join(f"{cnt[(t, e)]:>11}" for e in SCOPES)
+        print(f"{kind_label[t]:<10}" + "".join(f"{cnt[(t, e)]:>11}" for e in SCOPES)
               + f"{sum(cnt[(t, e)] for e in SCOPES):>8}")
     print(f"locais: {sum(p.local for p in inv.items)}  "
           f"sob_demanda: {sum(p.on_demand for p in inv.items)}")
     if args.names:
         for p in sorted(inv.items, key=lambda p: (p.kind, p.scope, p.name)):
-            print(f"  {p.kind:<10} {p.scope:<10} {p.name}")
+            print(f"  {kind_label[p.kind]:<10} {scope_label[p.scope]:<10} {p.name}")
         for f in inv.failures:
             print(f"  falha: {f.file}: {f.message}")
     return 0

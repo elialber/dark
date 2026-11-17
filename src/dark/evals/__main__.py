@@ -16,6 +16,10 @@ from . import case as m_case
 from . import mining, validation
 
 
+# Rótulos impressos: valor interno em inglês, texto em português.
+KIND_LABELS = {"same_commit": "mesmo_commit", "consecutive_commits": "commits_seguidos"}
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m dark.evals")
     sub = ap.add_subparsers(dest="action", required=True)
@@ -44,8 +48,8 @@ def _mine(a) -> int:
     cands = mining.mine(a.repo, patterns=patterns, ref=a.ref)
     print(f"{len(cands)} candidato(s)")
     for c in cands:
-        pair = f"{c.tests_commit[:7]} + " if c.kind == "commits_seguidos" else ""
-        print(f"- {c.solution_commit[:7]} {c.kind:<16} base {c.base_commit[:7]}  "
+        pair = f"{c.tests_commit[:7]} + " if c.kind == "consecutive_commits" else ""
+        print(f"- {c.solution_commit[:7]} {KIND_LABELS[c.kind]:<16} base {c.base_commit[:7]}  "
               f"{pair}{len(c.test_files)} arquivo(s) de teste  | {c.subject}")
     if a.save:
         a.save.mkdir(parents=True, exist_ok=True)

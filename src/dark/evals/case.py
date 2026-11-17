@@ -11,7 +11,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-PROVENANCES = ("manual", "minerado")
+PROVENANCES = ("manual", "mined")
 DEFAULT_TIMEOUT = 300
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 

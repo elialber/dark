@@ -258,22 +258,22 @@ def test_sessao_de_comando_local_e_marcada(tmp_path):
 def item(kind, scope, name, *, plugin=None, invocable=True, on_demand=False,
          item_count=0, with_reason=0, chars=100):
     path = Path(f"/inv/{scope}/{kind}/{name.replace(':', '_')}.md")
-    desc = Description(20, 80, 4, invocable) if kind in ("skill", "subagente") else None
-    instr = InstructionDetail(item_count, with_reason) if kind == "instrucao" else None
+    desc = Description(20, 80, 4, invocable) if kind in ("skill", "subagent") else None
+    instr = InstructionDetail(item_count, with_reason) if kind == "instruction" else None
     return HarnessItem(kind=kind, scope=scope, name=name, source=path, chars=chars,
                 lines=3, plugin=plugin, on_demand=on_demand, description=desc,
                 instruction=instr)
 
 
 ITEMS = [
-    item("skill", "projeto", "skill-projeto"),
-    item("skill", "usuario", "skill-usuario"),
+    item("skill", "project", "skill-projeto"),
+    item("skill", "user", "skill-usuario"),
     item("skill", "plugin", "plugin-exemplo:skill-plugin", plugin="plugin-exemplo"),
-    item("skill", "usuario", "skill-oculta", invocable=False),    # instalada, não anunciada
-    item("skill", "projeto", "web:skill-aninhada", on_demand=True),
-    item("subagente", "projeto", "agente-projeto"),
-    item("subagente", "usuario", "agente-parado"),                # instalado, não anunciado
-    item("mcp", "projeto", "servidor-a"),
+    item("skill", "user", "skill-oculta", invocable=False),    # instalada, não anunciada
+    item("skill", "project", "web:skill-aninhada", on_demand=True),
+    item("subagent", "project", "agente-projeto"),
+    item("subagent", "user", "agente-parado"),                # instalado, não anunciado
+    item("mcp", "project", "servidor-a"),
     item("mcp", "plugin", "servidor-p", plugin="plugin-exemplo"),
 ]
 PLUGINS = [Plugin("plugin-exemplo@mercado", "user", Path("/inv/plug"), True),
@@ -298,40 +298,40 @@ def provenances():
 def test_origem_das_skills(provenances):
     o = provenances.skills
     assert (o["skill-projeto"].provenance, o["skill-projeto"].path) == (
-        "projeto", Path("/inv/projeto/skill/skill-projeto.md"))
-    assert o["skill-usuario"].provenance == "usuario"
+        "project", Path("/inv/project/skill/skill-projeto.md"))
+    assert o["skill-usuario"].provenance == "user"
     assert o["plugin-exemplo:skill-plugin"].provenance == "plugin"
-    assert o["conta-exemplo:skill-da-conta"] == provenance.Provenance("conta")
-    assert o["skill-embutida"] == provenance.Provenance("embutida")
+    assert o["conta-exemplo:skill-da-conta"] == provenance.Provenance("account")
+    assert o["skill-embutida"] == provenance.Provenance("builtin")
     # Prefixo de um plugin instalado, mas sem arquivo ativo: não é da conta.
-    assert o["plugin-desligado:skill-sumida"] == provenance.Provenance("sem_arquivo")
+    assert o["plugin-desligado:skill-sumida"] == provenance.Provenance("no_file")
 
 
 def test_origem_dos_tipos_de_subagente(provenances):
     o = provenances.subagent_types
-    assert o["agente-projeto"].provenance == "projeto" and o["agente-projeto"].path
-    assert o["Explore"] == provenance.Provenance("embutida")       # o próprio anúncio diz
-    assert o["agente-sumido"] == provenance.Provenance("sem_arquivo")
+    assert o["agente-projeto"].provenance == "project" and o["agente-projeto"].path
+    assert o["Explore"] == provenance.Provenance("builtin")       # o próprio anúncio diz
+    assert o["agente-sumido"] == provenance.Provenance("no_file")
 
 
 def test_origem_dos_servidores_e_das_ferramentas(provenances):
     s = provenances.mcp_servers
-    assert s["servidor-a"].provenance == "projeto"
-    assert s["claude_ai_Exemplo"] == provenance.Provenance("conta")
+    assert s["servidor-a"].provenance == "project"
+    assert s["claude_ai_Exemplo"] == provenance.Provenance("account")
     assert s["plugin_plugin-exemplo_servidor-p"].provenance == "plugin"
-    assert s["servidor-sumido"] == provenance.Provenance("sem_arquivo")
+    assert s["servidor-sumido"] == provenance.Provenance("no_file")
     f = provenances.tools
-    assert f["Bash"] == f["WebFetch"] == provenance.Provenance("embutida")
+    assert f["Bash"] == f["WebFetch"] == provenance.Provenance("builtin")
     assert f["mcp__servidor-a__criar"] == s["servidor-a"]
-    assert f["mcp__claude_ai_Exemplo__ler"].provenance == "conta"
+    assert f["mcp__claude_ai_Exemplo__ler"].provenance == "account"
 
 
 def test_so_o_que_tem_arquivo_o_usuario_pode_mudar(provenances):
     mutable_items = {n for n, o in provenances.skills.items() if o.mutable}
     assert mutable_items == {"skill-projeto", "skill-usuario", "plugin-exemplo:skill-plugin"}
-    assert not provenance.Provenance("sem_arquivo").mutable
-    assert provenance.Provenance("gerenciado", Path("/etc/x")).mutable
-    assert {o for o in provenance.PROVENANCES if provenance.Provenance(o).platform} == {"conta", "embutida"}
+    assert not provenance.Provenance("no_file").mutable
+    assert provenance.Provenance("managed", Path("/etc/x")).mutable
+    assert {o for o in provenance.PROVENANCES if provenance.Provenance(o).platform} == {"account", "builtin"}
 
 
 def test_soma_por_origem_fecha_com_o_total_anunciado(provenances):
@@ -340,8 +340,8 @@ def test_soma_por_origem_fecha_com_o_total_anunciado(provenances):
                                   ("tools", ANNOUNCED.tools),
                                   ("mcp_servers", ANNOUNCED.mcp_servers)]:
         assert sum(provenances.counts(category).values()) == len(announced)
-    assert provenances.counts("skills") == {"projeto": 1, "usuario": 1, "plugin": 1,
-                                          "conta": 1, "embutida": 1, "sem_arquivo": 1}
+    assert provenances.counts("skills") == {"project": 1, "user": 1, "plugin": 1,
+                                          "account": 1, "builtin": 1, "no_file": 1}
 
 
 def test_instaladas_e_nao_anunciadas(provenances):
@@ -415,13 +415,13 @@ def test_nao_explicado_negativo_fica_como_esta():
 def test_resumo_do_instalado():
     inv = Inventory(items=[
         *ITEMS,
-        item("instrucao", "projeto", "CLAUDE.md", item_count=6, with_reason=3, chars=500),
-        item("instrucao", "usuario", "CLAUDE.md", item_count=2, with_reason=0, chars=100),
-        item("instrucao", "projeto", "web/CLAUDE.md", item_count=9, with_reason=9,
+        item("instruction", "project", "CLAUDE.md", item_count=6, with_reason=3, chars=500),
+        item("instruction", "user", "CLAUDE.md", item_count=2, with_reason=0, chars=100),
+        item("instruction", "project", "web/CLAUDE.md", item_count=9, with_reason=9,
              on_demand=True)],
         plugins=PLUGINS, failures=[inventory.ReadFailure(Path("/x"), "ruim")])
     i = audit.installed(inv)
-    assert i.counts[("skill", "usuario")] == 2
+    assert i.counts[("skill", "user")] == 2
     assert i.counts[("mcp", "plugin")] == 1
     assert (i.active_plugins, i.plugins) == (1, 2)
     assert i.failures == 1 and i.on_demand == 2
@@ -448,12 +448,12 @@ def test_sessao_de_comando_local_nao_entra_nos_indicadores(tmp_path):
 def _inventory_s6():
     """Inventário que dá arquivo a parte do que a sessão S6 anuncia."""
     return Inventory(items=[
-        item("skill", "projeto", "exemplo-skill"),
-        item("skill", "projeto", "nunca-usada"),
-        item("skill", "usuario", "por-comando"),
-        item("subagente", "projeto", "exemplo-ocioso"),
-        item("mcp", "projeto", "servidor-b"),
-        item("skill", "usuario", "escondida", invocable=False)])
+        item("skill", "project", "exemplo-skill"),
+        item("skill", "project", "nunca-usada"),
+        item("skill", "user", "por-comando"),
+        item("subagent", "project", "exemplo-ocioso"),
+        item("mcp", "project", "servidor-b"),
+        item("skill", "user", "escondida", invocable=False)])
 
 
 @pytest.fixture
@@ -466,14 +466,14 @@ def test_peso_morto_em_o_que_chama_atencao_conta_so_o_que_tem_arquivo(s6):
     a = audit.audit(s6, inventory=_inventory_s6())
     findings = {x.rule: x.values for x in a.findings}
     # skills nunca usadas: nunca-usada (projeto); as outras têm uso
-    assert findings["peso_morto.skills"]["nunca_usados"] == 1
-    assert findings["peso_morto.skills"]["disponiveis"] == 3
+    assert findings["dead_weight.skills"]["never_used"] == 1
+    assert findings["dead_weight.skills"]["available"] == 3
     # tipos: exemplo-ocioso (projeto) nunca usado; Explore é embutido
-    assert findings["peso_morto.subagent_types"]["nunca_usados"] == 1
+    assert findings["dead_weight.subagent_types"]["never_used"] == 1
     # servidores: servidor-b (projeto) nunca usado
-    assert findings["peso_morto.mcp_servers"]["nunca_usados"] == 1
+    assert findings["dead_weight.mcp_servers"]["never_used"] == 1
     # ferramentas com arquivo: só as do servidor-b
-    assert findings["peso_morto.tools"]["nunca_usados"] == 1
+    assert findings["dead_weight.tools"]["never_used"] == 1
 
 
 def test_plataforma_fica_em_linha_a_parte(s6):
@@ -490,16 +490,16 @@ def test_sem_inventario_a_regra_conta_tudo_como_antes(s6):
     a = audit.audit(s6)
     assert a.provenances is None and a.platform is None
     findings = {x.rule: x.values for x in a.findings}
-    assert findings["peso_morto.skills"]["nunca_usados"] == len(a.dead_weight.skills.never_used)
+    assert findings["dead_weight.skills"]["never_used"] == len(a.dead_weight.skills.never_used)
 
 
 def test_regra_nao_dispara_quando_so_a_plataforma_tem_peca_sem_uso(s6):
-    inv = Inventory(items=[item("skill", "projeto", n) for n in
+    inv = Inventory(items=[item("skill", "project", n) for n in
                             ("exemplo-skill", "por-comando")])
     a = audit.audit(s6, inventory=inv)
     rules = {x.rule for x in a.findings}
-    assert "peso_morto.skills" not in rules          # nunca-usada não tem arquivo
-    assert a.never_used_by_provenance["skills"]["embutida"] == ["nunca-usada"]
+    assert "dead_weight.skills" not in rules          # nunca-usada não tem arquivo
+    assert a.never_used_by_provenance["skills"]["builtin"] == ["nunca-usada"]
 
 
 # ==========================================================================
@@ -557,11 +557,11 @@ def test_ligacao_por_hash_por_janela_ambigua_e_sem_ligacao(tmp_path, repo):
     links = commit_linking.link_commits([s])
     by = {x.call: x for x in links.links_}
     assert by["t-hash"].form == "hash" and by["t-hash"].commits == (h_hash,)
-    assert by["t-janela"].form == "janela" and by["t-janela"].commits == (h_window,)
-    assert by["t-ambigua"].form == "ambigua" and len(by["t-ambigua"].commits) == 2
-    assert by["t-nada"].form == "sem_ligacao"
+    assert by["t-janela"].form == "window" and by["t-janela"].commits == (h_window,)
+    assert by["t-ambigua"].form == "ambiguous" and len(by["t-ambigua"].commits) == 2
+    assert by["t-nada"].form == "unlinked"
     assert by["t-nada"].reason == "nenhum commit na janela"
-    assert links.by_form() == {"hash": 1, "janela": 1, "ambigua": 1, "sem_ligacao": 1}
+    assert links.by_form() == {"hash": 1, "window": 1, "ambiguous": 1, "unlinked": 1}
     assert links.linked_commits == {h_hash, h_window}
 
 
@@ -571,14 +571,14 @@ def test_comando_com_dois_commits_liga_os_dois(tmp_path, repo):
     s = _commits_session(tmp_path, repo, [
         dict(sec=10, tool_id="t", command="git commit -q -m a && git commit -q -m b")])
     (x,) = commit_linking.link_commits([s]).links_
-    assert x.form == "janela" and set(x.commits) == {a, b}
+    assert x.form == "window" and set(x.commits) == {a, b}
 
 
 def test_repositorio_que_nao_existe_mais_fica_sem_ligacao(tmp_path):
     s = _commits_session(tmp_path, tmp_path / "sumiu", [
         dict(sec=10, tool_id="t", command="git commit -q -m a")])
     (x,) = commit_linking.link_commits([s]).links_
-    assert (x.form, x.reason) == ("sem_ligacao", "repositório ausente")
+    assert (x.form, x.reason) == ("unlinked", "repositório ausente")
 
 
 def test_git_e_o_arbitro_do_amend(tmp_path, repo):
@@ -649,7 +649,7 @@ def test_historico_diz_o_que_um_commit_substituiu(repo):
     r = git_history.open_repository(repo)
     sub = git_history.replaced_commits(r, new)
     assert sub.replaces and [o.hash for o in sub.originals] == [original]
-    assert set(sub.originals[0].evidence) == {"reflog", "estrutura"}
+    assert set(sub.originals[0].evidence) == {"reflog", "structure"}
     assert not git_history.replaced_commits(r, original).replaces
 
 
@@ -662,14 +662,14 @@ def integrated_text(s6, tmp_path):
     sessions = [*reader.read_all(CONFIG).sessions, _local_command_session(tmp_path, "loc")]
     links = commit_linking.CommitLinks(links_=[
         commit_linking.CommitLink("s", "a", "hash", ("a" * 40,), Path("/r"), None, False, None, False),
-        commit_linking.CommitLink("s", "b", "janela", ("b" * 40,), Path("/r"), None, True, None, True),
-        commit_linking.CommitLink("s", "c", "ambigua", ("c" * 40, "d" * 40), Path("/r"), None,
+        commit_linking.CommitLink("s", "b", "window", ("b" * 40,), Path("/r"), None, True, None, True),
+        commit_linking.CommitLink("s", "c", "ambiguous", ("c" * 40, "d" * 40), Path("/r"), None,
                         False, "amended", None),
-        commit_linking.CommitLink("s", "d", "sem_ligacao", (), None, "repositório ausente",
+        commit_linking.CommitLink("s", "d", "unlinked", (), None, "repositório ausente",
                         False, None, None)],
         reverted={"a" * 40}, replaced_commits=set())
     inv = _inventory_s6()
-    inv.items.append(item("instrucao", "projeto", "CLAUDE.md", item_count=4, with_reason=1))
+    inv.items.append(item("instruction", "project", "CLAUDE.md", item_count=4, with_reason=1))
     a = audit.audit(sessions, repository=Path("/repo/alfa"),
                           directories=[Path("/repo/alfa")], inventory=inv, commit_linking=links)
     return report.markdown(a)
@@ -722,7 +722,7 @@ def test_peso_morto_por_origem_sem_minimo(integrated_text):
     block = section(integrated_text, "Peso morto")
     assert "mínimo" not in block
     assert "por origem" in block
-    assert "/inv/projeto/skill/nunca-usada.md" in section(integrated_text, "Apêndice")
+    assert "/inv/project/skill/nunca-usada.md" in section(integrated_text, "Apêndice")
     assert "Instaladas e não anunciadas" in block and "não pesam" in block
 
 

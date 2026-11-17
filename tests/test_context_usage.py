@@ -68,11 +68,11 @@ def test_completa_categorias_e_tipos():
         "Messages", "Free space", "Autocompact buffer",
     ]
     assert by_name["System prompt"].tokens == 2500
-    assert by_name["System prompt"].kind == "usado"
-    assert by_name["MCP tools (deferred)"].kind == "adiado"
-    assert by_name["System tools (deferred)"].kind == "adiado"
-    assert by_name["Free space"].kind == "livre"
-    assert by_name["Autocompact buffer"].kind == "reserva"
+    assert by_name["System prompt"].kind == "used"
+    assert by_name["MCP tools (deferred)"].kind == "deferred"
+    assert by_name["System tools (deferred)"].kind == "deferred"
+    assert by_name["Free space"].kind == "free"
+    assert by_name["Autocompact buffer"].kind == "reserved"
     assert all(c.known for c in r.categories)
 
 
@@ -147,7 +147,7 @@ def test_secao_e_linhas_desconhecidas_sao_guardadas_e_nao_derrubam():
     assert r.total == 8300
     # categoria nova entra (conta no total) mas é marcada e relatada
     new_category = [c for c in r.categories if c.name == "Output styles"]
-    assert len(new_category) == 1 and not new_category[0].known and new_category[0].kind == "usado"
+    assert len(new_category) == 1 and not new_category[0].known and new_category[0].kind == "used"
     assert r.categories_sum == 8300
     texts = "\n".join(r.unrecognized)
     assert "Output styles" in texts                 # categoria desconhecida

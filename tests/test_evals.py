@@ -297,7 +297,7 @@ def test_mineracao_teste_e_codigo_no_mesmo_commit(tmp_path):
 
     assert len(cands) == 1
     c = cands[0]
-    assert c.kind == "mesmo_commit"
+    assert c.kind == "same_commit"
     assert (c.base_commit, c.tests_commit, c.solution_commit) == (c1, c2, c2)
     assert c.test_files == ["tests/test_calc.py"]
     assert c.subject == "Muda x e testa"
@@ -316,7 +316,7 @@ def test_mineracao_testes_e_codigo_em_commits_seguidos(tmp_path):
 
     assert len(cands) == 1               # o commit de testes não vira caso sozinho
     c = cands[0]
-    assert c.kind == "commits_seguidos"
+    assert c.kind == "consecutive_commits"
     assert (c.base_commit, c.tests_commit, c.solution_commit) == (t, t, s)
     assert c.test_files == ["tests/dados/a.json", "tests/test_calc.py"]
 
@@ -337,7 +337,7 @@ def test_commit_de_codigo_com_um_teste_nao_puxa_o_seguinte(tmp_path):
                   "Código com teste")
     c3 = make_commit(repo, {"a.py": "3\n"}, "Só código")
     cands = mining.mine(repo)
-    assert [(c.kind, c.solution_commit) for c in cands] == [("mesmo_commit", c2)]
+    assert [(c.kind, c.solution_commit) for c in cands] == [("same_commit", c2)]
     assert c3 not in [c.solution_commit for c in cands]
 
 
@@ -401,7 +401,7 @@ def test_rascunho_tem_pedido_em_branco_e_assunto_nas_notas(tmp_path):
 
     r = cand.draft(command="python -m pytest -q")
 
-    assert r.source == "minerado" and r.prompt == ""
+    assert r.source == "mined" and r.prompt == ""
     assert r.id == f"minerado-{c2[:7]}"
     assert (r.base_commit, r.solution_commit) == (c1, c2)
     assert r.acceptance.files == ["tests/test_a.py"]

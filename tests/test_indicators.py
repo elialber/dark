@@ -121,10 +121,10 @@ def test_custo_por_pedido_soma_os_subagentes_do_pedido(sessions):
 
 def test_hooks_por_tipo_e_por_evento(sessions):
     h = indicators.hooks(sessions)
-    assert h.by_type == {"sucesso": 1, "erro_sem_bloqueio": 1, "cancelado": 2,
-                          "bloqueio": 1, "parada": 1, "confirmacao": 1, "decisao": 1}
+    assert h.by_type == {"success": 1, "non_blocking_error": 1, "cancelled": 2,
+                          "block": 1, "stop": 1, "confirmation": 1, "decision": 1}
     assert h.by_event == {"SessionStart": 1, "PreToolUse": 6, "Stop": 1}
-    assert h.by_type_and_event[("cancelado", "PreToolUse")] == 2
+    assert h.by_type_and_event[("cancelled", "PreToolUse")] == 2
     assert h.in_subagents == 1
     assert h.blocks_count == 1
     assert h.total == 8

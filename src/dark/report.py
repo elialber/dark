@@ -22,39 +22,39 @@ from dark.audit import MODES_WITHOUT_REJECTION, Finding, Audit
 TITLE = "Auditoria do harness"
 
 SECTIONS = {
-    "cabecalho": TITLE,
-    "peso-fixo": "Peso fixo",
-    "peso-morto": "Peso morto",
-    "custo": "Custo",
-    "intervencoes": "Intervenções",
+    "header": TITLE,
+    "fixed-context": "Peso fixo",
+    "dead-weight": "Peso morto",
+    "cost": "Custo",
+    "interventions": "Intervenções",
     "hooks": "Hooks",
     "commits": "Commits",
-    "instalado": "O que está instalado",
-    "apendice": "Apêndice",
+    "installed": "O que está instalado",
+    "appendix": "Apêndice",
 }
 
 # Quantos nomes uma lista mostra no corpo; o resto vai para o apêndice.
 FIRST_NAMES = 5
 
 PROVENANCE_NAMES = {
-    "projeto": "projeto",
-    "usuario": "usuário",
+    "project": "projeto",
+    "user": "usuário",
     "plugin": "plugin",
-    "gerenciado": "gerenciado",
-    "conta": "plataforma, da conta",
-    "embutida": "plataforma, embutida",
-    "sem_arquivo": "sem arquivo encontrado",
+    "managed": "gerenciado",
+    "account": "plataforma, da conta",
+    "builtin": "plataforma, embutida",
+    "no_file": "sem arquivo encontrado",
 }
 
 INVENTORY_TYPES = {
-    "instrucao": "Instrução",
+    "instruction": "Instrução",
     "skill": "Skill",
-    "subagente": "Subagente",
+    "subagent": "Subagente",
     "hook": "Hook",
     "mcp": "Servidor MCP",
-    "permissao": "Permissões",
+    "permission": "Permissões",
 }
-INVENTORY_SCOPES = ("projeto", "usuario", "plugin", "gerenciado")
+INVENTORY_SCOPES = ("project", "user", "plugin", "managed")
 
 CATEGORIES = {
     "skills": "Skills",
@@ -64,13 +64,13 @@ CATEGORIES = {
 }
 
 HOOK_TYPES = {
-    "sucesso": "saída registrada",
-    "erro_sem_bloqueio": "falha sem bloqueio",
-    "cancelado": "tempo esgotado",
-    "bloqueio": "bloqueio",
-    "confirmacao": "pediu confirmação",
-    "decisao": "liberou",
-    "parada": "resumo de parada",
+    "success": "saída registrada",
+    "non_blocking_error": "falha sem bloqueio",
+    "cancelled": "tempo esgotado",
+    "block": "bloqueio",
+    "confirmation": "pediu confirmação",
+    "decision": "liberou",
+    "stop": "resumo de parada",
 }
 
 
@@ -125,7 +125,7 @@ def first_items(names, limit: int = FIRST_NAMES) -> str:
     names = sorted(names)
     text = code(names[:limit])
     if len(names) > limit:
-        text += f" e mais {n(len(names) - limit)} (lista completa no {link('apendice')})"
+        text += f" e mais {n(len(names) - limit)} (lista completa no {link('appendix')})"
     return text
 
 
@@ -168,7 +168,7 @@ def _header(a: Audit) -> list[str]:
         lines.append(f"- Formato desconhecido (contado, não é erro): "
                       f"{sum(a.unknowns.kinds.values())} registro(s) de tipo "
                       f"desconhecido, {sum(a.unknowns.fields.values())} campo(s) "
-                      f"desconhecido(s); detalhe no {link('apendice')}")
+                      f"desconhecido(s); detalhe no {link('appendix')}")
     if not a.sessions:
         lines += ["", "Nenhuma sessão encontrada para este repositório no período. "
                    "Repositório sem histórico é um estado normal; o relatório passa a "
@@ -184,25 +184,25 @@ def _header(a: Audit) -> list[str]:
 
 def sentence(x: Finding, a: Audit) -> str:
     v = x.values
-    if x.rule.startswith("peso_morto."):
-        which = " com arquivo" if v.get("so_com_arquivo") else ""
-        text = (f"{CATEGORIES[v['categoria']]}: {n(v['nunca_usados'])} de "
-                 f"{n(v['disponiveis'])} disponíveis{which} sem nenhum uso no período.")
-    elif x.rule == "peso_fixo":
-        text = (f"Mediana de {n(v['mediana'])} tokens carregados antes de qualquer "
-                 f"trabalho, em {n(v['sessoes'])} sessões (de {n(v['minimo'])} a "
-                 f"{n(v['maximo'])}).")
-    elif x.rule == "commits_sem_hash":
-        text = (f"{n(v['sem_hash'])} de {n(v['chamadas'])} chamadas de commit não "
-                 f"deixaram hash registrado (com `-q`: {n(v['silenciosas'])}).")
-    elif x.rule == "modo_sem_rejeicao":
-        text = (f"{n(v['pedidos_no_modo'])} de {n(v['pedidos'])} pedidos "
-                 f"({pct(v['pedidos_no_modo'], v['pedidos'])}) rodaram em modo de "
-                 f"permissão que suprime rejeições ({code(v['modos'])}).")
-    elif x.rule == "falhas_de_leitura":
-        text = f"{n(v['falhas'])} arquivo(s) de sessão não puderam ser lidos."
-    elif x.rule == "formato_desconhecido":
-        text = (f"{n(v['tipos'])} registro(s) de tipo desconhecido e {n(v['campos'])} "
+    if x.rule.startswith("dead_weight."):
+        which = " com arquivo" if v.get("with_file_only") else ""
+        text = (f"{CATEGORIES[v['category']]}: {n(v['never_used'])} de "
+                 f"{n(v['available'])} disponíveis{which} sem nenhum uso no período.")
+    elif x.rule == "fixed_context":
+        text = (f"Mediana de {n(v['median'])} tokens carregados antes de qualquer "
+                 f"trabalho, em {n(v['sessions'])} sessões (de {n(v['minimum'])} a "
+                 f"{n(v['maximum'])}).")
+    elif x.rule == "commits_without_hash":
+        text = (f"{n(v['without_hash'])} de {n(v['calls'])} chamadas de commit não "
+                 f"deixaram hash registrado (com `-q`: {n(v['silent'])}).")
+    elif x.rule == "mode_without_rejection":
+        text = (f"{n(v['prompts_in_mode'])} de {n(v['prompts'])} pedidos "
+                 f"({pct(v['prompts_in_mode'], v['prompts'])}) rodaram em modo de "
+                 f"permissão que suprime rejeições ({code(v['modes'])}).")
+    elif x.rule == "read_failures":
+        text = f"{n(v['failures'])} arquivo(s) de sessão não puderam ser lidos."
+    elif x.rule == "unknown_format":
+        text = (f"{n(v['kinds'])} registro(s) de tipo desconhecido e {n(v['fields'])} "
                  f"campo(s) desconhecido(s) nas transcrições.")
     else:
         text = f"{x.rule}: {v}"
@@ -223,7 +223,7 @@ def _attention(a: Audit) -> list[str]:
                    f"{plural(p['subagent_types'], 'tipo de subagente', 'tipos de subagente')}, "
                    f"{plural(p['tools'], 'ferramenta', 'ferramentas')} e "
                    f"{plural(p['mcp_servers'], 'servidor MCP', 'servidores MCP')}. "
-                   f"→ {link('peso-morto')}"]
+                   f"→ {link('dead-weight')}"]
     text = ("cada linha sai de uma regra fixa e só diz um fato com número; não é "
              "nota nem recomendação. A seção indicada traz o detalhe e o limite.")
     if a.platform is not None:
@@ -317,7 +317,7 @@ def _never_used_tools(c: ind.Category) -> list[str]:
         text = ", ".join(items[:FIRST_NAMES])
         if len(items) > FIRST_NAMES:
             text += (f" e mais {n(len(items) - FIRST_NAMES)} servidores "
-                      f"(lista completa no {link('apendice')})")
+                      f"(lista completa no {link('appendix')})")
         lines.append("  - nunca usadas, MCP por servidor: " + text)
     return lines
 
@@ -331,7 +331,7 @@ def _by_provenance(a: Audit, key: str) -> list[str]:
     with_file = [x for o in org.PROVENANCES if o in org.WITH_FILE for x in groups.get(o, [])]
     if with_file and key != "tools":
         lines.append(f"  - com arquivo (você pode mudar): {first_items(with_file)}; "
-                      f"caminhos no {link('apendice')}")
+                      f"caminhos no {link('appendix')}")
     return lines
 
 
@@ -532,8 +532,8 @@ def _commit_linking(a: Audit) -> list[str]:
         return []
     f = links.by_form()
     lines = [f"- Ligação aos commits: com hash: {n(f['hash'])} · ligadas por janela: "
-              f"{n(f['janela'])} · ambíguas: {n(f['ambigua'])} · sem ligação: "
-              f"{n(f['sem_ligacao'])}"]
+              f"{n(f['window'])} · ambíguas: {n(f['ambiguous'])} · sem ligação: "
+              f"{n(f['unlinked'])}"]
     reasons = links.unlinked_by_reason()
     if reasons:
         lines.append("  - sem ligação, por motivo: " + ", ".join(

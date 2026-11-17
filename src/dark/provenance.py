@@ -38,9 +38,9 @@ from pathlib import Path
 from dark.inventory import HarnessItem, Plugin
 from dark.reader import Session, mcp_server
 
-PROVENANCES = ("projeto", "usuario", "plugin", "gerenciado", "conta", "embutida", "sem_arquivo")
-WITH_FILE = frozenset({"projeto", "usuario", "plugin", "gerenciado"})
-PLATFORM = frozenset({"conta", "embutida"})
+PROVENANCES = ("project", "user", "plugin", "managed", "account", "builtin", "no_file")
+WITH_FILE = frozenset({"project", "user", "plugin", "managed"})
+PLATFORM = frozenset({"account", "builtin"})
 CATEGORIES = ("skills", "subagent_types", "tools", "mcp_servers")
 
 CONNECTOR_PREFIX = "claude_ai_"
@@ -113,7 +113,7 @@ def classify(announced: Announced, items: Iterable[HarnessItem],
                 out.setdefault(p.name, p)
         return out
 
-    skills_inv, agents_inv = by_name("skill"), by_name("subagente")
+    skills_inv, agents_inv = by_name("skill"), by_name("subagent")
     servers_inv: dict[str, HarnessItem] = {}
     for p in items:
         if p.kind == "mcp":
@@ -126,32 +126,32 @@ def classify(announced: Announced, items: Iterable[HarnessItem],
             skills[name] = _with_file(skills_inv[name])
         elif ":" in name:
             prefix = name.split(":", 1)[0]
-            skills[name] = Provenance("sem_arquivo" if prefix in plugin_names else "conta")
+            skills[name] = Provenance("no_file" if prefix in plugin_names else "account")
         else:
-            skills[name] = Provenance("embutida")
+            skills[name] = Provenance("builtin")
 
     kinds = {}
     for name in announced.subagent_types:
         if name in agents_inv:
             kinds[name] = _with_file(agents_inv[name])
         elif name in announced.builtin_types:
-            kinds[name] = Provenance("embutida")
+            kinds[name] = Provenance("builtin")
         else:
-            kinds[name] = Provenance("sem_arquivo")
+            kinds[name] = Provenance("no_file")
 
     servers = {}
     for name in announced.mcp_servers:
         if name in servers_inv:
             servers[name] = _with_file(servers_inv[name])
         elif name.startswith(CONNECTOR_PREFIX):
-            servers[name] = Provenance("conta")
+            servers[name] = Provenance("account")
         else:
-            servers[name] = Provenance("sem_arquivo")
+            servers[name] = Provenance("no_file")
 
     tools = {}
     for name in announced.tools:
         server = mcp_server(name)
-        tools[name] = servers[server] if server else Provenance("embutida")
+        tools[name] = servers[server] if server else Provenance("builtin")
 
     def not_announced(kind: str, announced_: set[str]) -> list[HarnessItem]:
         """Uma peça por nome: a mesma skill em dois repositórios conta uma vez."""
@@ -163,5 +163,5 @@ def classify(announced: Announced, items: Iterable[HarnessItem],
 
     return Provenances(skills, kinds, tools, servers, {
         "skills": not_announced("skill", announced.skills),
-        "subagent_types": not_announced("subagente", announced.subagent_types),
+        "subagent_types": not_announced("subagent", announced.subagent_types),
     })

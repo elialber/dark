@@ -101,37 +101,37 @@ def test_sem_sessoes_a_auditoria_existe_e_nao_tem_achados():
 @pytest.mark.parametrize("category", [
     "skills", "subagent_types", "tools", "mcp_servers"])
 def test_regra_de_peso_morto(sessions, category):
-    rule = f"peso_morto.{category}"
+    rule = f"dead_weight.{category}"
     a = audit.audit(only(sessions, S6))
     (finding,) = [x for x in a.findings if x.rule == rule]
-    assert finding.section == "peso-morto"
-    assert finding.values["nunca_usados"] == len(
+    assert finding.section == "dead-weight"
+    assert finding.values["never_used"] == len(
         getattr(a.dead_weight, category).never_used) > 0
     assert rule not in fired_rules(audit.audit(only(sessions, S3)))  # sem lista
 
 
 def test_regra_de_peso_fixo(sessions):
     a = audit.audit(only(sessions, S6, S3))
-    (finding,) = [x for x in a.findings if x.rule == "peso_fixo"]
-    assert finding.section == "peso-fixo"
-    assert finding.values["mediana"] == a.fixed_context.summary.median
-    assert "peso_fixo" not in fired_rules(audit.audit(only(sessions, S4)))  # fork
+    (finding,) = [x for x in a.findings if x.rule == "fixed_context"]
+    assert finding.section == "fixed-context"
+    assert finding.values["median"] == a.fixed_context.summary.median
+    assert "fixed_context" not in fired_rules(audit.audit(only(sessions, S4)))  # fork
 
 
 def test_regra_de_commits_sem_hash(sessions):
     a = audit.audit(only(sessions, S6))
-    (finding,) = [x for x in a.findings if x.rule == "commits_sem_hash"]
+    (finding,) = [x for x in a.findings if x.rule == "commits_without_hash"]
     assert finding.section == "commits"
-    assert (finding.values["sem_hash"], finding.values["chamadas"]) == (1, 3)
-    assert "commits_sem_hash" not in fired_rules(audit.audit(only(sessions, S1)))
+    assert (finding.values["without_hash"], finding.values["calls"]) == (1, 3)
+    assert "commits_without_hash" not in fired_rules(audit.audit(only(sessions, S1)))
 
 
 def test_regra_de_modo_que_suprime_rejeicoes(sessions):
     a = audit.audit(only(sessions, S6))
-    (finding,) = [x for x in a.findings if x.rule == "modo_sem_rejeicao"]
-    assert finding.section == "intervencoes"
-    assert (finding.values["pedidos_no_modo"], finding.values["pedidos"]) == (1, 2)
-    assert "modo_sem_rejeicao" not in fired_rules(audit.audit(only(sessions, S1)))
+    (finding,) = [x for x in a.findings if x.rule == "mode_without_rejection"]
+    assert finding.section == "interventions"
+    assert (finding.values["prompts_in_mode"], finding.values["prompts"]) == (1, 2)
+    assert "mode_without_rejection" not in fired_rules(audit.audit(only(sessions, S1)))
 
 
 def test_modos_que_suprimem_rejeicoes():
@@ -142,17 +142,17 @@ def test_modos_que_suprimem_rejeicoes():
 def test_regra_de_falhas_de_leitura(sessions):
     failure = ReadFailure(Path("/cfg/projects/-repo-alfa/x.jsonl"), 2, "campo ausente")
     a = audit.audit(only(sessions, S3), [failure])
-    (finding,) = [x for x in a.findings if x.rule == "falhas_de_leitura"]
-    assert finding.section == "cabecalho" and finding.values["falhas"] == 1
-    assert "falhas_de_leitura" not in fired_rules(audit.audit(only(sessions, S3)))
+    (finding,) = [x for x in a.findings if x.rule == "read_failures"]
+    assert finding.section == "header" and finding.values["failures"] == 1
+    assert "read_failures" not in fired_rules(audit.audit(only(sessions, S3)))
 
 
 def test_regra_de_formato_desconhecido(sessions):
     a = audit.audit(only(sessions, S1))
-    (finding,) = [x for x in a.findings if x.rule == "formato_desconhecido"]
-    assert finding.section == "cabecalho"
-    assert finding.values["tipos"] >= 1 and finding.values["campos"] >= 1
-    assert "formato_desconhecido" not in fired_rules(audit.audit(only(sessions, S6)))
+    (finding,) = [x for x in a.findings if x.rule == "unknown_format"]
+    assert finding.section == "header"
+    assert finding.values["kinds"] >= 1 and finding.values["fields"] >= 1
+    assert "unknown_format" not in fired_rules(audit.audit(only(sessions, S6)))
 
 
 # --- seleção das sessões do repositório (E3 e E15) -----------------------------

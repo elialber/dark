@@ -134,7 +134,7 @@ class Installed:
 
 def installed(inv: Inventory) -> Installed:
     instructions = [p for p in inv.items
-                  if p.kind == "instrucao" and not p.on_demand and p.instruction]
+                  if p.kind == "instruction" and not p.on_demand and p.instruction]
     return Installed(
         counts=Counter((p.kind, p.scope) for p in inv.items),
         local_items=sum(p.local for p in inv.items),
@@ -183,7 +183,7 @@ class Audit:
     def provenance(self, category: str, name: str) -> org.Provenance | None:
         if self.provenance_of is None:
             return None
-        return self.provenance_of[category].get(name, org.Provenance("sem_arquivo"))
+        return self.provenance_of[category].get(name, org.Provenance("no_file"))
 
     @property
     def never_used_by_provenance(self) -> dict[str, dict[str, list[str]]]:
@@ -291,9 +291,9 @@ def _rule_dead_weight(category: str) -> Callable[[Audit], Finding | None]:
             available = {n for n in available if a.provenance(category, n).mutable}
         if not never:
             return None
-        return Finding(f"peso_morto.{category}", "peso-morto", {
-            "categoria": category, "nunca_usados": len(never),
-            "disponiveis": len(available), "so_com_arquivo": a.provenance_of is not None})
+        return Finding(f"dead_weight.{category}", "dead-weight", {
+            "category": category, "never_used": len(never),
+            "available": len(available), "with_file_only": a.provenance_of is not None})
     return rule
 
 
@@ -301,16 +301,16 @@ def _rule_fixed_context(a: Audit) -> Finding | None:
     r = a.fixed_context.summary
     if not r.n:
         return None
-    return Finding("peso_fixo", "peso-fixo", {
-        "mediana": r.median, "minimo": r.minimum, "maximo": r.maximum, "sessoes": r.n})
+    return Finding("fixed_context", "fixed-context", {
+        "median": r.median, "minimum": r.minimum, "maximum": r.maximum, "sessions": r.n})
 
 
 def _rule_commits_without_hash(a: Audit) -> Finding | None:
     c = a.commits
     if not c.without_hash:
         return None
-    return Finding("commits_sem_hash", "commits", {
-        "sem_hash": c.without_hash, "chamadas": c.calls, "silenciosas": c.silent})
+    return Finding("commits_without_hash", "commits", {
+        "without_hash": c.without_hash, "calls": c.calls, "silent": c.silent})
 
 
 def _rule_mode_without_rejection(a: Audit) -> Finding | None:
@@ -318,21 +318,21 @@ def _rule_mode_without_rejection(a: Audit) -> Finding | None:
     if not n:
         return None
     modes = sorted(m for m in a.interventions.by_mode if m in MODES_WITHOUT_REJECTION)
-    return Finding("modo_sem_rejeicao", "intervencoes", {
-        "pedidos_no_modo": n, "pedidos": a.prompts, "modos": modes})
+    return Finding("mode_without_rejection", "interventions", {
+        "prompts_in_mode": n, "prompts": a.prompts, "modes": modes})
 
 
 def _rule_failures(a: Audit) -> Finding | None:
     if not a.failures:
         return None
-    return Finding("falhas_de_leitura", "cabecalho", {"falhas": len(a.failures)})
+    return Finding("read_failures", "header", {"failures": len(a.failures)})
 
 
 def _rule_format(a: Audit) -> Finding | None:
     kinds, fields = sum(a.unknowns.kinds.values()), sum(a.unknowns.fields.values())
     if not kinds and not fields:
         return None
-    return Finding("formato_desconhecido", "cabecalho", {"tipos": kinds, "campos": fields})
+    return Finding("unknown_format", "header", {"kinds": kinds, "fields": fields})
 
 
 RULES: list[Callable[[Audit], Finding | None]] = [

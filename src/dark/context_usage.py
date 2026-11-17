@@ -69,12 +69,12 @@ class Breakdown:
     @property
     def categories_sum(self) -> int:
         """Soma das categorias que entram no total informado."""
-        return sum(c.tokens for c in self.categories if c.kind == "usado")
+        return sum(c.tokens for c in self.categories if c.kind == "used")
 
     @property
     def deferred(self) -> int:
         """Ferramentas adiadas (embutidas e MCP): listadas, fora do total."""
-        return sum(c.tokens for c in self.categories if c.kind == "adiado")
+        return sum(c.tokens for c in self.categories if c.kind == "deferred")
 
 
 @dataclass(frozen=True)
@@ -106,7 +106,7 @@ def number(text: str) -> int | None:
 # Análise
 # --------------------------------------------------------------------------
 
-_FREE = {"Free space": "livre", "Autocompact buffer": "reserva"}
+_FREE = {"Free space": "free", "Autocompact buffer": "reserved"}
 _KNOWN = {
     "System prompt", "System tools", "System tools (deferred)",
     "MCP tools", "MCP tools (deferred)", "Custom agents", "Memory files",
@@ -132,8 +132,8 @@ def _type(name: str) -> str:
     if name in _FREE:
         return _FREE[name]
     if name.endswith("(deferred)"):
-        return "adiado"
-    return "usado"
+        return "deferred"
+    return "used"
 
 
 def _cells(line: str) -> tuple[str, ...] | None:
@@ -268,6 +268,10 @@ def measure(repository: Path | str, executor: Executor | None = None) -> Breakdo
 # Conferência mínima: só números, nomes só com --nomes
 # --------------------------------------------------------------------------
 
+# Rótulos impressos: valor interno em inglês, texto em português.
+KIND_LABELS = {"used": "usado", "deferred": "adiado", "free": "livre", "reserved": "reserva"}
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("repository", metavar="repositorio", nargs="?", default=".")
@@ -282,7 +286,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"total informado: {r.total}  soma das categorias: {r.categories_sum}"
           f"  adiadas (fora do total): {r.deferred}")
     for c in r.categories:
-        print(f"  {c.name:<26} {c.tokens:>9}  {c.kind}{'' if c.known else '  (nova)'}")
+        print(f"  {c.name:<26} {c.tokens:>9}  {KIND_LABELS[c.kind]}{'' if c.known else '  (nova)'}")
     for label, items in (("skills", r.skills), ("ferramentas MCP", r.mcp_tools),
                           ("agentes", r.agents), ("arquivos de memória", r.memory)):
         print(f"{label}: {len(items)} itens, {sum(i.tokens for i in items)} tokens")

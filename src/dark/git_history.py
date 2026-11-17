@@ -102,20 +102,20 @@ def _git(executor: Executor, cwd: Path, args: list[str], input: str | None = Non
 
 class Status(enum.Enum):
     OK = "ok"
-    MISSING = "inexistente"            # caminho não existe
-    NOT_GIT = "nao_git"                    # existe, mas não está num repositório
-    NO_COMMITS = "sem_commits"
-    GIT_MISSING = "git_ausente"            # executável não encontrado
-    ERROR = "erro"                          # o git falhou; ver `detalhe`
-    COMMIT_MISSING = "commit_inexistente"
-    AMBIGUOUS_HASH = "hash_ambiguo"          # prefixo curto casa com mais de um objeto
-    NOT_APPLICABLE = "nao_se_aplica"        # ex.: retoque pedido para commit de merge
+    MISSING = "missing"            # caminho não existe
+    NOT_GIT = "not_git"                    # existe, mas não está num repositório
+    NO_COMMITS = "no_commits"
+    GIT_MISSING = "git_missing"            # executável não encontrado
+    ERROR = "error"                          # o git falhou; ver `detalhe`
+    COMMIT_MISSING = "commit_missing"
+    AMBIGUOUS_HASH = "ambiguous_hash"          # prefixo curto casa com mais de um objeto
+    NOT_APPLICABLE = "not_applicable"        # ex.: retoque pedido para commit de merge
 
 
 class WindowClass(enum.Enum):
-    NONE = "nenhum"
-    ONE = "um"
-    AMBIGUOUS = "ambiguo"                    # mais de um: o módulo não escolhe
+    NONE = "none"
+    ONE = "one"
+    AMBIGUOUS = "ambiguous"                    # mais de um: o módulo não escolhe
 
 
 @dataclass(frozen=True)
@@ -240,7 +240,7 @@ class Retouches:
     excluded_reverts: int = 0
     deadline_open: bool | None = None       # None: `agora` não informado
     off_default: bool | None = None     # se sim, retoques feitos após squash não aparecem
-    confidence: str = "baixa"
+    confidence: str = "low"
     detail: str | None = None
 
 
@@ -516,7 +516,7 @@ def amend(repo: Repository, hash_: str) -> Amend:
     for d in idx.values():
         if (d.hash != c.hash and d.parents == c.parents and d.author == c.author
                 and d.author_date == c.author_date and d.commit_date >= c.commit_date):
-            evid.setdefault(d.hash, []).append("estrutura")
+            evid.setdefault(d.hash, []).append("structure")
     subs = []
     for h, ev in evid.items():
         d = idx.get(h) or _resolve(repo, h)[1]
@@ -556,7 +556,7 @@ def replaced_commits(repo: Repository, hash_: str) -> Replacement:
     for d in idx.values():
         if (d.hash != c.hash and d.parents == c.parents and d.author == c.author
                 and d.author_date == c.author_date and d.commit_date <= c.commit_date):
-            evid.setdefault(d.hash, []).append("estrutura")
+            evid.setdefault(d.hash, []).append("structure")
     originals = []
     for h, ev in evid.items():
         d = idx.get(h) or _resolve(repo, h)[1]

@@ -319,7 +319,7 @@ def test_amend_pela_estrutura_sem_reflog(tmp_path):
     a = git_history.amend(r, h)
     assert a.replaced is True
     assert [s.hash for s in a.replacers] == [new_h]
-    assert a.replacers[0].evidence == ["estrutura"]
+    assert a.replacers[0].evidence == ["structure"]
 
 
 def test_commit_normal_seguinte_nao_e_amend(tmp_path):
@@ -399,7 +399,7 @@ def test_retoque_dentro_do_prazo(tmp_path):
     assert rt.retouches[0].files == ["a.txt"]
     assert rt.retouches[0].interval == timedelta(days=2)
     assert rt.retouched_files == ["a.txt"]
-    assert rt.confidence == "baixa"
+    assert rt.confidence == "low"
 
 
 def test_retoque_fora_do_prazo(tmp_path):

@@ -121,15 +121,15 @@ def test_tokens_de_subagente_sao_atribuidos_ao_pedido_que_o_acionou(s1):
 
 def test_mensagem_no_meio_do_turno_e_intervencao_e_nao_pedido(s1):
     kinds = [i.kind for i in s1.interventions]
-    assert kinds.count("mensagem_no_meio") == 1
+    assert kinds.count("mid_turn_message") == 1
     assert len(s1.prompts) == 2
 
 
 def test_interrupcao_e_rejeicao_sao_intervencoes(s1):
     by_type = {i.kind: i for i in s1.interventions}
-    assert set(by_type) == {"mensagem_no_meio", "rejeicao", "interrupcao"}
-    assert by_type["rejeicao"].with_comment is True
-    assert by_type["rejeicao"].prompt_id == "P2"
+    assert set(by_type) == {"mid_turn_message", "rejection", "interruption"}
+    assert by_type["rejection"].with_comment is True
+    assert by_type["rejection"].prompt_id == "P2"
 
 
 # --- armadilha: pareamento de chamada e resultado ----------------------------
@@ -240,19 +240,19 @@ def test_versoes_do_claude_code_por_sessao(s1):
 
 def test_eventos_de_hook(s1):
     by_type = {h.kind: h for h in s1.hooks if h.subagent_id is None}
-    assert set(by_type) == {"sucesso", "erro_sem_bloqueio", "cancelado", "bloqueio", "parada"}
-    assert by_type["sucesso"].event == "SessionStart"
-    assert by_type["erro_sem_bloqueio"].exit_code == 1
-    assert by_type["erro_sem_bloqueio"].tool_use_id == "toolu_T6"
-    assert by_type["bloqueio"].tool_use_id == "toolu_T6"
-    assert by_type["bloqueio"].event == "PreToolUse"
-    assert [h.kind for h in s1.hooks if h.blocked] == ["bloqueio"]
+    assert set(by_type) == {"success", "non_blocking_error", "cancelled", "block", "stop"}
+    assert by_type["success"].event == "SessionStart"
+    assert by_type["non_blocking_error"].exit_code == 1
+    assert by_type["non_blocking_error"].tool_use_id == "toolu_T6"
+    assert by_type["block"].tool_use_id == "toolu_T6"
+    assert by_type["block"].event == "PreToolUse"
+    assert [h.kind for h in s1.hooks if h.blocked] == ["block"]
 
 
 def test_hook_em_subagente_guarda_de_qual_subagente_veio(s1):
     (of_sub,) = [h for h in s1.hooks if h.subagent_id is not None]
     assert of_sub.subagent_id == "agt0000000000001"
-    assert of_sub.kind == "cancelado"
+    assert of_sub.kind == "cancelled"
     assert all(h.subagent_id is None for h in s1.hooks if h is not of_sub)
 
 
@@ -262,10 +262,10 @@ def test_decisao_de_hook_e_capturada_tambem_quando_o_source_nao_e_hook(sessions)
     hooks = {h.tool_use_id: h for h in sessions[S5].hooks}
     confirmed = hooks["toolu_T20"]
     assert (confirmed.kind, confirmed.event, confirmed.blocked) == (
-        "confirmacao", "PreToolUse", False)
+        "confirmation", "PreToolUse", False)
     allowed = hooks["toolu_T21"]
     assert (allowed.kind, allowed.event, allowed.blocked) == (
-        "decisao", "PreToolUse", False)
+        "decision", "PreToolUse", False)
 
 
 # --- respostas sintéticas ------------------------------------------------------
@@ -408,17 +408,17 @@ def test_fork_nao_conta_de_novo_o_historico_copiado(sessions):
 
 def test_agregados_de_conferencia(sessions):
     ag = reader.aggregates(sessions.values())
-    assert ag["sessoes"] == 5
-    assert ag["subagentes"] == 1
-    assert ag["pedidos_humanos"] == 7
-    assert ag["resultados_ferramenta"] == 13
-    assert ag["chamadas_skill"] == 2
-    assert ag["chamadas_subagente"] == 1
-    assert ag["tokens_principal"] == 138 + 100 + 11 + 4 + 32119
-    assert ag["tokens_subagentes"] == 60
-    assert ag["tokens_total"] == 32432
-    assert ag["respostas_repetidas_entre_sessoes"] == 0
-    assert ag["versoes"] == 2
+    assert ag["sessions"] == 5
+    assert ag["subagents"] == 1
+    assert ag["human_prompts"] == 7
+    assert ag["tool_results"] == 13
+    assert ag["skill_calls"] == 2
+    assert ag["subagent_calls"] == 1
+    assert ag["main_tokens"] == 138 + 100 + 11 + 4 + 32119
+    assert ag["subagent_tokens"] == 60
+    assert ag["total_tokens"] == 32432
+    assert ag["responses_repeated_across_sessions"] == 0
+    assert ag["versions"] == 2
 
 
 def test_corte_por_data_ignora_registros_posteriores():

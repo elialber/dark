@@ -312,11 +312,11 @@ class Signals:
         return self.interruptions + self.rejections + self.mid_turn_messages
 
     def tally(self, intervention: reader.Intervention) -> None:
-        if intervention.kind == "interrupcao":
+        if intervention.kind == "interruption":
             self.interruptions += 1
-        elif intervention.kind == "mensagem_no_meio":
+        elif intervention.kind == "mid_turn_message":
             self.mid_turn_messages += 1
-        elif intervention.kind == "rejeicao":
+        elif intervention.kind == "rejection":
             self.rejections += 1
             if intervention.with_comment:
                 self.rejections_with_comment += 1
@@ -571,7 +571,7 @@ def main(argv: list[str] | None = None) -> int:
     hk = hooks(sessions)
     show(f"hooks: total={hk.total} bloqueios={hk.blocks_count} em_subagentes={hk.in_subagents} "
            f"sessoes_com_hook={hk.sessions_with_hook}")
-    show(f"  por tipo: {dict(sorted(hk.by_type.items()))}")
+    show(f"  por tipo: {dict(sorted((reader.HOOK_LABELS[k], v) for k, v in hk.by_type.items()))}")
     show(f"  por evento: {dict(sorted(hk.by_event.items()))}")
 
     co = commits(sessions)

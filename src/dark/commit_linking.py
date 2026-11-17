@@ -28,7 +28,7 @@ from pathlib import Path
 from dark import git_history
 from dark.reader import ToolCall, Session
 
-FORMS = ("hash", "janela", "ambigua", "sem_ligacao")
+FORMS = ("hash", "window", "ambiguous", "unlinked")
 
 _REASON = {
     git_history.Status.MISSING: "repositório ausente",
@@ -66,11 +66,11 @@ class CommitLinks:
         return Counter(x.form for x in self.links_)
 
     def unlinked_by_reason(self) -> Counter:
-        return Counter(x.reason for x in self.links_ if x.form == "sem_ligacao")
+        return Counter(x.reason for x in self.links_ if x.form == "unlinked")
 
     @property
     def linked_commits(self) -> set[str]:
-        return {h for x in self.links_ if x.form in ("hash", "janela") for h in x.commits}
+        return {h for x in self.links_ if x.form in ("hash", "window") for h in x.commits}
 
     @property
     def amends(self) -> int:
@@ -155,17 +155,17 @@ def link_commits(sessions: Iterable[Session], *,
                 elif not findings:
                     reason = "nenhum commit na janela"
                 elif len(findings) > c.commit.count:
-                    result.links_.append(CommitLink(form="ambigua", commits=findings,
+                    result.links_.append(CommitLink(form="ambiguous", commits=findings,
                                                       reason=None, amend_by_git=None, **base))
                     continue
                 else:
                     amend_by_git = any(git_history.replaced_commits(repo, h).replaces for h in findings)
                     for h in findings:
                         linked[(repo.root, h)] = repo
-                    result.links_.append(CommitLink(form="janela", commits=findings,
+                    result.links_.append(CommitLink(form="window", commits=findings,
                                                       reason=None, amend_by_git=amend_by_git, **base))
                     continue
-            result.links_.append(CommitLink(form="sem_ligacao", commits=(), reason=reason,
+            result.links_.append(CommitLink(form="unlinked", commits=(), reason=reason,
                                               amend_by_git=None, **base))
 
     for (_, h), repo in linked.items():

@@ -163,9 +163,9 @@ def attachment_size(attachment: dict) -> int:
 
 
 _HOOKS = {
-    "hook_success": "sucesso",
-    "hook_non_blocking_error": "erro_sem_bloqueio",
-    "hook_cancelled": "cancelado",
+    "hook_success": "success",
+    "hook_non_blocking_error": "non_blocking_error",
+    "hook_cancelled": "cancelled",
 }
 
 
@@ -858,10 +858,10 @@ class _File:
         if "toolUseResult" not in reg and not reg.get("isMeta"):
             self._command(content)
         if "interruptedMessageId" in reg:
-            self.interventions.append((Intervention("interrupcao", ts), uuid))
+            self.interventions.append((Intervention("interruption", ts), uuid))
         if reg.get("toolDenialKind") == "user-rejected":
             self.interventions.append((Intervention(
-                "rejeicao", ts, with_comment=bool(reg.get("userFeedback"))), uuid))
+                "rejection", ts, with_comment=bool(reg.get("userFeedback"))), uuid))
         if isinstance(content, list):
             for block in content:
                 if not isinstance(block, dict):
@@ -911,9 +911,9 @@ class _File:
             return
         rejected = decision.get("decision") == "reject"
         if of_hook:
-            kind = "bloqueio" if rejected else "decisao"
+            kind = "block" if rejected else "decision"
         else:
-            kind = "confirmacao"
+            kind = "confirmation"
         self.hooks.append(HookEvent(
             kind, ts, event=code.removeprefix("hook:") or None, tool_use_id=tool_id,
             blocked=rejected, subagent_id=self.subagent_id))
@@ -1009,7 +1009,7 @@ class _File:
             origin = attachment.get("origin")
             if attachment.get("humanTurn") or (isinstance(origin, dict)
                                           and origin.get("kind") == "human"):
-                self.interventions.append((Intervention("mensagem_no_meio", ts), uuid))
+                self.interventions.append((Intervention("mid_turn_message", ts), uuid))
 
     def _system(self, reg: dict, uuid: str, ts: datetime) -> None:
         subtype = reg.get("subtype")
@@ -1019,7 +1019,7 @@ class _File:
             self.local_commands += 1
         if subtype == "stop_hook_summary":
             self.hooks.append(HookEvent(
-                "parada", ts, event="Stop", tool_use_id=reg.get("toolUseID"),
+                "stop", ts, event="Stop", tool_use_id=reg.get("toolUseID"),
                 blocked=bool(reg.get("preventedContinuation")),
                 subagent_id=self.subagent_id))
 
@@ -1216,31 +1216,66 @@ def aggregates(sessions: Iterable[Session]) -> dict:
     subs = _sum(s.subagent_tokens for s in sessions)
     every = [c for s in sessions for c in s.calls]
     return {
-        "sessoes": len(sessions),
-        "subagentes": sum(len(s.subagents) for s in sessions),
-        "pastas_projeto": len({s.project_dir for s in sessions}),
-        "repositorios": len({s.repository for s in sessions if s.repository}),
-        "sessoes_sem_repositorio": sum(1 for s in sessions if s.repository is None),
-        "sessoes_de_fork": sum(1 for s in sessions if s.copied_from),
-        "versoes": len({v for s in sessions for v in s.versions}),
-        "pedidos_humanos": sum(len(s.prompts) for s in sessions),
-        "respostas": sum(1 for s in sessions for r in s.responses if not r.copied),
-        "respostas_sem_pedido": sum(s.responses_without_prompt for s in sessions),
-        "respostas_repetidas_entre_sessoes": sum(1 for n in seen.values() if n > 1),
-        "chamadas_ferramenta": len(every),
-        "resultados_ferramenta": sum(1 for c in every if c.result),
-        "chamadas_skill": sum(1 for c in every if c.name == "Skill"),
-        "chamadas_subagente": sum(1 for c in every if c.name == "Agent"),
-        "tokens_principal": main_file.total,
-        "tokens_subagentes": subs.total,
-        "tokens_total": main_file.total + subs.total,
-        "tokens_saida_principal": main_file.output,
-        "intervencoes": dict(Counter(i.kind for s in sessions for i in s.interventions)),
+        "sessions": len(sessions),
+        "subagents": sum(len(s.subagents) for s in sessions),
+        "project_dirs": len({s.project_dir for s in sessions}),
+        "repositories": len({s.repository for s in sessions if s.repository}),
+        "sessions_without_repository": sum(1 for s in sessions if s.repository is None),
+        "fork_sessions": sum(1 for s in sessions if s.copied_from),
+        "versions": len({v for s in sessions for v in s.versions}),
+        "human_prompts": sum(len(s.prompts) for s in sessions),
+        "responses": sum(1 for s in sessions for r in s.responses if not r.copied),
+        "responses_without_prompt": sum(s.responses_without_prompt for s in sessions),
+        "responses_repeated_across_sessions": sum(1 for n in seen.values() if n > 1),
+        "tool_calls": len(every),
+        "tool_results": sum(1 for c in every if c.result),
+        "skill_calls": sum(1 for c in every if c.name == "Skill"),
+        "subagent_calls": sum(1 for c in every if c.name == "Agent"),
+        "main_tokens": main_file.total,
+        "subagent_tokens": subs.total,
+        "total_tokens": main_file.total + subs.total,
+        "main_output_tokens": main_file.output,
+        "interventions": dict(Counter(i.kind for s in sessions for i in s.interventions)),
         "hooks": dict(Counter(h.kind for s in sessions for h in s.hooks)),
-        "linhas_cortadas": sum(s.truncated_lines for s in sessions),
-        "tipos_desconhecidos": dict(desc.kinds),
-        "campos_desconhecidos": dict(desc.fields),
+        "truncated_lines": sum(s.truncated_lines for s in sessions),
+        "unknown_kinds": dict(desc.kinds),
+        "unknown_fields": dict(desc.fields),
     }
+
+
+# Rótulos impressos pelo comando de conferência: chaves internas em inglês,
+# texto em português.
+AGGREGATE_LABELS = {
+    "sessions": "sessoes",
+    "subagents": "subagentes",
+    "project_dirs": "pastas_projeto",
+    "repositories": "repositorios",
+    "sessions_without_repository": "sessoes_sem_repositorio",
+    "fork_sessions": "sessoes_de_fork",
+    "versions": "versoes",
+    "human_prompts": "pedidos_humanos",
+    "responses": "respostas",
+    "responses_without_prompt": "respostas_sem_pedido",
+    "responses_repeated_across_sessions": "respostas_repetidas_entre_sessoes",
+    "tool_calls": "chamadas_ferramenta",
+    "tool_results": "resultados_ferramenta",
+    "skill_calls": "chamadas_skill",
+    "subagent_calls": "chamadas_subagente",
+    "main_tokens": "tokens_principal",
+    "subagent_tokens": "tokens_subagentes",
+    "total_tokens": "tokens_total",
+    "main_output_tokens": "tokens_saida_principal",
+    "interventions": "intervencoes",
+    "hooks": "hooks",
+    "truncated_lines": "linhas_cortadas",
+    "unknown_kinds": "tipos_desconhecidos",
+    "unknown_fields": "campos_desconhecidos",
+}
+INTERVENTION_LABELS = {"interruption": "interrupcao", "rejection": "rejeicao",
+                       "mid_turn_message": "mensagem_no_meio"}
+HOOK_LABELS = {"success": "sucesso", "non_blocking_error": "erro_sem_bloqueio",
+               "cancelled": "cancelado", "block": "bloqueio", "confirmation": "confirmacao",
+               "decision": "decisao", "stop": "parada"}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1269,7 +1304,11 @@ def main(argv: list[str] | None = None) -> int:
         print("nenhuma sessão encontrada", file=sys.stderr)
         return 0
     for name, value in aggregates(sessions).items():
-        print(f"{name}: {json.dumps(value, ensure_ascii=False)}")
+        if name == "interventions":
+            value = {INTERVENTION_LABELS[k]: v for k, v in value.items()}
+        elif name == "hooks":
+            value = {HOOK_LABELS[k]: v for k, v in value.items()}
+        print(f"{AGGREGATE_LABELS[name]}: {json.dumps(value, ensure_ascii=False)}")
     print(f"falhas: {len(failures)}")
     for failure in failures:
         print(f"  {failure}")

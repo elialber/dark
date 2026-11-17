@@ -28,11 +28,21 @@ _SAVED_OUTPUT = 4000
 
 
 class Reason(str, enum.Enum):
-    DOES_NOT_FAIL_ON_BASE = "não falha na base"
-    DOES_NOT_PASS_ON_SOLUTION = "não passa na solução"
-    COMMAND_DOES_NOT_RUN = "comando não roda"
-    TIMED_OUT = "tempo esgotado"
-    SETUP_ERROR = "erro de preparação"
+    DOES_NOT_FAIL_ON_BASE = "does_not_fail_on_base"
+    DOES_NOT_PASS_ON_SOLUTION = "does_not_pass_on_solution"
+    COMMAND_DOES_NOT_RUN = "command_does_not_run"
+    TIMED_OUT = "timed_out"
+    SETUP_ERROR = "setup_error"
+
+
+# Texto impresso para cada motivo.
+REASON_TEXT = {
+    Reason.DOES_NOT_FAIL_ON_BASE: "não falha na base",
+    Reason.DOES_NOT_PASS_ON_SOLUTION: "não passa na solução",
+    Reason.COMMAND_DOES_NOT_RUN: "comando não roda",
+    Reason.TIMED_OUT: "tempo esgotado",
+    Reason.SETUP_ERROR: "erro de preparação",
+}
 
 
 @dataclass
@@ -169,7 +179,7 @@ def _end(res: ValidationResult, start: float, reason: Reason, detail: str) -> Va
 def describe(res: ValidationResult) -> str:
     """Texto curto para a linha de comando."""
     lines = [f"caso {res.case}: " + ("VÁLIDO" if res.valid else
-                                      f"INVÁLIDO ({res.reason.value})")]
+                                      f"INVÁLIDO ({REASON_TEXT[res.reason]})")]
     if res.detail:
         lines.append(f"  detalhe: {res.detail}")
     for e in res.runs:

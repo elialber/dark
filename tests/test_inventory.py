@@ -87,32 +87,32 @@ def _single(inv: Inventory, kind: str, name: str):
 
 EXPECTED = [
     # (tipo, nome, escopo, plugin, local, sob_demanda)
-    ("instrucao", "CLAUDE.md", "gerenciado", None, False, False),
-    ("instrucao", "CLAUDE.md", "usuario", None, False, False),
-    ("instrucao", "rules/geral.md", "usuario", None, False, False),
-    ("instrucao", "CLAUDE.md", "projeto", None, False, False),
-    ("instrucao", "CLAUDE.local.md", "projeto", None, True, False),
-    ("instrucao", "sub/CLAUDE.md", "projeto", None, False, True),
-    ("instrucao", "rules/estilo.md", "projeto", None, False, False),
-    ("instrucao", "rules/api.md", "projeto", None, False, True),
-    ("instrucao", "memory/MEMORY.md", "projeto", None, True, False),
-    ("instrucao", "@docs/importado.md", "projeto", None, False, False),
-    ("skill", "skill-gerenciada", "gerenciado", None, False, False),
-    ("skill", "skill-usuario", "usuario", None, False, False),
-    ("skill", "comando-usuario", "usuario", None, False, False),
-    ("skill", "skill-projeto", "projeto", None, False, False),
-    ("skill", "comando-projeto", "projeto", None, False, False),
-    ("skill", "sub:skill-aninhada", "projeto", None, False, True),
+    ("instruction", "CLAUDE.md", "managed", None, False, False),
+    ("instruction", "CLAUDE.md", "user", None, False, False),
+    ("instruction", "rules/geral.md", "user", None, False, False),
+    ("instruction", "CLAUDE.md", "project", None, False, False),
+    ("instruction", "CLAUDE.local.md", "project", None, True, False),
+    ("instruction", "sub/CLAUDE.md", "project", None, False, True),
+    ("instruction", "rules/estilo.md", "project", None, False, False),
+    ("instruction", "rules/api.md", "project", None, False, True),
+    ("instruction", "memory/MEMORY.md", "project", None, True, False),
+    ("instruction", "@docs/importado.md", "project", None, False, False),
+    ("skill", "skill-gerenciada", "managed", None, False, False),
+    ("skill", "skill-usuario", "user", None, False, False),
+    ("skill", "comando-usuario", "user", None, False, False),
+    ("skill", "skill-projeto", "project", None, False, False),
+    ("skill", "comando-projeto", "project", None, False, False),
+    ("skill", "sub:skill-aninhada", "project", None, False, True),
     ("skill", "plugin-exemplo:skill-plugin", "plugin", "plugin-exemplo", False, False),
     ("skill", "plugin-exemplo:comando-plugin", "plugin", "plugin-exemplo", False, False),
-    ("subagente", "agente-usuario", "usuario", None, False, False),
-    ("subagente", "agente-em-subpasta", "usuario", None, False, False),
-    ("subagente", "agente-projeto", "projeto", None, False, False),
-    ("subagente", "plugin-exemplo:agente-plugin", "plugin", "plugin-exemplo", False, False),
-    ("mcp", "servidor-gerenciado", "gerenciado", None, False, False),
-    ("mcp", "servidor-usuario", "usuario", None, False, False),
-    ("mcp", "servidor-local", "projeto", None, True, False),
-    ("mcp", "servidor-projeto", "projeto", None, False, False),
+    ("subagent", "agente-usuario", "user", None, False, False),
+    ("subagent", "agente-em-subpasta", "user", None, False, False),
+    ("subagent", "agente-projeto", "project", None, False, False),
+    ("subagent", "plugin-exemplo:agente-plugin", "plugin", "plugin-exemplo", False, False),
+    ("mcp", "servidor-gerenciado", "managed", None, False, False),
+    ("mcp", "servidor-usuario", "user", None, False, False),
+    ("mcp", "servidor-local", "project", None, True, False),
+    ("mcp", "servidor-projeto", "project", None, False, False),
     ("mcp", "servidor-plugin", "plugin", "plugin-exemplo", False, False),
     ("mcp", "servidor-manifesto", "plugin", "plugin-exemplo", False, False),
 ]
@@ -128,7 +128,7 @@ def test_peca_de_cada_tipo_em_cada_escopo(complete, kind, name, scope, plugin, l
     assert (p.plugin, p.local, p.on_demand) == (plugin, local, on_demand)
     assert p.source.is_file()
     text = p.source.read_text(encoding="utf-8")
-    if kind in ("instrucao", "skill", "subagente"):
+    if kind in ("instruction", "skill", "subagent"):
         assert p.chars == len(text)
         assert p.lines == len(text.splitlines())
     assert p.chars > 0 and p.lines > 0
@@ -137,54 +137,54 @@ def test_peca_de_cada_tipo_em_cada_escopo(complete, kind, name, scope, plugin, l
 def test_hooks_de_cada_escopo(complete):
     hooks = {(h.scope, h.local, h.hook.event): h for h in complete.items if h.kind == "hook"}
     assert set(hooks) == {
-        ("gerenciado", False, "UserPromptSubmit"),
-        ("usuario", False, "SessionStart"),
-        ("projeto", False, "PreToolUse"),
-        ("projeto", False, "Stop"),
-        ("projeto", True, "PostToolUse"),
+        ("managed", False, "UserPromptSubmit"),
+        ("user", False, "SessionStart"),
+        ("project", False, "PreToolUse"),
+        ("project", False, "Stop"),
+        ("project", True, "PostToolUse"),
         ("plugin", False, "PreToolUse"),
-        ("usuario", False, None),            # declarado no cabeçalho de uma skill
+        ("user", False, None),            # declarado no cabeçalho de uma skill
     }
-    pre = hooks[("projeto", False, "PreToolUse")].hook
+    pre = hooks[("project", False, "PreToolUse")].hook
     assert (pre.matcher, pre.kind) == ("Bash", "command")
     assert pre.command == "TOKEN_PROJETO=*** ./verifica.sh"
     assert pre.variables == ["TOKEN_PROJETO"]
-    pos = hooks[("projeto", True, "PostToolUse")].hook
+    pos = hooks[("project", True, "PostToolUse")].hook
     assert (pos.matcher, pos.command) == ("Edit|Write", "./formata.sh")
-    stop = hooks[("projeto", False, "Stop")].hook
+    stop = hooks[("project", False, "Stop")].hook
     assert (stop.matcher, stop.kind, stop.command) == (None, "http", "http://localhost:9/aviso")
     assert stop.headers == ["Authorization"] and stop.variables == ["CHAVE_AVISO"]
     plugin = hooks[("plugin", False, "PreToolUse")]
     assert plugin.plugin == "plugin-exemplo"
     assert plugin.hook.command == "${CLAUDE_PLUGIN_ROOT}/bin/checa"
-    assert hooks[("gerenciado", False, "UserPromptSubmit")].hook.kind == "prompt"
-    header = hooks[("usuario", False, None)]
+    assert hooks[("managed", False, "UserPromptSubmit")].hook.kind == "prompt"
+    header = hooks[("user", False, None)]
     assert header.name == "skill-com-hook" and header.hook.parsed is False
 
 
 def test_permissoes_de_cada_escopo(complete):
     perms = {(p.scope, p.local, p.source.name): p.permissions
-             for p in complete.items if p.kind == "permissao"}
+             for p in complete.items if p.kind == "permission"}
     assert set(perms) == {
-        ("gerenciado", False, "managed-settings.json"),
-        ("gerenciado", False, "10-extra.json"),
-        ("usuario", False, "settings.json"),
-        ("projeto", False, "settings.json"),
-        ("projeto", True, "settings.local.json"),
+        ("managed", False, "managed-settings.json"),
+        ("managed", False, "10-extra.json"),
+        ("user", False, "settings.json"),
+        ("project", False, "settings.json"),
+        ("project", True, "settings.local.json"),
     }
-    proj = perms[("projeto", False, "settings.json")]
+    proj = perms[("project", False, "settings.json")]
     assert (proj.default_mode, proj.allow, proj.deny, proj.ask) == ("acceptEdits", 2, 1, 1)
-    local = perms[("projeto", True, "settings.local.json")]
+    local = perms[("project", True, "settings.local.json")]
     assert (local.default_mode, local.allow, local.deny, local.ask) == (None, 1, 0, 0)
-    assert perms[("usuario", False, "settings.json")].default_mode == "plan"
-    assert perms[("gerenciado", False, "10-extra.json")].ask == 1
+    assert perms[("user", False, "settings.json")].default_mode == "plan"
+    assert perms[("managed", False, "10-extra.json")].ask == 1
 
 
 # --- instruções ----------------------------------------------------------------------
 
 def test_instrucao_conta_itens_e_motivos(complete):
     i = next(p for p in complete.items
-             if p.kind == "instrucao" and p.name == "CLAUDE.md" and p.scope == "projeto")
+             if p.kind == "instruction" and p.name == "CLAUDE.md" and p.scope == "project")
     d = i.instruction
     assert d.item_count == 6                 # 4 com marcador, 2 numerados; bloco de código fora
     assert d.with_reason == 3            # "Motivo:", "porque", "para que"
@@ -198,12 +198,12 @@ def test_instrucao_sem_motivo(complete):
 
 
 def test_importacoes_seguem_ate_quatro_saltos(complete):
-    names = {p.name for p in complete.items if p.kind == "instrucao"}
+    names = {p.name for p in complete.items if p.kind == "instruction"}
     assert {"@docs/importado.md", "@docs/nivel2.md", "@docs/nivel3.md",
             "@docs/nivel4.md"} <= names
     assert "@docs/nivel5.md" not in names
     assert not any("nao-importado" in n or "tambem-nao" in n for n in names)
-    imp = _single(complete, "instrucao", "@docs/importado.md")
+    imp = _single(complete, "instruction", "@docs/importado.md")
     assert imp.instruction.imported_by.name == "CLAUDE.md"
     assert (imp.instruction.item_count, imp.instruction.with_reason) == (2, 1)
 
@@ -211,7 +211,7 @@ def test_importacoes_seguem_ate_quatro_saltos(complete):
 def test_memoria_de_topico_e_claude_md_de_plugin_ficam_fora(complete):
     provenances = {p.source.name for p in complete.items}
     assert "exemplo.md" not in provenances
-    assert not any(p.kind == "instrucao" and p.scope == "plugin" for p in complete.items)
+    assert not any(p.kind == "instruction" and p.scope == "plugin" for p in complete.items)
 
 
 # --- skills e subagentes ----------------------------------------------------------------
@@ -225,7 +225,7 @@ def test_skill_com_descricao_curta_e_corpo_longo(complete):
 
 
 def test_descricao_em_bloco_dobrado_e_entre_aspas(complete):
-    a = _single(complete, "subagente", "agente-projeto")
+    a = _single(complete, "subagent", "agente-projeto")
     assert a.description.chars == len("Revisa mudanças de exemplo em duas linhas.")
     s = _single(complete, "skill", "skill-usuario")
     assert s.description.chars == len("Skill pessoal de exemplo.")
