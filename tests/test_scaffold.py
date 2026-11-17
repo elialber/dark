@@ -772,3 +772,20 @@ def test_shared_need_survives_other_module_revert(tmp_path, case, first):
     assert set(statuses(inspect(tmp_path, survivor))) == {"already_applied"}
     revert(tmp_path, "mod-b" if first == "mod-a" else "mod-a")
     assert snapshot(tmp_path) == before
+
+
+def test_file_created_whole_by_one_module_is_not_edited_by_another(tmp_path):
+    apply(tmp_path, plan(CreateFile("conf.txt", "a\n"), module="mod-a"))
+    before = snapshot(tmp_path)
+    out = apply(tmp_path, plan(AppendLine("conf.txt", "b"), module="mod-b"))
+    assert statuses(out) == ["conflict"]
+    assert "mod-a" in out.steps[0].reason
+    assert snapshot(tmp_path) == before
+
+
+def test_same_module_may_edit_the_file_it_created(tmp_path):
+    before = snapshot(tmp_path)
+    out = apply(tmp_path, plan(CreateFile("conf.txt", "a\n"), AppendLine("conf.txt", "b")))
+    assert out.applied
+    assert revert(tmp_path, "mod-a").ok
+    assert snapshot(tmp_path) == before

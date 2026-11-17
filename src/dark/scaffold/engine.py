@@ -466,6 +466,8 @@ def _compute(root: Path, plan: Plan):
             rel = paths.normalize(op.path, MANIFEST_NAME)
             paths.check_no_links(root, rel)
             _check_secrets(op)
+            if op.kind != CreateFile.kind:
+                _check_not_owned_whole(manifest, plan.module, rel)
             result = _DO[op.kind](ov, rel, op)
             if result is not None and recorded:
                 raise Conflict("registrado no manifesto, mas ausente ou desfeito no "
@@ -488,6 +490,16 @@ def _compute(root: Path, plan: Plan):
         steps.append(Step(op, "new"))
         dirty = True
     return ov, steps, manifest, dirty
+
+
+def _check_not_owned_whole(manifest: dict, module: str, rel: str) -> None:
+    """A file created whole by one module is not edited by another: its
+    revert checks the hash of the whole file and would keep it."""
+    for e in manifest["entries"]:
+        if (e["module"] != module and e["op"]["op"] == CreateFile.kind
+                and e["op"].get("path") == rel):
+            raise Conflict(f"{rel} foi criado inteiro pelo módulo {e['module']}; "
+                           "outro módulo não pode editá-lo")
 
 
 def _owner(manifest: dict, module: str, spec: dict, rel: str) -> dict | None:
