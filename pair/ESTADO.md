@@ -36,6 +36,7 @@ Fase 2 concluída; Fase 3 (evals) iniciada pelo goal 012
 | [011 — Histórico git](goals/011-historico-git.md) | Aceito no [lote 006](entrada/lote-006.md) e incorporado à `main` |
 | [012 — Casos de eval](goals/012-casos-de-eval.md) | Aceito no [lote 006](entrada/lote-006.md) e incorporado à `main` |
 | [013 — Auditoria integrada](goals/013-auditoria-integrada.md) | Aceito pelo revisor no [lote 007](entrada/lote-007.md); critérios 4 e 5 (uso real) dispensados |
+| [014 — Código em inglês](goals/014-codigo-em-ingles.md) | Concluído, aguarda revisão ([diário](diario/014.md)) |
 
 ## Decisões pendentes
 
@@ -45,4 +46,7 @@ foram apagadas, locais e remotas.
 
 ## Próximo passo
 
-Goal 014 (código em inglês), do [lote 007](entrada/lote-007.md).
+Revisão do goal 014. O código está em inglês e a interface em português
+(E18); o mapa dos nomes antigos, usados nos diários até o 013, está em
+[docs/glossario.md](../docs/glossario.md). O diário 014 lista sugestões
+de correção anotadas e não feitas.
