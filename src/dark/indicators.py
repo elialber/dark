@@ -18,22 +18,22 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from dark import reader
-from dark.reader import Sessao
+from dark.reader import Session
 
 
 @dataclass(frozen=True)
-class Resumo:
+class Summary:
     n: int
-    mediana: float | None
-    minimo: float | None
-    maximo: float | None
+    median: float | None
+    minimum: float | None
+    maximum: float | None
 
 
-def resumir(valores: Iterable[float]) -> Resumo:
-    valores = list(valores)
-    if not valores:
-        return Resumo(0, None, None, None)
-    return Resumo(len(valores), statistics.median(valores), min(valores), max(valores))
+def summarize(values: Iterable[float]) -> Summary:
+    values = list(values)
+    if not values:
+        return Summary(0, None, None, None)
+    return Summary(len(values), statistics.median(values), min(values), max(values))
 
 
 # --------------------------------------------------------------------------
@@ -41,20 +41,20 @@ def resumir(valores: Iterable[float]) -> Resumo:
 # --------------------------------------------------------------------------
 
 @dataclass(frozen=True)
-class PesoFixo:
-    por_sessao: dict[str, int]     # tokens de entrada da primeira resposta
-    sem_dado: list[str]            # sessões sem resposta de modelo, ou de fork
-    resumo: Resumo
+class FixedContext:
+    by_session: dict[str, int]     # tokens de entrada da primeira resposta
+    without_data: list[str]            # sessões sem resposta de modelo, ou de fork
+    summary: Summary
 
 
-def peso_fixo(sessoes: Iterable[Sessao]) -> PesoFixo:
-    por_sessao, sem_dado = {}, []
-    for s in sessoes:
-        if s.contexto_inicial is None:
-            sem_dado.append(s.id)
+def fixed_context(sessions: Iterable[Session]) -> FixedContext:
+    by_session, without_data = {}, []
+    for s in sessions:
+        if s.initial_context is None:
+            without_data.append(s.id)
         else:
-            por_sessao[s.id] = s.contexto_inicial
-    return PesoFixo(por_sessao, sem_dado, resumir(por_sessao.values()))
+            by_session[s.id] = s.initial_context
+    return FixedContext(by_session, without_data, summarize(by_session.values()))
 
 
 # --------------------------------------------------------------------------
@@ -64,12 +64,12 @@ def peso_fixo(sessoes: Iterable[Sessao]) -> PesoFixo:
 # Caracteres por token. Vem das duas partes medidas dos dois lados no
 # diário 010 (prompt de sistema 3,64; lista de skills 3,57). É estimativa:
 # os caracteres incluem o escape de JSON, e código tokeniza diferente de texto.
-FATOR_CARACTERES_POR_TOKEN = 3.6
+CHARS_PER_TOKEN = 3.6
 
-GRUPOS = ("plataforma", "harness", "pedido")
+GROUPS = ("plataforma", "harness", "pedido")
 
 # (grupo, parte), na ordem em que o relatório mostra.
-PARTES = (
+PARTS = (
     ("plataforma", "prompt de sistema"),
     ("plataforma", "ferramentas embutidas"),
     ("plataforma", "outros anexos"),
@@ -82,11 +82,11 @@ PARTES = (
     ("harness", "saída de hooks"),
     ("pedido", "primeiro pedido"),
 )
-GRUPO_DA_PARTE = {parte: grupo for grupo, parte in PARTES}
+PART_GROUP = {part: group for group, part in PARTS}
 
 # Tipo de anexo -> parte. Anexo de tipo fora desta lista vai para "outros
 # anexos" (ambiente, data, modelo, contexto da sessão...), da plataforma.
-PARTE_DO_ANEXO = {
+ATTACHMENT_PART = {
     "skill_listing": "lista de skills",
     "agent_listing_delta": "lista de subagentes",
     "deferred_tools_delta": "nomes de ferramentas adiadas",
@@ -101,74 +101,74 @@ PARTE_DO_ANEXO = {
 
 
 @dataclass(frozen=True)
-class Reparticao:
+class Breakdown:
     """Peso fixo repartido por parte do primeiro pedido, em tokens estimados.
 
     Só entram as sessões com o peso fixo medido e com a forma da requisição
     gravada. O que o medido tem a mais que a soma das partes é o "não
     explicado"; pode ser negativo, e fica como está.
     """
-    fator: float
-    por_sessao: dict[str, dict[str, float]]    # sessão -> parte -> tokens estimados
-    medido: dict[str, int]                     # sessão -> peso fixo medido
-    sem_forma: list[str]                       # medido, mas sem a forma da requisição
+    factor: float
+    by_session: dict[str, dict[str, float]]    # sessão -> parte -> tokens estimados
+    measured: dict[str, int]                     # sessão -> peso fixo medido
+    without_shape: list[str]                       # medido, mas sem a forma da requisição
 
-    def soma(self, parte: str) -> float:
-        return sum(p.get(parte, 0.0) for p in self.por_sessao.values())
+    def total_sum(self, part: str) -> float:
+        return sum(p.get(part, 0.0) for p in self.by_session.values())
 
-    def soma_grupo(self, grupo: str) -> float:
-        return sum(self.soma(parte) for g, parte in PARTES if g == grupo)
-
-    @property
-    def medido_total(self) -> int:
-        return sum(self.medido.values())
+    def group_sum(self, group: str) -> float:
+        return sum(self.total_sum(part) for g, part in PARTS if g == group)
 
     @property
-    def nao_explicado(self) -> float:
-        return self.medido_total - sum(self.soma(parte) for _, parte in PARTES)
-
-    def parcela(self, parte: str) -> float | None:
-        return self.soma(parte) / self.medido_total if self.medido_total else None
-
-    def parcela_grupo(self, grupo: str) -> float | None:
-        return self.soma_grupo(grupo) / self.medido_total if self.medido_total else None
+    def measured_total(self) -> int:
+        return sum(self.measured.values())
 
     @property
-    def parcela_nao_explicada(self) -> float | None:
-        return self.nao_explicado / self.medido_total if self.medido_total else None
+    def unexplained(self) -> float:
+        return self.measured_total - sum(self.total_sum(part) for _, part in PARTS)
 
-    def resumo(self, parte: str) -> Resumo:
-        return resumir(p.get(parte, 0.0) for p in self.por_sessao.values())
+    def share(self, part: str) -> float | None:
+        return self.total_sum(part) / self.measured_total if self.measured_total else None
 
-    def resumo_grupo(self, grupo: str) -> Resumo:
-        return resumir(sum(v for k, v in p.items() if GRUPO_DA_PARTE[k] == grupo)
-                       for p in self.por_sessao.values())
+    def group_share(self, group: str) -> float | None:
+        return self.group_sum(group) / self.measured_total if self.measured_total else None
 
-    def resumo_nao_explicado(self) -> Resumo:
-        return resumir(self.medido[s] - sum(p.values()) for s, p in self.por_sessao.items())
+    @property
+    def unexplained_share(self) -> float | None:
+        return self.unexplained / self.measured_total if self.measured_total else None
+
+    def summary(self, part: str) -> Summary:
+        return summarize(p.get(part, 0.0) for p in self.by_session.values())
+
+    def group_summary(self, group: str) -> Summary:
+        return summarize(sum(v for k, v in p.items() if PART_GROUP[k] == group)
+                       for p in self.by_session.values())
+
+    def unexplained_summary(self) -> Summary:
+        return summarize(self.measured[s] - sum(p.values()) for s, p in self.by_session.items())
 
 
-def reparticao(sessoes: Iterable[Sessao],
-               fator: float = FATOR_CARACTERES_POR_TOKEN) -> Reparticao:
-    por_sessao, medido, sem_forma = {}, {}, []
-    for s in sessoes:
-        if s.contexto_inicial is None or s.partes_iniciais is None:
+def breakdown(sessions: Iterable[Session],
+               factor: float = CHARS_PER_TOKEN) -> Breakdown:
+    by_session, measured, without_shape = {}, {}, []
+    for s in sessions:
+        if s.initial_context is None or s.initial_parts is None:
             continue
-        p = s.partes_iniciais
-        if p.sistema is None:
-            sem_forma.append(s.id)
+        p = s.initial_parts
+        if p.system is None:
+            without_shape.append(s.id)
             continue
-        caracteres: Counter = Counter({
-            "prompt de sistema": p.sistema,
-            "ferramentas embutidas": p.ferramentas or 0,
-            "ferramentas MCP carregadas": p.ferramentas_mcp or 0,
-            "primeiro pedido": p.pedido or 0,
+        chars: Counter = Counter({
+            "prompt de sistema": p.system,
+            "ferramentas embutidas": p.tools or 0,
+            "ferramentas MCP carregadas": p.mcp_tools or 0,
+            "primeiro pedido": p.prompt or 0,
         })
-        for tipo, tamanho in p.anexos.items():
-            caracteres[PARTE_DO_ANEXO.get(tipo, "outros anexos")] += tamanho
-        por_sessao[s.id] = {parte: caracteres[parte] / fator for _, parte in PARTES}
-        medido[s.id] = s.contexto_inicial
-    return Reparticao(fator, por_sessao, medido, sem_forma)
+        for kind, size in p.attachments.items():
+            chars[ATTACHMENT_PART.get(kind, "outros anexos")] += size
+        by_session[s.id] = {part: chars[part] / factor for _, part in PARTS}
+        measured[s.id] = s.initial_context
+    return Breakdown(factor, by_session, measured, without_shape)
 
 
 # --------------------------------------------------------------------------
@@ -176,116 +176,116 @@ def reparticao(sessoes: Iterable[Sessao],
 # --------------------------------------------------------------------------
 
 @dataclass(frozen=True)
-class UsoNaSessao:
-    disponiveis: int
-    usados: int
+class SessionUsage:
+    available: int
+    used: int
 
 
 @dataclass(frozen=True)
-class Categoria:
+class Category:
     """Disponível contra usado, para um tipo de peça, no período das sessões."""
-    disponiveis: set[str]
-    usados: set[str]
-    nunca_usados: set[str]              # disponíveis que ninguém usou no período
-    usados_fora_da_lista: set[str]      # usados que não constam em nenhuma lista
-    por_sessao: dict[str, UsoNaSessao]
-    resumo_disponiveis: Resumo
-    resumo_usados: Resumo
-    sessoes_sem_lista: int              # onde o "disponível" não existe nos registros
-    sessoes_sem_uso: int
+    available: set[str]
+    used: set[str]
+    never_used: set[str]              # disponíveis que ninguém usou no período
+    used_outside_list: set[str]      # usados que não constam em nenhuma lista
+    by_session: dict[str, SessionUsage]
+    available_summary: Summary
+    used_summary: Summary
+    sessions_without_list: int              # onde o "disponível" não existe nos registros
+    sessions_without_use: int
 
 
 @dataclass(frozen=True)
-class PesoMorto:
-    skills: Categoria
-    tipos_subagente: Categoria
-    ferramentas: Categoria
-    servidores_mcp: Categoria
+class DeadWeight:
+    skills: Category
+    subagent_types: Category
+    tools: Category
+    mcp_servers: Category
 
 
-def nome_de_skill(nome: str) -> str:
+def skill_name(name: str) -> str:
     """Tira o prefixo de plugin (`plugin:skill`), para comparar lista e uso."""
-    return nome.rsplit(":", 1)[-1]
+    return name.rsplit(":", 1)[-1]
 
 
-def _chamadas(s: Sessao):
-    yield from s.chamadas
-    for sub in s.subagentes:
-        yield from sub.chamadas
+def _calls(s: Session):
+    yield from s.calls
+    for sub in s.subagents:
+        yield from sub.calls
 
 
-def _respostas(s: Sessao):
-    yield from s.respostas
-    for sub in s.subagentes:
-        yield from sub.respostas
+def _responses(s: Session):
+    yield from s.responses
+    for sub in s.subagents:
+        yield from sub.responses
 
 
-def _skills_usadas(s: Sessao) -> set[str]:
+def _used_skills(s: Session) -> set[str]:
     """Chamada `Skill`, `attributionSkill` ou /comando com nome de skill anunciada.
 
     O /comando só conta se o nome está na lista de skills da sessão: é isso
     que deixa de fora os comandos embutidos (lote 005).
     """
-    usadas = {c.entrada.get("skill") for c in _chamadas(s) if c.nome == "Skill"}
-    usadas |= {r.skill for r in _respostas(s)}
-    usadas = {nome_de_skill(n) for n in usadas if isinstance(n, str) and n}
-    anunciadas = {nome_de_skill(n) for n in s.disponivel.skills}
-    return usadas | ({nome_de_skill(c) for c in s.comandos} & anunciadas)
+    used = {c.input.get("skill") for c in _calls(s) if c.name == "Skill"}
+    used |= {r.skill for r in _responses(s)}
+    used = {skill_name(n) for n in used if isinstance(n, str) and n}
+    announced_skills = {skill_name(n) for n in s.available.skills}
+    return used | ({skill_name(c) for c in s.commands} & announced_skills)
 
 
-def _tipos_usados(s: Sessao) -> set[str]:
-    tipos = {c.entrada.get("subagent_type") for c in _chamadas(s) if c.nome == "Agent"}
-    return {t for t in tipos if isinstance(t, str) and t}
+def _used_types(s: Session) -> set[str]:
+    kinds = {c.input.get("subagent_type") for c in _calls(s) if c.name == "Agent"}
+    return {t for t in kinds if isinstance(t, str) and t}
 
 
-def _ferramentas_usadas(s: Sessao) -> set[str]:
-    return {c.nome for c in _chamadas(s)}
+def _used_tools(s: Session) -> set[str]:
+    return {c.name for c in _calls(s)}
 
 
-def _servidores(nomes: Iterable[str]) -> set[str]:
-    return {srv for srv in map(reader.servidor_mcp, nomes) if srv}
+def _servers(names: Iterable[str]) -> set[str]:
+    return {srv for srv in map(reader.mcp_server, names) if srv}
 
 
-def _categoria(sessoes: list[Sessao], disponivel: Callable[[Sessao], set[str]],
-               usado: Callable[[Sessao], set[str]]) -> Categoria:
-    todos_disp: set[str] = set()
-    todos_usados: set[str] = set()
-    por_sessao = {}
-    for s in sessoes:
-        d, u = disponivel(s), usado(s)
-        todos_disp |= d
-        todos_usados |= u
-        por_sessao[s.id] = UsoNaSessao(len(d), len(u))
-    return Categoria(
-        disponiveis=todos_disp, usados=todos_usados,
-        nunca_usados=todos_disp - todos_usados,
-        usados_fora_da_lista=todos_usados - todos_disp,
-        por_sessao=por_sessao,
-        resumo_disponiveis=resumir(x.disponiveis for x in por_sessao.values()),
-        resumo_usados=resumir(x.usados for x in por_sessao.values()),
-        sessoes_sem_lista=sum(1 for x in por_sessao.values() if x.disponiveis == 0),
-        sessoes_sem_uso=sum(1 for x in por_sessao.values() if x.usados == 0))
+def _category(sessions: list[Session], available: Callable[[Session], set[str]],
+               used: Callable[[Session], set[str]]) -> Category:
+    all_available: set[str] = set()
+    all_used: set[str] = set()
+    by_session = {}
+    for s in sessions:
+        d, u = available(s), used(s)
+        all_available |= d
+        all_used |= u
+        by_session[s.id] = SessionUsage(len(d), len(u))
+    return Category(
+        available=all_available, used=all_used,
+        never_used=all_available - all_used,
+        used_outside_list=all_used - all_available,
+        by_session=by_session,
+        available_summary=summarize(x.available for x in by_session.values()),
+        used_summary=summarize(x.used for x in by_session.values()),
+        sessions_without_list=sum(1 for x in by_session.values() if x.available == 0),
+        sessions_without_use=sum(1 for x in by_session.values() if x.used == 0))
 
 
-def peso_morto(sessoes: Iterable[Sessao]) -> PesoMorto:
+def dead_weight(sessions: Iterable[Session]) -> DeadWeight:
     """Disponível contra usado. O uso inclui o que os subagentes chamaram.
 
     "Nunca usado" vale só para o período coberto pelas sessões recebidas.
     Hooks e regras de instrução ficam de fora: não há lista do disponível
     nos registros.
     """
-    sessoes = list(sessoes)
-    return PesoMorto(
-        skills=_categoria(
-            sessoes, lambda s: {nome_de_skill(n) for n in s.disponivel.skills},
-            _skills_usadas),
-        tipos_subagente=_categoria(
-            sessoes, lambda s: set(s.disponivel.tipos_subagente), _tipos_usados),
-        ferramentas=_categoria(
-            sessoes, lambda s: set(s.disponivel.ferramentas), _ferramentas_usadas),
-        servidores_mcp=_categoria(
-            sessoes, lambda s: s.disponivel.servidores_mcp,
-            lambda s: _servidores(_ferramentas_usadas(s))))
+    sessions = list(sessions)
+    return DeadWeight(
+        skills=_category(
+            sessions, lambda s: {skill_name(n) for n in s.available.skills},
+            _used_skills),
+        subagent_types=_category(
+            sessions, lambda s: set(s.available.subagent_types), _used_types),
+        tools=_category(
+            sessions, lambda s: set(s.available.tools), _used_tools),
+        mcp_servers=_category(
+            sessions, lambda s: s.available.mcp_servers,
+            lambda s: _servers(_used_tools(s))))
 
 
 # --------------------------------------------------------------------------
@@ -293,72 +293,72 @@ def peso_morto(sessoes: Iterable[Sessao]) -> PesoMorto:
 # --------------------------------------------------------------------------
 
 @dataclass
-class Sinais:
-    pedidos: int = 0
-    interrupcoes: int = 0
-    rejeicoes: int = 0
-    rejeicoes_com_comentario: int = 0
-    rejeicoes_sem_comentario: int = 0
-    mensagens_no_meio: int = 0
-    por_modo: dict[str, int] = field(default_factory=dict)   # pedidos por modo de permissão
+class Signals:
+    prompts: int = 0
+    interruptions: int = 0
+    rejections: int = 0
+    rejections_with_comment: int = 0
+    rejections_without_comment: int = 0
+    mid_turn_messages: int = 0
+    by_mode: dict[str, int] = field(default_factory=dict)   # pedidos por modo de permissão
 
-    def contar_pedido(self, pedido: reader.Pedido) -> None:
-        self.pedidos += 1
-        modo = pedido.modo_permissao or "?"
-        self.por_modo[modo] = self.por_modo.get(modo, 0) + 1
+    def tally_prompt(self, prompt: reader.Prompt) -> None:
+        self.prompts += 1
+        mode = prompt.permission_mode or "?"
+        self.by_mode[mode] = self.by_mode.get(mode, 0) + 1
 
     @property
-    def sinais(self) -> int:
-        return self.interrupcoes + self.rejeicoes + self.mensagens_no_meio
+    def signals(self) -> int:
+        return self.interruptions + self.rejections + self.mid_turn_messages
 
-    def contar(self, intervencao: reader.Intervencao) -> None:
-        if intervencao.tipo == "interrupcao":
-            self.interrupcoes += 1
-        elif intervencao.tipo == "mensagem_no_meio":
-            self.mensagens_no_meio += 1
-        elif intervencao.tipo == "rejeicao":
-            self.rejeicoes += 1
-            if intervencao.com_comentario:
-                self.rejeicoes_com_comentario += 1
+    def tally(self, intervention: reader.Intervention) -> None:
+        if intervention.kind == "interrupcao":
+            self.interruptions += 1
+        elif intervention.kind == "mensagem_no_meio":
+            self.mid_turn_messages += 1
+        elif intervention.kind == "rejeicao":
+            self.rejections += 1
+            if intervention.with_comment:
+                self.rejections_with_comment += 1
             else:
-                self.rejeicoes_sem_comentario += 1
+                self.rejections_without_comment += 1
 
 
 @dataclass(frozen=True)
-class Intervencoes:
-    por_sessao: dict[str, Sinais]
-    por_pedido: dict[tuple[str, str], Sinais]   # (sessão, pedido)
-    sem_pedido: Sinais                          # sinais que não caem em nenhum pedido
-    total: Sinais
-    sessoes_sem_sinal: int
-    resumo_pedidos: Resumo
-    resumo_sinais: Resumo
+class Interventions:
+    by_session: dict[str, Signals]
+    by_prompt: dict[tuple[str, str], Signals]   # (sessão, pedido)
+    without_prompt: Signals                          # sinais que não caem em nenhum pedido
+    total: Signals
+    sessions_without_signal: int
+    prompts_summary: Summary
+    signals_summary: Summary
 
     @property
-    def por_modo(self) -> dict[str, int]:
+    def by_mode(self) -> dict[str, int]:
         """Pedidos por modo de permissão; "?" quando o registro não diz."""
-        return self.total.por_modo
+        return self.total.by_mode
 
 
-def intervencoes(sessoes: Iterable[Sessao]) -> Intervencoes:
-    por_sessao, por_pedido = {}, {}
-    sem_pedido, total = Sinais(), Sinais()
-    for s in sessoes:
-        da_sessao = por_sessao[s.id] = Sinais()
-        for p in s.pedidos:
-            da_sessao.contar_pedido(p)
-            total.contar_pedido(p)
-            por_pedido[(s.id, p.id)] = Sinais()
-            por_pedido[(s.id, p.id)].contar_pedido(p)
-        for i in s.intervencoes:
-            da_sessao.contar(i)
-            total.contar(i)
-            por_pedido.get((s.id, i.pedido_id), sem_pedido).contar(i)
-    return Intervencoes(
-        por_sessao, por_pedido, sem_pedido, total,
-        sessoes_sem_sinal=sum(1 for x in por_sessao.values() if x.sinais == 0),
-        resumo_pedidos=resumir(x.pedidos for x in por_sessao.values()),
-        resumo_sinais=resumir(x.sinais for x in por_sessao.values()))
+def interventions(sessions: Iterable[Session]) -> Interventions:
+    by_session, by_prompt = {}, {}
+    without_prompt, total = Signals(), Signals()
+    for s in sessions:
+        of_session = by_session[s.id] = Signals()
+        for p in s.prompts:
+            of_session.tally_prompt(p)
+            total.tally_prompt(p)
+            by_prompt[(s.id, p.id)] = Signals()
+            by_prompt[(s.id, p.id)].tally_prompt(p)
+        for i in s.interventions:
+            of_session.tally(i)
+            total.tally(i)
+            by_prompt.get((s.id, i.prompt_id), without_prompt).tally(i)
+    return Interventions(
+        by_session, by_prompt, without_prompt, total,
+        sessions_without_signal=sum(1 for x in by_session.values() if x.signals == 0),
+        prompts_summary=summarize(x.prompts for x in by_session.values()),
+        signals_summary=summarize(x.signals for x in by_session.values()))
 
 
 # --------------------------------------------------------------------------
@@ -366,48 +366,48 @@ def intervencoes(sessoes: Iterable[Sessao]) -> Intervencoes:
 # --------------------------------------------------------------------------
 
 @dataclass(frozen=True)
-class Gasto:
-    principal: int
-    subagentes: int
+class Spend:
+    main_file: int
+    subagents: int
 
     @property
     def total(self) -> int:
-        return self.principal + self.subagentes
+        return self.main_file + self.subagents
 
     @property
-    def parcela_subagentes(self) -> float | None:
-        return self.subagentes / self.total if self.total else None
+    def subagent_share(self) -> float | None:
+        return self.subagents / self.total if self.total else None
 
 
 @dataclass(frozen=True)
-class Custo:
-    por_sessao: dict[str, Gasto]
-    por_pedido: dict[tuple[str, str], Gasto]
-    total: Gasto
-    sem_pedido: int                 # tokens da sessão principal sem pedido atribuído
-    resumo_sessao: Resumo           # tokens totais por sessão
-    resumo_pedido: Resumo           # tokens totais por pedido
-    resumo_pedido_principal: Resumo  # só a sessão principal, pedidos com resposta
+class Cost:
+    by_session: dict[str, Spend]
+    by_prompt: dict[tuple[str, str], Spend]
+    total: Spend
+    without_prompt: int                 # tokens da sessão principal sem pedido atribuído
+    session_summary: Summary           # tokens totais por sessão
+    prompt_summary: Summary           # tokens totais por pedido
+    main_prompt_summary: Summary  # só a sessão principal, pedidos com resposta
 
 
-def custo(sessoes: Iterable[Sessao]) -> Custo:
-    por_sessao, por_pedido = {}, {}
-    sem_pedido = 0
-    for s in sessoes:
-        por_sessao[s.id] = Gasto(s.tokens_principal.total, s.tokens_subagentes.total)
-        for p in s.pedidos:
-            por_pedido[(s.id, p.id)] = Gasto(p.tokens.total, p.tokens_subagentes.total)
-        ids = {p.id for p in s.pedidos}
-        sem_pedido += sum(r.tokens.total for r in s.respostas
-                          if not r.copiada and r.pedido_id not in ids)
-    total = Gasto(sum(g.principal for g in por_sessao.values()),
-                  sum(g.subagentes for g in por_sessao.values()))
-    return Custo(
-        por_sessao, por_pedido, total, sem_pedido,
-        resumo_sessao=resumir(g.total for g in por_sessao.values()),
-        resumo_pedido=resumir(g.total for g in por_pedido.values()),
-        resumo_pedido_principal=resumir(
-            g.principal for g in por_pedido.values() if g.principal))
+def cost(sessions: Iterable[Session]) -> Cost:
+    by_session, by_prompt = {}, {}
+    without_prompt = 0
+    for s in sessions:
+        by_session[s.id] = Spend(s.main_tokens.total, s.subagent_tokens.total)
+        for p in s.prompts:
+            by_prompt[(s.id, p.id)] = Spend(p.tokens.total, p.subagent_tokens.total)
+        ids = {p.id for p in s.prompts}
+        without_prompt += sum(r.tokens.total for r in s.responses
+                          if not r.copied and r.prompt_id not in ids)
+    total = Spend(sum(g.main_file for g in by_session.values()),
+                  sum(g.subagents for g in by_session.values()))
+    return Cost(
+        by_session, by_prompt, total, without_prompt,
+        session_summary=summarize(g.total for g in by_session.values()),
+        prompt_summary=summarize(g.total for g in by_prompt.values()),
+        main_prompt_summary=summarize(
+            g.main_file for g in by_prompt.values() if g.main_file))
 
 
 # --------------------------------------------------------------------------
@@ -417,30 +417,30 @@ def custo(sessoes: Iterable[Sessao]) -> Custo:
 @dataclass(frozen=True)
 class Hooks:
     total: int
-    por_tipo: dict[str, int]
-    por_evento: dict[str, int]                   # "?" quando o registro não diz
-    por_tipo_e_evento: dict[tuple[str, str], int]
-    bloqueios: int
-    em_subagentes: int
-    sessoes_com_hook: int
+    by_type: dict[str, int]
+    by_event: dict[str, int]                   # "?" quando o registro não diz
+    by_type_and_event: dict[tuple[str, str], int]
+    blocks_count: int
+    in_subagents: int
+    sessions_with_hook: int
 
 
-def hooks(sessoes: Iterable[Sessao]) -> Hooks:
+def hooks(sessions: Iterable[Session]) -> Hooks:
     """Desfechos visíveis de hook. Hook que roda sem saída não aparece aqui."""
-    por_tipo, por_evento, cruzado = Counter(), Counter(), Counter()
-    bloqueios = em_sub = com_hook = total = 0
-    for s in sessoes:
-        com_hook += bool(s.hooks)
+    by_type, by_event, crossed = Counter(), Counter(), Counter()
+    blocks_count = in_sub = with_hook = total = 0
+    for s in sessions:
+        with_hook += bool(s.hooks)
         for h in s.hooks:
-            evento = h.evento or "?"
+            event = h.event or "?"
             total += 1
-            por_tipo[h.tipo] += 1
-            por_evento[evento] += 1
-            cruzado[(h.tipo, evento)] += 1
-            bloqueios += h.bloqueou
-            em_sub += h.subagente_id is not None
-    return Hooks(total, dict(por_tipo), dict(por_evento), dict(cruzado), bloqueios,
-                 em_sub, com_hook)
+            by_type[h.kind] += 1
+            by_event[event] += 1
+            crossed[(h.kind, event)] += 1
+            blocks_count += h.blocked
+            in_sub += h.subagent_id is not None
+    return Hooks(total, dict(by_type), dict(by_event), dict(crossed), blocks_count,
+                 in_sub, with_hook)
 
 
 # --------------------------------------------------------------------------
@@ -448,135 +448,137 @@ def hooks(sessoes: Iterable[Sessao]) -> Hooks:
 # --------------------------------------------------------------------------
 
 @dataclass
-class ContagemCommits:
-    chamadas: int = 0
-    com_hash: int = 0
-    sem_hash: int = 0
+class CommitCounts:
+    calls: int = 0
+    with_hash: int = 0
+    without_hash: int = 0
     amends: int = 0
-    silenciosas: int = 0
-    com_erro: int = 0
-    aproximadas: int = 0
+    silent: int = 0
+    with_error: int = 0
+    approximate_count: int = 0
 
-    def contar(self, chamada: reader.Chamada) -> None:
-        c = chamada.commit
-        self.chamadas += 1
-        self.com_hash += c.hash is not None
-        self.sem_hash += c.hash is None
+    def tally(self, call: reader.ToolCall) -> None:
+        c = call.commit
+        self.calls += 1
+        self.with_hash += c.hash is not None
+        self.without_hash += c.hash is None
         self.amends += c.amend
-        self.silenciosas += c.silencioso
-        self.aproximadas += c.aproximado
-        self.com_erro += bool(chamada.resultado and chamada.resultado.erro)
+        self.silent += c.silent
+        self.approximate_count += c.approximate
+        self.with_error += bool(call.result and call.result.error)
 
 
 @dataclass
-class Commits(ContagemCommits):
-    por_sessao: dict[str, ContagemCommits] = field(default_factory=dict)
-    sessoes_com_commit: int = 0
-    em_subagentes: int = 0
+class Commits(CommitCounts):
+    by_session: dict[str, CommitCounts] = field(default_factory=dict)
+    sessions_with_commit: int = 0
+    in_subagents: int = 0
 
 
-def commits(sessoes: Iterable[Sessao]) -> Commits:
+def commits(sessions: Iterable[Session]) -> Commits:
     """Chamadas que executam `git commit` e se o hash ficou registrado.
 
     Não liga chamada a commit do repositório: isso é da coleta. Aqui só se
     conta o que a transcrição traz.
     """
-    total, por_sessao, em_sub = ContagemCommits(), {}, 0
-    for s in sessoes:
-        da_sessao = ContagemCommits()
-        for origem, chamadas in [(None, s.chamadas)] + [(x.id, x.chamadas)
-                                                         for x in s.subagentes]:
-            for c in chamadas:
+    total, by_session, in_sub = CommitCounts(), {}, 0
+    for s in sessions:
+        of_session = CommitCounts()
+        for origin, calls in [(None, s.calls)] + [(x.id, x.calls)
+                                                         for x in s.subagents]:
+            for c in calls:
                 if c.commit is None:
                     continue
-                da_sessao.contar(c)
-                total.contar(c)
-                em_sub += origem is not None
-        if da_sessao.chamadas:
-            por_sessao[s.id] = da_sessao
-    return Commits(**vars(total), por_sessao=por_sessao,
-                   sessoes_com_commit=len(por_sessao), em_subagentes=em_sub)
+                of_session.tally(c)
+                total.tally(c)
+                in_sub += origin is not None
+        if of_session.calls:
+            by_session[s.id] = of_session
+    return Commits(**vars(total), by_session=by_session,
+                   sessions_with_commit=len(by_session), in_subagents=in_sub)
 
 
 # --------------------------------------------------------------------------
 # Comando mínimo de conferência
 # --------------------------------------------------------------------------
 
-def _linha_resumo(r: Resumo) -> str:
-    return f"n={r.n} mediana={r.mediana} min={r.minimo} max={r.maximo}"
+def _summary_line(r: Summary) -> str:
+    return f"n={r.n} mediana={r.median} min={r.minimum} max={r.maximum}"
 
 
 def main(argv: list[str] | None = None) -> int:
-    analisador = argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         prog="python -m dark.indicators",
         description="Imprime os indicadores, só em contagens, para conferência.")
-    analisador.add_argument("--config", type=Path, default=None)
-    analisador.add_argument("--ate", default=None)
-    analisador.add_argument("--excluir-pasta", action="append", default=[])
-    analisador.add_argument("--nomes", action="store_true",
+    parser.add_argument("--config", type=Path, default=None)
+    parser.add_argument("--ate", dest="cutoff", metavar="ATE", default=None)
+    parser.add_argument("--excluir-pasta", dest="exclude_dir", metavar="EXCLUIR_PASTA", action="append", default=[])
+    parser.add_argument("--nomes", dest="names", action="store_true",
                             help="imprime também os nomes (não publique a saída)")
-    args = analisador.parse_args(argv)
-    leitura = reader.ler_tudo(args.config, ate=args.ate)
-    sessoes = [s for s in leitura.sessoes
-               if not any(x in s.pasta_projeto for x in args.excluir_pasta)]
-    if not sessoes:
+    args = parser.parse_args(argv)
+    reading = reader.read_all(args.config, cutoff=args.cutoff)
+    sessions = [s for s in reading.sessions
+               if not any(x in s.project_dir for x in args.exclude_dir)]
+    if not sessions:
         # Sem histórico não é erro; só falhas sem nenhuma sessão é (lote 005).
-        if leitura.falhas:
-            print(f"nenhuma sessão lida; falhas: {len(leitura.falhas)}", file=sys.stderr)
+        if reading.failures:
+            print(f"nenhuma sessão lida; falhas: {len(reading.failures)}", file=sys.stderr)
             return 1
         print("nenhuma sessão encontrada", file=sys.stderr)
         return 0
-    mostra = print
-    mostra(f"sessoes: {len(sessoes)}  falhas: {len(leitura.falhas)}")
+    show = print
+    show(f"sessoes: {len(sessions)}  falhas: {len(reading.failures)}")
 
-    pf = peso_fixo(sessoes)
-    mostra(f"peso_fixo: {_linha_resumo(pf.resumo)} sem_dado={len(pf.sem_dado)}")
+    pf = fixed_context(sessions)
+    show(f"peso_fixo: {_summary_line(pf.summary)} sem_dado={len(pf.without_data)}")
 
-    pm = peso_morto(sessoes)
-    for nome in ("skills", "tipos_subagente", "ferramentas", "servidores_mcp"):
-        c: Categoria = getattr(pm, nome)
-        mostra(f"peso_morto.{nome}: disponiveis={len(c.disponiveis)} usados={len(c.usados)} "
-               f"nunca_usados={len(c.nunca_usados)} fora_da_lista={len(c.usados_fora_da_lista)} "
-               f"sessoes_sem_lista={c.sessoes_sem_lista} sessoes_sem_uso={c.sessoes_sem_uso}")
-        mostra(f"  por sessão, disponiveis: {_linha_resumo(c.resumo_disponiveis)}")
-        mostra(f"  por sessão, usados: {_linha_resumo(c.resumo_usados)}")
-        if args.nomes:
-            mostra(f"  nunca usados: {sorted(c.nunca_usados)}")
-            mostra(f"  usados: {sorted(c.usados)}")
-            mostra(f"  fora da lista: {sorted(c.usados_fora_da_lista)}")
+    pm = dead_weight(sessions)
+    labels = {"skills": "skills", "subagent_types": "tipos_subagente",
+              "tools": "ferramentas", "mcp_servers": "servidores_mcp"}
+    for name, label in labels.items():
+        c: Category = getattr(pm, name)
+        show(f"peso_morto.{label}: disponiveis={len(c.available)} usados={len(c.used)} "
+               f"nunca_usados={len(c.never_used)} fora_da_lista={len(c.used_outside_list)} "
+               f"sessoes_sem_lista={c.sessions_without_list} sessoes_sem_uso={c.sessions_without_use}")
+        show(f"  por sessão, disponiveis: {_summary_line(c.available_summary)}")
+        show(f"  por sessão, usados: {_summary_line(c.used_summary)}")
+        if args.names:
+            show(f"  nunca usados: {sorted(c.never_used)}")
+            show(f"  usados: {sorted(c.used)}")
+            show(f"  fora da lista: {sorted(c.used_outside_list)}")
 
-    it = intervencoes(sessoes)
+    it = interventions(sessions)
     t = it.total
-    mostra(f"intervencoes: pedidos={t.pedidos} interrupcoes={t.interrupcoes} "
-           f"rejeicoes={t.rejeicoes} (com_comentario={t.rejeicoes_com_comentario} "
-           f"sem={t.rejeicoes_sem_comentario}) mensagens_no_meio={t.mensagens_no_meio} "
-           f"sessoes_sem_sinal={it.sessoes_sem_sinal} sinais_sem_pedido={it.sem_pedido.sinais}")
-    mostra(f"  pedidos por modo de permissão: {dict(sorted(it.por_modo.items()))}")
-    mostra(f"  pedidos por sessão: {_linha_resumo(it.resumo_pedidos)}")
-    mostra(f"  sinais por sessão: {_linha_resumo(it.resumo_sinais)}")
-    mostra(f"  pedidos com algum sinal: "
-           f"{sum(1 for x in it.por_pedido.values() if x.sinais)} de {len(it.por_pedido)}")
+    show(f"intervencoes: pedidos={t.prompts} interrupcoes={t.interruptions} "
+           f"rejeicoes={t.rejections} (com_comentario={t.rejections_with_comment} "
+           f"sem={t.rejections_without_comment}) mensagens_no_meio={t.mid_turn_messages} "
+           f"sessoes_sem_sinal={it.sessions_without_signal} sinais_sem_pedido={it.without_prompt.signals}")
+    show(f"  pedidos por modo de permissão: {dict(sorted(it.by_mode.items()))}")
+    show(f"  pedidos por sessão: {_summary_line(it.prompts_summary)}")
+    show(f"  sinais por sessão: {_summary_line(it.signals_summary)}")
+    show(f"  pedidos com algum sinal: "
+           f"{sum(1 for x in it.by_prompt.values() if x.signals)} de {len(it.by_prompt)}")
 
-    cu = custo(sessoes)
-    mostra(f"custo: principal={cu.total.principal} subagentes={cu.total.subagentes} "
-           f"total={cu.total.total} parcela_subagentes={cu.total.parcela_subagentes:.4f} "
-           f"sem_pedido={cu.sem_pedido}")
-    mostra(f"  por sessão: {_linha_resumo(cu.resumo_sessao)}")
-    mostra(f"  por pedido: {_linha_resumo(cu.resumo_pedido)}")
-    mostra(f"  por pedido, só principal, com resposta: "
-           f"{_linha_resumo(cu.resumo_pedido_principal)}")
+    cst = cost(sessions)
+    show(f"custo: principal={cst.total.main_file} subagentes={cst.total.subagents} "
+           f"total={cst.total.total} parcela_subagentes={cst.total.subagent_share:.4f} "
+           f"sem_pedido={cst.without_prompt}")
+    show(f"  por sessão: {_summary_line(cst.session_summary)}")
+    show(f"  por pedido: {_summary_line(cst.prompt_summary)}")
+    show(f"  por pedido, só principal, com resposta: "
+           f"{_summary_line(cst.main_prompt_summary)}")
 
-    hk = hooks(sessoes)
-    mostra(f"hooks: total={hk.total} bloqueios={hk.bloqueios} em_subagentes={hk.em_subagentes} "
-           f"sessoes_com_hook={hk.sessoes_com_hook}")
-    mostra(f"  por tipo: {dict(sorted(hk.por_tipo.items()))}")
-    mostra(f"  por evento: {dict(sorted(hk.por_evento.items()))}")
+    hk = hooks(sessions)
+    show(f"hooks: total={hk.total} bloqueios={hk.blocks_count} em_subagentes={hk.in_subagents} "
+           f"sessoes_com_hook={hk.sessions_with_hook}")
+    show(f"  por tipo: {dict(sorted(hk.by_type.items()))}")
+    show(f"  por evento: {dict(sorted(hk.by_event.items()))}")
 
-    co = commits(sessoes)
-    mostra(f"commits: chamadas={co.chamadas} com_hash={co.com_hash} sem_hash={co.sem_hash} "
-           f"amends={co.amends} silenciosas={co.silenciosas} com_erro={co.com_erro} "
-           f"aproximadas={co.aproximadas} em_subagentes={co.em_subagentes} "
-           f"sessoes_com_commit={co.sessoes_com_commit}")
+    co = commits(sessions)
+    show(f"commits: chamadas={co.calls} com_hash={co.with_hash} sem_hash={co.without_hash} "
+           f"amends={co.amends} silenciosas={co.silent} com_erro={co.with_error} "
+           f"aproximadas={co.approximate_count} em_subagentes={co.in_subagents} "
+           f"sessoes_com_commit={co.sessions_with_commit}")
     return 0
 
 

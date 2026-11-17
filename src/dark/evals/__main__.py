@@ -12,67 +12,67 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import case as m_caso
+from . import case as m_case
 from . import mining, validation
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m dark.evals")
-    sub = ap.add_subparsers(dest="acao", required=True)
+    sub = ap.add_subparsers(dest="action", required=True)
 
     m = sub.add_parser("minerar", help="propõe candidatos a partir do histórico")
     m.add_argument("--repo", type=Path, default=Path("."))
     m.add_argument("--ref", default="HEAD")
-    m.add_argument("--padrao", action="append",
+    m.add_argument("--padrao", dest="pattern", metavar="PADRAO", action="append",
                    help="padrão de caminho de teste (repetível); substitui os padrões")
-    m.add_argument("--comando", default="", help="comando de aceite para os rascunhos")
-    m.add_argument("--gravar", type=Path, help="grava um rascunho por candidato aqui")
+    m.add_argument("--comando", dest="command", metavar="COMANDO", default="", help="comando de aceite para os rascunhos")
+    m.add_argument("--gravar", dest="save", metavar="GRAVAR", type=Path, help="grava um rascunho por candidato aqui")
 
     v = sub.add_parser("validar", help="confere que o aceite falha na base e passa na solução")
     v.add_argument("--repo", type=Path, default=Path("."))
-    v.add_argument("--dir-trabalho", type=Path)
-    v.add_argument("casos", nargs="+", type=Path)
+    v.add_argument("--dir-trabalho", dest="workdir", metavar="DIR_TRABALHO", type=Path)
+    v.add_argument("cases", metavar="casos", nargs="+", type=Path)
 
     a = ap.parse_args(argv)
-    if a.acao == "minerar":
-        return _minerar(a)
-    return _validar(a)
+    if a.action == "minerar":
+        return _mine(a)
+    return _validate(a)
 
 
-def _minerar(a) -> int:
-    padroes = a.padrao or mining.PADROES_TESTE
-    cands = mining.minerar(a.repo, padroes=padroes, ref=a.ref)
+def _mine(a) -> int:
+    patterns = a.pattern or mining.TEST_PATTERNS
+    cands = mining.mine(a.repo, patterns=patterns, ref=a.ref)
     print(f"{len(cands)} candidato(s)")
     for c in cands:
-        par = f"{c.commit_testes[:7]} + " if c.tipo == "commits_seguidos" else ""
-        print(f"- {c.commit_solucao[:7]} {c.tipo:<16} base {c.commit_base[:7]}  "
-              f"{par}{len(c.arquivos_teste)} arquivo(s) de teste  | {c.assunto}")
-    if a.gravar:
-        a.gravar.mkdir(parents=True, exist_ok=True)
+        pair = f"{c.tests_commit[:7]} + " if c.kind == "commits_seguidos" else ""
+        print(f"- {c.solution_commit[:7]} {c.kind:<16} base {c.base_commit[:7]}  "
+              f"{pair}{len(c.test_files)} arquivo(s) de teste  | {c.subject}")
+    if a.save:
+        a.save.mkdir(parents=True, exist_ok=True)
         for c in cands:
-            r = c.rascunho(comando=a.comando)
-            destino = a.gravar / f"{r.id}.toml"
-            if destino.exists():
-                print(f"  {destino}: já existe, mantido")
+            r = c.draft(command=a.command)
+            destination = a.save / f"{r.id}.toml"
+            if destination.exists():
+                print(f"  {destination}: já existe, mantido")
                 continue
-            destino.write_text(m_caso.para_toml(r), encoding="utf-8")
-            print(f"  {destino}: gravado")
+            destination.write_text(m_case.to_toml(r), encoding="utf-8")
+            print(f"  {destination}: gravado")
     return 0
 
 
-def _validar(a) -> int:
-    todos_validos = True
-    for arq in a.casos:
+def _validate(a) -> int:
+    all_valid = True
+    for fpath in a.cases:
         try:
-            c = m_caso.carregar(arq)
-        except m_caso.ErroFormato as e:
-            print(f"{arq}: formato inválido: {e}")
-            todos_validos = False
+            c = m_case.load(fpath)
+        except m_case.CaseFormatError as e:
+            print(f"{fpath}: formato inválido: {e}")
+            all_valid = False
             continue
-        r = validation.validar(c, a.repo, dir_trabalho=a.dir_trabalho)
-        print(validation.descrever(r))
-        todos_validos &= r.valido
-    return 0 if todos_validos else 1
+        r = validation.validate(c, a.repo, workdir=a.workdir)
+        print(validation.describe(r))
+        all_valid &= r.valid
+    return 0 if all_valid else 1
 
 
 if __name__ == "__main__":

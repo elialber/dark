@@ -33,17 +33,17 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
-TIPOS = ("instrucao", "skill", "subagente", "hook", "mcp", "permissao")
-ESCOPOS = ("gerenciado", "usuario", "projeto", "plugin")
+TYPES = ("instrucao", "skill", "subagente", "hook", "mcp", "permissao")
+SCOPES = ("gerenciado", "usuario", "projeto", "plugin")
 
-GERENCIADO_PADRAO = {
+DEFAULT_MANAGED = {
     "linux": Path("/etc/claude-code"),
     "darwin": Path("/Library/Application Support/ClaudeCode"),
     "win32": Path("C:/Program Files/ClaudeCode"),
 }
 
-PROFUNDIDADE_IMPORTACAO = 4          # saltos de @import, segundo a documentação
-PASTAS_IGNORADAS = {"node_modules", "venv", "__pycache__", "dist", "build"}
+IMPORT_DEPTH = 4          # saltos de @import, segundo a documentação
+IGNORED_DIRS = {"node_modules", "venv", "__pycache__", "dist", "build"}
 
 
 # --------------------------------------------------------------------------
@@ -51,90 +51,90 @@ PASTAS_IGNORADAS = {"node_modules", "venv", "__pycache__", "dist", "build"}
 # --------------------------------------------------------------------------
 
 @dataclass(frozen=True)
-class Falha:
+class ReadFailure:
     """Arquivo que não pôde ser lido ou interpretado. O resto segue (E12)."""
-    arquivo: Path
-    mensagem: str
+    file: Path
+    message: str
 
 
 @dataclass(frozen=True)
-class Descricao:
+class Description:
     """Skill e subagente: o que vai para a lista anunciada, separado do corpo."""
-    caracteres: int                  # description (+ when_to_use, se houver)
-    corpo_caracteres: int            # depois do cabeçalho
-    corpo_linhas: int
-    invocavel_pelo_modelo: bool = True   # falso com disable-model-invocation
+    chars: int                  # description (+ when_to_use, se houver)
+    body_chars: int            # depois do cabeçalho
+    body_lines: int
+    model_invocable: bool = True   # falso com disable-model-invocation
 
 
 @dataclass(frozen=True)
-class DetalheInstrucao:
-    itens: int                       # itens de lista fora de blocos de código
-    com_motivo: int                  # estimativa: ver _MOTIVO
-    motivo_estimado: bool = True
-    importa: list[str] = field(default_factory=list)   # @caminhos, como escritos
-    importado_por: Path | None = None
+class InstructionDetail:
+    item_count: int                       # itens de lista fora de blocos de código
+    with_reason: int                  # estimativa: ver _MOTIVO
+    estimated_reason: bool = True
+    imports: list[str] = field(default_factory=list)   # @caminhos, como escritos
+    imported_by: Path | None = None
 
 
 @dataclass(frozen=True)
-class DetalheHook:
-    evento: str | None               # None: hook declarado em cabeçalho, não analisado
-    filtro: str | None               # matcher; None quando ausente, "" ou "*"
-    tipo: str | None                 # command, http, mcp_tool, prompt, agent
-    comando: str | None              # command (com valores mascarados), url, servidor/ferramenta
-    variaveis: list[str] = field(default_factory=list)
-    cabecalhos: list[str] = field(default_factory=list)
-    analisado: bool = True
+class HookDetail:
+    event: str | None               # None: hook declarado em cabeçalho, não analisado
+    matcher: str | None               # matcher; None quando ausente, "" ou "*"
+    kind: str | None                 # command, http, mcp_tool, prompt, agent
+    command: str | None              # command (com valores mascarados), url, servidor/ferramenta
+    variables: list[str] = field(default_factory=list)
+    headers: list[str] = field(default_factory=list)
+    parsed: bool = True
 
 
 @dataclass(frozen=True)
-class DetalheMcp:
-    transporte: str                  # stdio, http, sse, ws, sdk ou "desconhecido"
-    variaveis: list[str] = field(default_factory=list)
-    cabecalhos: list[str] = field(default_factory=list)
+class McpDetail:
+    transport: str                  # stdio, http, sse, ws, sdk ou "desconhecido"
+    variables: list[str] = field(default_factory=list)
+    headers: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
-class DetalhePermissoes:
-    modo_padrao: str | None
-    permitir: int
-    negar: int
-    perguntar: int
+class PermissionsDetail:
+    default_mode: str | None
+    allow: int
+    deny: int
+    ask: int
 
 
 @dataclass(frozen=True)
-class Peca:
-    tipo: str                        # um de TIPOS
-    escopo: str                      # um de ESCOPOS
-    nome: str
-    origem: Path
-    caracteres: int                  # do arquivo; em hook, MCP e permissão, do trecho JSON
-    linhas: int
+class HarnessItem:
+    kind: str                        # um de TIPOS
+    scope: str                      # um de ESCOPOS
+    name: str
+    source: Path
+    chars: int                  # do arquivo; em hook, MCP e permissão, do trecho JSON
+    lines: int
     plugin: str | None = None
     local: bool = False              # variante pessoal: *.local.*, ~/.claude.json, memória
-    sob_demanda: bool = False        # aninhada ou com `paths`: não carrega no início
-    descricao: Descricao | None = None
-    instrucao: DetalheInstrucao | None = None
-    hook: DetalheHook | None = None
-    mcp: DetalheMcp | None = None
-    permissoes: DetalhePermissoes | None = None
+    on_demand: bool = False        # aninhada ou com `paths`: não carrega no início
+    description: Description | None = None
+    instruction: InstructionDetail | None = None
+    hook: HookDetail | None = None
+    mcp: McpDetail | None = None
+    permissions: PermissionsDetail | None = None
 
 
 @dataclass(frozen=True)
 class Plugin:
-    nome: str                        # nome@marketplace
-    escopo_instalacao: str
-    caminho: Path | None
-    ativo: bool                      # instalado para este repositório e habilitado
+    name: str                        # nome@marketplace
+    install_scope: str
+    path: Path | None
+    active: bool                      # instalado para este repositório e habilitado
 
 
 @dataclass
-class Inventario:
-    pecas: list[Peca] = field(default_factory=list)
-    falhas: list[Falha] = field(default_factory=list)
+class Inventory:
+    items: list[HarnessItem] = field(default_factory=list)
+    failures: list[ReadFailure] = field(default_factory=list)
     plugins: list[Plugin] = field(default_factory=list)
 
 
-def como_dict(inv: Inventario) -> dict:
+def as_dict(inv: Inventory) -> dict:
     return json.loads(json.dumps(dataclasses.asdict(inv), default=str))
 
 
@@ -142,611 +142,611 @@ def como_dict(inv: Inventario) -> dict:
 # Caminhos
 # --------------------------------------------------------------------------
 
-def diretorio_config(ambiente: Mapping[str, str] | None = None) -> Path:
+def config_dir(environment: Mapping[str, str] | None = None) -> Path:
     """Diretório de configuração do Claude Code, respeitando CLAUDE_CONFIG_DIR."""
-    ambiente = os.environ if ambiente is None else ambiente
-    definido = ambiente.get("CLAUDE_CONFIG_DIR")
-    return Path(definido).expanduser() if definido else Path.home() / ".claude"
+    environment = os.environ if environment is None else environment
+    defined = environment.get("CLAUDE_CONFIG_DIR")
+    return Path(defined).expanduser() if defined else Path.home() / ".claude"
 
 
-def pasta_projeto(repo: Path) -> str:
+def project_dir(repo: Path) -> str:
     """Nome da pasta do projeto sob <config>/projects/."""
     return re.sub(r"[^A-Za-z0-9]", "-", str(repo))
 
 
-def _raiz_principal(repo: Path) -> Path:
+def _main_root(repo: Path) -> Path:
     """Em um worktree, a raiz do repositório principal (a memória é dele)."""
     git = repo / ".git"
     if git.is_file():
         try:
-            linha = git.read_text(encoding="utf-8").strip()
+            line = git.read_text(encoding="utf-8").strip()
         except OSError:
             return repo
-        if linha.startswith("gitdir:"):
-            alvo = Path(linha.split(":", 1)[1].strip())
-            if not alvo.is_absolute():
-                alvo = (repo / alvo).resolve()
-            if alvo.parent.name == "worktrees":
-                return alvo.parent.parent.parent
+        if line.startswith("gitdir:"):
+            target = Path(line.split(":", 1)[1].strip())
+            if not target.is_absolute():
+                target = (repo / target).resolve()
+            if target.parent.name == "worktrees":
+                return target.parent.parent.parent
     return repo
 
 
-def _e_credencial(caminho: Path) -> bool:
-    nome = caminho.name.lower()
-    return ("credential" in nome or nome.startswith(".env")
-            or caminho.suffix.lower() in {".pem", ".key", ".p12"})
+def _is_credential(path: Path) -> bool:
+    name = path.name.lower()
+    return ("credential" in name or name.startswith(".env")
+            or path.suffix.lower() in {".pem", ".key", ".p12"})
 
 
-def _relativo(caminho: Path, *bases: Path) -> str:
+def _relative(path: Path, *bases: Path) -> str:
     for base in bases:
         try:
-            return caminho.relative_to(base).as_posix()
+            return path.relative_to(base).as_posix()
         except ValueError:
             continue
-    return str(caminho)
+    return str(path)
 
 
-def _linhas(texto: str) -> int:
-    return len(texto.splitlines())
+def _lines(text: str) -> int:
+    return len(text.splitlines())
 
 
 # --------------------------------------------------------------------------
 # Cabeçalho YAML mínimo (só o que skills, subagentes e regras usam)
 # --------------------------------------------------------------------------
 
-class ErroCabecalho(ValueError):
+class FrontmatterError(ValueError):
     pass
 
 
-def _sem_aspas(valor: str) -> str:
-    valor = valor.strip()
-    if len(valor) >= 2 and valor[0] == valor[-1] and valor[0] in "\"'":
-        valor = valor[1:-1]
-        if valor and '"' in valor:
-            valor = valor.replace('\\"', '"')
-    return valor
+def _unquoted(value: str) -> str:
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        value = value[1:-1]
+        if value and '"' in value:
+            value = value.replace('\\"', '"')
+    return value
 
 
-def cabecalho(texto: str) -> tuple[dict[str, object], str]:
+def header(text: str) -> tuple[dict[str, object], str]:
     """Separa o cabeçalho `---` do corpo. Chaves de primeiro nível apenas.
 
     Valores: texto simples, entre aspas, bloco `|` ou `>`, lista com `-`.
     Mapa aninhado vira o texto bruto do bloco (só a presença interessa).
     """
-    linhas = texto.splitlines(keepends=True)
-    if not linhas or linhas[0].strip() != "---":
-        return {}, texto
-    fim = next((i for i in range(1, len(linhas)) if linhas[i].strip() == "---"), None)
-    if fim is None:
-        raise ErroCabecalho("cabeçalho aberto com --- e nunca fechado")
-    corpo = "".join(linhas[fim + 1:])
-    campos: dict[str, object] = {}
-    i, bloco = 1, [l.rstrip("\r\n") for l in linhas[1:fim]]
-    while i <= len(bloco):
-        linha = bloco[i - 1]
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
+        return {}, text
+    end = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), None)
+    if end is None:
+        raise FrontmatterError("cabeçalho aberto com --- e nunca fechado")
+    body = "".join(lines[end + 1:])
+    fields: dict[str, object] = {}
+    i, block = 1, [l.rstrip("\r\n") for l in lines[1:end]]
+    while i <= len(block):
+        line = block[i - 1]
         i += 1
-        if not linha.strip() or linha.lstrip().startswith("#") or linha[0] in " \t":
+        if not line.strip() or line.lstrip().startswith("#") or line[0] in " \t":
             continue
-        m = re.match(r"^([A-Za-z0-9_-]+)\s*:(.*)$", linha)
+        m = re.match(r"^([A-Za-z0-9_-]+)\s*:(.*)$", line)
         if not m:
-            raise ErroCabecalho(f"linha de cabeçalho ilegível: {linha[:40]!r}")
-        chave, resto = m.group(1), m.group(2).strip()
-        seguintes = []
-        while i <= len(bloco) and (not bloco[i - 1].strip() or bloco[i - 1][0] in " \t"):
-            seguintes.append(bloco[i - 1])
+            raise FrontmatterError(f"linha de cabeçalho ilegível: {line[:40]!r}")
+        key, rest = m.group(1), m.group(2).strip()
+        following = []
+        while i <= len(block) and (not block[i - 1].strip() or block[i - 1][0] in " \t"):
+            following.append(block[i - 1])
             i += 1
-        while seguintes and not seguintes[-1].strip():
-            seguintes.pop()
-        if resto[:1] in ("|", ">"):
-            partes = [s.strip() for s in seguintes]
-            campos[chave] = ("\n" if resto[0] == "|" else " ").join(partes).strip()
-        elif resto:
-            if seguintes:        # escalar simples continuado em várias linhas
-                resto = " ".join([resto] + [s.strip() for s in seguintes])
-            if resto.startswith("[") and resto.endswith("]"):
-                campos[chave] = [_sem_aspas(x) for x in resto[1:-1].split(",") if x.strip()]
-            elif resto.lower() in ("true", "false"):
-                campos[chave] = resto.lower() == "true"
+        while following and not following[-1].strip():
+            following.pop()
+        if rest[:1] in ("|", ">"):
+            parts = [s.strip() for s in following]
+            fields[key] = ("\n" if rest[0] == "|" else " ").join(parts).strip()
+        elif rest:
+            if following:        # escalar simples continuado em várias linhas
+                rest = " ".join([rest] + [s.strip() for s in following])
+            if rest.startswith("[") and rest.endswith("]"):
+                fields[key] = [_unquoted(x) for x in rest[1:-1].split(",") if x.strip()]
+            elif rest.lower() in ("true", "false"):
+                fields[key] = rest.lower() == "true"
             else:
-                campos[chave] = _sem_aspas(resto)
-        elif seguintes and all(s.strip().startswith("- ") for s in seguintes if s.strip()):
-            campos[chave] = [_sem_aspas(s.strip()[2:]) for s in seguintes if s.strip()]
+                fields[key] = _unquoted(rest)
+        elif following and all(s.strip().startswith("- ") for s in following if s.strip()):
+            fields[key] = [_unquoted(s.strip()[2:]) for s in following if s.strip()]
         else:
-            campos[chave] = "\n".join(seguintes)
-    return campos, corpo
+            fields[key] = "\n".join(following)
+    return fields, body
 
 
 # --------------------------------------------------------------------------
 # Instruções: itens de lista, motivos e importações
 # --------------------------------------------------------------------------
 
-_CERCA = re.compile(r"^\s*(```|~~~)")
+_FENCE = re.compile(r"^\s*(```|~~~)")
 _ITEM = re.compile(r"^(\s*)(?:[-*+]|\d+[.)])\s+\S")
 
 # Regra heurística de "motivo declarado": o item (com as linhas de
 # continuação) traz um rótulo de motivo seguido de dois-pontos, ou uma
 # conjunção causal ou final. Em português e inglês.
-_MOTIVO = re.compile(
+_REASON = re.compile(
     r"\b(?:motivo|raz[aã]o|reason|why)\s*:"
     r"|\b(?:porque|pois|por causa d[eoa]s?|para que|para n[aã]o|para evitar|"
     r"sen[aã]o|caso contr[aá]rio|because|so that|otherwise|to avoid|to prevent|"
     r"in order to)\b",
     re.IGNORECASE)
 
-_CODIGO_EM_LINHA = re.compile(r"`[^`]*`")
-_IMPORTACAO = re.compile(r"(?<![\w`\"'@])@((?:~|\.{1,2})?/?[\w.\-]+(?:/[\w.\-]+)*)")
+_INLINE_CODE = re.compile(r"`[^`]*`")
+_IMPORT = re.compile(r"(?<![\w`\"'@])@((?:~|\.{1,2})?/?[\w.\-]+(?:/[\w.\-]+)*)")
 
 
-def _fora_de_codigo(texto: str) -> Iterator[str]:
-    dentro = False
-    for linha in texto.splitlines():
-        if _CERCA.match(linha):
-            dentro = not dentro
+def _outside_code(text: str) -> Iterator[str]:
+    inside = False
+    for line in text.splitlines():
+        if _FENCE.match(line):
+            inside = not inside
             continue
-        if not dentro:
-            yield linha
+        if not inside:
+            yield line
 
 
-def contar_itens(texto: str) -> tuple[int, int]:
+def count_items(text: str) -> tuple[int, int]:
     """(itens de lista, itens com motivo declarado). O segundo é estimativa."""
-    itens: list[list[str]] = []
-    recuo = None
-    for linha in _fora_de_codigo(texto):
-        m = _ITEM.match(linha)
+    items: list[list[str]] = []
+    indent_ = None
+    for line in _outside_code(text):
+        m = _ITEM.match(line)
         if m:
-            itens.append([linha])
-            recuo = len(m.group(1))
-        elif (itens and recuo is not None and linha.strip()
-              and len(linha) - len(linha.lstrip()) > recuo):
-            itens[-1].append(linha)
+            items.append([line])
+            indent_ = len(m.group(1))
+        elif (items and indent_ is not None and line.strip()
+              and len(line) - len(line.lstrip()) > indent_):
+            items[-1].append(line)
         else:
-            recuo = None
-    com_motivo = sum(1 for item in itens if _MOTIVO.search(" ".join(item)))
-    return len(itens), com_motivo
+            indent_ = None
+    with_reason = sum(1 for item in items if _REASON.search(" ".join(item)))
+    return len(items), with_reason
 
 
-def importacoes(texto: str) -> list[str]:
+def find_imports(text: str) -> list[str]:
     """Caminhos `@...` fora de blocos e trechos de código."""
-    achados = []
-    for linha in _fora_de_codigo(texto):
-        for m in _IMPORTACAO.finditer(_CODIGO_EM_LINHA.sub("", linha)):
-            caminho = m.group(1).rstrip(".,;:)")
-            if "." in Path(caminho).name or "/" in caminho:
-                achados.append(caminho)
-    return achados
+    findings = []
+    for line in _outside_code(text):
+        for m in _IMPORT.finditer(_INLINE_CODE.sub("", line)):
+            path = m.group(1).rstrip(".,;:)")
+            if "." in Path(path).name or "/" in path:
+                findings.append(path)
+    return findings
 
 
 # --------------------------------------------------------------------------
 # Coleta
 # --------------------------------------------------------------------------
 
-_SEGREDO_EM_LINHA = re.compile(
+_INLINE_SECRET = re.compile(
     r"(?P<antes>(?:^|[\s;&|(]))(?P<nome>[A-Za-z_][A-Za-z0-9_]*)=(?P<valor>\"[^\"]*\"|'[^']*'|[^\s;&|]*)")
 
 
-def mascarar_comando(comando: str) -> tuple[str, list[str]]:
+def mask_command(command: str) -> tuple[str, list[str]]:
     """Troca valores de `NOME=valor` por `NOME=***`; devolve também os nomes."""
-    nomes: list[str] = []
+    names: list[str] = []
 
-    def troca(m: re.Match) -> str:
-        nomes.append(m.group("nome"))
+    def substitute(m: re.Match) -> str:
+        names.append(m.group("nome"))
         return f"{m.group('antes')}{m.group('nome')}=***"
 
-    return _SEGREDO_EM_LINHA.sub(troca, comando), nomes
+    return _INLINE_SECRET.sub(substitute, command), names
 
 
-def _url_sem_consulta(url: str) -> str:
+def _url_without_query(url: str) -> str:
     return url.split("?", 1)[0].split("#", 1)[0]
 
 
-class _Coleta:
-    def __init__(self, repo: Path, config: Path, claude_json: Path, gerenciado: Path):
+class _Collector:
+    def __init__(self, repo: Path, config: Path, claude_json: Path, managed: Path):
         self.repo, self.config = repo, config
-        self.claude_json, self.gerenciado = claude_json, gerenciado
-        self.inv = Inventario()
-        self._instrucoes_vistas: set[Path] = set()
+        self.claude_json, self.managed = claude_json, managed
+        self.inv = Inventory()
+        self._seen_instructions: set[Path] = set()
 
     # --- leitura -----------------------------------------------------------
 
-    def falha(self, arquivo: Path, mensagem: str) -> None:
-        self.inv.falhas.append(Falha(arquivo, mensagem))
+    def failure(self, file: Path, message: str) -> None:
+        self.inv.failures.append(ReadFailure(file, message))
 
-    def ler(self, caminho: Path) -> str | None:
-        if _e_credencial(caminho):
-            self.falha(caminho, "ignorado: arquivo de credenciais")
+    def read(self, path: Path) -> str | None:
+        if _is_credential(path):
+            self.failure(path, "ignorado: arquivo de credenciais")
             return None
         try:
-            return caminho.read_text(encoding="utf-8", errors="replace")
-        except OSError as erro:
-            self.falha(caminho, f"não foi possível ler: {erro.strerror}")
+            return path.read_text(encoding="utf-8", errors="replace")
+        except OSError as error:
+            self.failure(path, f"não foi possível ler: {error.strerror}")
             return None
 
-    def ler_json(self, caminho: Path) -> object | None:
-        if not caminho.is_file():
+    def read_json(self, path: Path) -> object | None:
+        if not path.is_file():
             return None
-        texto = self.ler(caminho)
-        if texto is None:
+        text = self.read(path)
+        if text is None:
             return None
         try:
-            return json.loads(texto)
-        except json.JSONDecodeError as erro:
-            self.falha(caminho, f"JSON inválido na linha {erro.lineno}: {erro.msg}")
+            return json.loads(text)
+        except json.JSONDecodeError as error:
+            self.failure(path, f"JSON inválido na linha {error.lineno}: {error.msg}")
             return None
 
-    def ler_objeto(self, caminho: Path) -> dict | None:
-        dados = self.ler_json(caminho)
-        if dados is not None and not isinstance(dados, dict):
-            self.falha(caminho, "esperava um objeto JSON")
+    def read_object(self, path: Path) -> dict | None:
+        data = self.read_json(path)
+        if data is not None and not isinstance(data, dict):
+            self.failure(path, "esperava um objeto JSON")
             return None
-        return dados
+        return data
 
-    def peca(self, **campos) -> None:
-        self.inv.pecas.append(Peca(**campos))
+    def item(self, **fields) -> None:
+        self.inv.items.append(HarnessItem(**fields))
 
     # --- instruções -----------------------------------------------------------
 
-    def instrucao(self, caminho: Path, nome: str, escopo: str, *, local=False,
-                  sob_demanda=False, importar=True, profundidade=0,
-                  importado_por: Path | None = None) -> None:
-        chave = caminho.resolve()
-        if chave in self._instrucoes_vistas:
+    def instruction(self, path: Path, name: str, scope: str, *, local=False,
+                  on_demand=False, follow_imports=True, depth=0,
+                  imported_by: Path | None = None) -> None:
+        key = path.resolve()
+        if key in self._seen_instructions:
             return
-        texto = self.ler(caminho)
-        if texto is None:
+        text = self.read(path)
+        if text is None:
             return
-        self._instrucoes_vistas.add(chave)
-        if caminho.parent.name != "memory":     # regras têm cabeçalho `paths`
+        self._seen_instructions.add(key)
+        if path.parent.name != "memory":     # regras têm cabeçalho `paths`
             try:
-                campos, _ = cabecalho(texto)
-            except ErroCabecalho as erro:
-                self.falha(caminho, str(erro))
-                campos = {}
-            sob_demanda = sob_demanda or "paths" in campos
-        itens, com_motivo = contar_itens(texto)
-        importa = importacoes(texto) if importar else []
-        self.peca(tipo="instrucao", escopo=escopo, nome=nome, origem=caminho,
-                  caracteres=len(texto), linhas=_linhas(texto), local=local,
-                  sob_demanda=sob_demanda,
-                  instrucao=DetalheInstrucao(itens, com_motivo, True, importa, importado_por))
-        if profundidade >= PROFUNDIDADE_IMPORTACAO:
+                fields, _ = header(text)
+            except FrontmatterError as error:
+                self.failure(path, str(error))
+                fields = {}
+            on_demand = on_demand or "paths" in fields
+        item_count, with_reason = count_items(text)
+        imports = find_imports(text) if follow_imports else []
+        self.item(kind="instrucao", scope=scope, name=name, source=path,
+                  chars=len(text), lines=_lines(text), local=local,
+                  on_demand=on_demand,
+                  instruction=InstructionDetail(item_count, with_reason, True, imports, imported_by))
+        if depth >= IMPORT_DEPTH:
             return
-        for escrito in importa:
-            alvo = Path(os.path.expanduser(escrito))
-            if not alvo.is_absolute():
-                alvo = caminho.parent / alvo
-            if not alvo.is_file():
-                self.falha(alvo, f"importação não encontrada (em {caminho.name})")
+        for written in imports:
+            target = Path(os.path.expanduser(written))
+            if not target.is_absolute():
+                target = path.parent / target
+            if not target.is_file():
+                self.failure(target, f"importação não encontrada (em {path.name})")
                 continue
-            self.instrucao(alvo, "@" + _relativo(alvo.resolve(), self.repo.resolve(),
+            self.instruction(target, "@" + _relative(target.resolve(), self.repo.resolve(),
                                                  self.config.resolve()),
-                           escopo, local=local, sob_demanda=sob_demanda,
-                           profundidade=profundidade + 1, importado_por=caminho)
+                           scope, local=local, on_demand=on_demand,
+                           depth=depth + 1, imported_by=path)
 
-    def instrucoes(self) -> None:
-        g = self.gerenciado / "CLAUDE.md"
+    def instructions(self) -> None:
+        g = self.managed / "CLAUDE.md"
         if g.is_file():
-            self.instrucao(g, "CLAUDE.md", "gerenciado")
+            self.instruction(g, "CLAUDE.md", "gerenciado")
         u = self.config / "CLAUDE.md"
         if u.is_file():
-            self.instrucao(u, "CLAUDE.md", "usuario")
-        for regra in _md_recursivo(self.config / "rules"):
-            self.instrucao(regra, _relativo(regra, self.config), "usuario")
+            self.instruction(u, "CLAUDE.md", "usuario")
+        for rule in _recursive_md(self.config / "rules"):
+            self.instruction(rule, _relative(rule, self.config), "usuario")
 
-        achou_claude = False
-        for nome, local in (("CLAUDE.md", False), (".claude/CLAUDE.md", False),
+        found_claude = False
+        for name, local in (("CLAUDE.md", False), (".claude/CLAUDE.md", False),
                             ("CLAUDE.local.md", True)):
-            arq = self.repo / nome
-            if arq.is_file():
-                achou_claude = True
-                self.instrucao(arq, nome, "projeto", local=local)
-        if not achou_claude and (self.repo / "AGENTS.md").is_file():
-            self.instrucao(self.repo / "AGENTS.md", "AGENTS.md", "projeto")
-        for regra in _md_recursivo(self.repo / ".claude" / "rules"):
-            self.instrucao(regra, _relativo(regra, self.repo / ".claude"), "projeto")
-        for pasta in _subpastas(self.repo):
-            for nome, local in (("CLAUDE.md", False), ("CLAUDE.local.md", True)):
-                arq = pasta / nome
-                if arq.is_file():
-                    self.instrucao(arq, _relativo(arq, self.repo), "projeto",
-                                   local=local, sob_demanda=True)
+            fpath = self.repo / name
+            if fpath.is_file():
+                found_claude = True
+                self.instruction(fpath, name, "projeto", local=local)
+        if not found_claude and (self.repo / "AGENTS.md").is_file():
+            self.instruction(self.repo / "AGENTS.md", "AGENTS.md", "projeto")
+        for rule in _recursive_md(self.repo / ".claude" / "rules"):
+            self.instruction(rule, _relative(rule, self.repo / ".claude"), "projeto")
+        for folder in _subdirs(self.repo):
+            for name, local in (("CLAUDE.md", False), ("CLAUDE.local.md", True)):
+                fpath = folder / name
+                if fpath.is_file():
+                    self.instruction(fpath, _relative(fpath, self.repo), "projeto",
+                                   local=local, on_demand=True)
 
-        memoria = (self.config / "projects" / pasta_projeto(_raiz_principal(self.repo))
+        memory = (self.config / "projects" / project_dir(_main_root(self.repo))
                    / "memory" / "MEMORY.md")
-        if memoria.is_file():
-            self.instrucao(memoria, "memory/MEMORY.md", "projeto", local=True, importar=False)
+        if memory.is_file():
+            self.instruction(memory, "memory/MEMORY.md", "projeto", local=True, follow_imports=False)
 
     # --- skills e subagentes -------------------------------------------------------
 
-    def _descrito(self, caminho: Path, tipo: str, nome_padrao: str, escopo: str, *,
-                  prefixo: str = "", plugin: str | None = None, sob_demanda=False) -> None:
-        texto = self.ler(caminho)
-        if texto is None:
+    def _described(self, path: Path, kind: str, default_name: str, scope: str, *,
+                  prefix: str = "", plugin: str | None = None, on_demand=False) -> None:
+        text = self.read(path)
+        if text is None:
             return
         try:
-            campos, corpo = cabecalho(texto)
-            invocavel = campos.get("disable-model-invocation") is not True
-            descricao = str(campos.get("description") or "")
-            if campos.get("when_to_use"):
-                descricao += " " + str(campos["when_to_use"])
-            detalhe = Descricao(len(descricao), len(corpo), _linhas(corpo), invocavel)
-        except ErroCabecalho as erro:
-            self.falha(caminho, str(erro))
-            campos, detalhe = {}, None
-        nome = prefixo + str(campos.get("name") or nome_padrao)
-        self.peca(tipo=tipo, escopo=escopo, nome=nome, origem=caminho,
-                  caracteres=len(texto), linhas=_linhas(texto), plugin=plugin,
-                  sob_demanda=sob_demanda, descricao=detalhe)
-        if "hooks" in campos:
-            bruto = str(campos["hooks"])
-            self.peca(tipo="hook", escopo=escopo, nome=nome, origem=caminho,
-                      caracteres=len(bruto), linhas=_linhas(bruto), plugin=plugin,
-                      sob_demanda=sob_demanda,
-                      hook=DetalheHook(None, None, None, None, analisado=False))
+            fields, body = header(text)
+            invocable = fields.get("disable-model-invocation") is not True
+            description = str(fields.get("description") or "")
+            if fields.get("when_to_use"):
+                description += " " + str(fields["when_to_use"])
+            detail = Description(len(description), len(body), _lines(body), invocable)
+        except FrontmatterError as error:
+            self.failure(path, str(error))
+            fields, detail = {}, None
+        name = prefix + str(fields.get("name") or default_name)
+        self.item(kind=kind, scope=scope, name=name, source=path,
+                  chars=len(text), lines=_lines(text), plugin=plugin,
+                  on_demand=on_demand, description=detail)
+        if "hooks" in fields:
+            raw = str(fields["hooks"])
+            self.item(kind="hook", scope=scope, name=name, source=path,
+                      chars=len(raw), lines=_lines(raw), plugin=plugin,
+                      on_demand=on_demand,
+                      hook=HookDetail(None, None, None, None, parsed=False))
 
-    def skills_em(self, pasta: Path, escopo: str, *, prefixo="", plugin=None,
-                  sob_demanda=False) -> None:
-        for sub in _filhos(pasta):
+    def skills_in(self, folder: Path, scope: str, *, prefix="", plugin=None,
+                  on_demand=False) -> None:
+        for sub in _children(folder):
             if sub.name == "synced" and not (sub / "SKILL.md").is_file():
-                self.skills_em(sub, escopo, prefixo=prefixo, plugin=plugin,
-                               sob_demanda=sob_demanda)
+                self.skills_in(sub, scope, prefix=prefix, plugin=plugin,
+                               on_demand=on_demand)
                 continue
-            arq = sub / "SKILL.md"
-            if sub.is_dir() and arq.is_file():
-                self._descrito(arq, "skill", sub.name, escopo, prefixo=prefixo,
-                               plugin=plugin, sob_demanda=sob_demanda)
+            fpath = sub / "SKILL.md"
+            if sub.is_dir() and fpath.is_file():
+                self._described(fpath, "skill", sub.name, scope, prefix=prefix,
+                               plugin=plugin, on_demand=on_demand)
 
-    def comandos_em(self, pasta: Path, escopo: str, *, prefixo="", plugin=None) -> None:
-        for arq in _md_recursivo(pasta):
-            nome = _relativo(arq.with_suffix(""), pasta).replace("/", ":")
-            self._descrito(arq, "skill", nome, escopo, prefixo=prefixo, plugin=plugin)
+    def commands_in(self, folder: Path, scope: str, *, prefix="", plugin=None) -> None:
+        for fpath in _recursive_md(folder):
+            name = _relative(fpath.with_suffix(""), folder).replace("/", ":")
+            self._described(fpath, "skill", name, scope, prefix=prefix, plugin=plugin)
 
-    def agentes_em(self, pasta: Path, escopo: str, *, prefixo="", plugin=None) -> None:
-        for arq in _md_recursivo(pasta):
-            self._descrito(arq, "subagente", arq.stem, escopo, prefixo=prefixo, plugin=plugin)
+    def agents_in(self, folder: Path, scope: str, *, prefix="", plugin=None) -> None:
+        for fpath in _recursive_md(folder):
+            self._described(fpath, "subagente", fpath.stem, scope, prefix=prefix, plugin=plugin)
 
-    def skills_e_agentes(self) -> None:
-        self.skills_em(self.gerenciado / ".claude" / "skills", "gerenciado")
-        self.skills_em(self.config / "skills", "usuario")
-        self.comandos_em(self.config / "commands", "usuario")
-        self.agentes_em(self.config / "agents", "usuario")
-        self.skills_em(self.repo / ".claude" / "skills", "projeto")
-        self.comandos_em(self.repo / ".claude" / "commands", "projeto")
-        self.agentes_em(self.repo / ".claude" / "agents", "projeto")
-        for pasta in _subpastas(self.repo):
-            self.skills_em(pasta / ".claude" / "skills", "projeto",
-                           prefixo=_relativo(pasta, self.repo) + ":", sob_demanda=True)
+    def skills_and_agents(self) -> None:
+        self.skills_in(self.managed / ".claude" / "skills", "gerenciado")
+        self.skills_in(self.config / "skills", "usuario")
+        self.commands_in(self.config / "commands", "usuario")
+        self.agents_in(self.config / "agents", "usuario")
+        self.skills_in(self.repo / ".claude" / "skills", "projeto")
+        self.commands_in(self.repo / ".claude" / "commands", "projeto")
+        self.agents_in(self.repo / ".claude" / "agents", "projeto")
+        for folder in _subdirs(self.repo):
+            self.skills_in(folder / ".claude" / "skills", "projeto",
+                           prefix=_relative(folder, self.repo) + ":", on_demand=True)
 
     # --- configurações: hooks e permissões ------------------------------------------
 
-    def arquivos_de_configuracao(self) -> list[tuple[Path, str, bool]]:
-        arquivos = [(self.gerenciado / "managed-settings.json", "gerenciado", False)]
-        arquivos += [(a, "gerenciado", False)
-                     for a in sorted(_filhos(self.gerenciado / "managed-settings.d"))
+    def settings_files(self) -> list[tuple[Path, str, bool]]:
+        files = [(self.managed / "managed-settings.json", "gerenciado", False)]
+        files += [(a, "gerenciado", False)
+                     for a in sorted(_children(self.managed / "managed-settings.d"))
                      if a.suffix == ".json"]
-        arquivos += [(self.config / "remote-settings.json", "gerenciado", False),
+        files += [(self.config / "remote-settings.json", "gerenciado", False),
                      (self.config / "settings.json", "usuario", False),
                      (self.repo / ".claude" / "settings.json", "projeto", False),
                      (self.repo / ".claude" / "settings.local.json", "projeto", True)]
-        return [a for a in arquivos if a[0].is_file()]
+        return [a for a in files if a[0].is_file()]
 
-    def hooks(self, dados: object, origem: Path, escopo: str, *, local=False,
+    def hooks(self, data: object, source: Path, scope: str, *, local=False,
               plugin=None) -> None:
-        if not isinstance(dados, dict):
-            self.falha(origem, "hooks: esperava um objeto de eventos")
+        if not isinstance(data, dict):
+            self.failure(source, "hooks: esperava um objeto de eventos")
             return
-        for evento, grupos in dados.items():
-            if not isinstance(grupos, list):
-                self.falha(origem, f"hooks.{evento}: esperava uma lista")
+        for event, groups in data.items():
+            if not isinstance(groups, list):
+                self.failure(source, f"hooks.{event}: esperava uma lista")
                 continue
-            for grupo in grupos:
-                if not isinstance(grupo, dict) or not isinstance(grupo.get("hooks"), list):
-                    self.falha(origem, f"hooks.{evento}: grupo sem lista de hooks")
+            for group in groups:
+                if not isinstance(group, dict) or not isinstance(group.get("hooks"), list):
+                    self.failure(source, f"hooks.{event}: grupo sem lista de hooks")
                     continue
-                filtro = grupo.get("matcher")
-                filtro = None if filtro in (None, "", "*") else str(filtro)
-                for h in grupo["hooks"]:
+                matcher = group.get("matcher")
+                matcher = None if matcher in (None, "", "*") else str(matcher)
+                for h in group["hooks"]:
                     if not isinstance(h, dict):
-                        self.falha(origem, f"hooks.{evento}: hook não é objeto")
+                        self.failure(source, f"hooks.{event}: hook não é objeto")
                         continue
-                    self.peca(**self._hook(h, evento, filtro, origem, escopo, local, plugin))
+                    self.item(**self._hook(h, event, matcher, source, scope, local, plugin))
 
-    def _hook(self, h: dict, evento, filtro, origem, escopo, local, plugin) -> dict:
-        tipo = h.get("type")
-        variaveis = [str(v) for v in h.get("allowedEnvVars") or []]
-        cabecalhos = sorted(map(str, (h.get("headers") or {}).keys())) \
+    def _hook(self, h: dict, event, matcher, source, scope, local, plugin) -> dict:
+        kind = h.get("type")
+        variables = [str(v) for v in h.get("allowedEnvVars") or []]
+        headers = sorted(map(str, (h.get("headers") or {}).keys())) \
             if isinstance(h.get("headers"), dict) else []
-        comando = None
-        visivel = {k: v for k, v in h.items() if k not in ("headers", "command", "url", "args")}
-        if tipo == "command" and isinstance(h.get("command"), str):
-            comando, nomes = mascarar_comando(h["command"])
-            variaveis = nomes + variaveis
-            visivel["command"] = comando
-        elif tipo == "http" and isinstance(h.get("url"), str):
-            comando = _url_sem_consulta(h["url"])
-            visivel["url"] = comando
-        elif tipo == "mcp_tool":
-            comando = f"{h.get('server')}/{h.get('tool')}"
-        visivel["headers"] = cabecalhos
-        trecho = json.dumps(visivel, indent=2, ensure_ascii=False)
-        return dict(tipo="hook", escopo=escopo, nome=f"{evento}:{filtro or '*'}",
-                    origem=origem, caracteres=len(trecho), linhas=_linhas(trecho),
+        command = None
+        visible = {k: v for k, v in h.items() if k not in ("headers", "command", "url", "args")}
+        if kind == "command" and isinstance(h.get("command"), str):
+            command, names = mask_command(h["command"])
+            variables = names + variables
+            visible["command"] = command
+        elif kind == "http" and isinstance(h.get("url"), str):
+            command = _url_without_query(h["url"])
+            visible["url"] = command
+        elif kind == "mcp_tool":
+            command = f"{h.get('server')}/{h.get('tool')}"
+        visible["headers"] = headers
+        snippet = json.dumps(visible, indent=2, ensure_ascii=False)
+        return dict(kind="hook", scope=scope, name=f"{event}:{matcher or '*'}",
+                    source=source, chars=len(snippet), lines=_lines(snippet),
                     plugin=plugin, local=local,
-                    hook=DetalheHook(evento, filtro, tipo, comando, variaveis, cabecalhos))
+                    hook=HookDetail(event, matcher, kind, command, variables, headers))
 
-    def configuracoes(self) -> dict[str, bool]:
+    def enabled_plugins(self) -> dict[str, bool]:
         """Hooks e permissões de cada arquivo; devolve enabledPlugins já mesclado."""
-        habilitados: dict[str, bool] = {}
-        ordem = {"usuario": 0, "projeto": 1, "gerenciado": 3}
-        lidos = []
-        for arq, escopo, local in self.arquivos_de_configuracao():
-            dados = self.ler_objeto(arq)
-            if dados is None:
+        enabled: dict[str, bool] = {}
+        order = {"usuario": 0, "projeto": 1, "gerenciado": 3}
+        loaded = []
+        for fpath, scope, local in self.settings_files():
+            data = self.read_object(fpath)
+            if data is None:
                 continue
-            lidos.append((ordem[escopo] + (1 if local else 0), dados))
-            perms = dados.get("permissions")
+            loaded.append((order[scope] + (1 if local else 0), data))
+            perms = data.get("permissions")
             if perms is not None:
                 if isinstance(perms, dict):
-                    trecho = json.dumps(perms, indent=2, ensure_ascii=False)
-                    contar = lambda k: len(perms.get(k) or []) if isinstance(
+                    snippet = json.dumps(perms, indent=2, ensure_ascii=False)
+                    tally = lambda k: len(perms.get(k) or []) if isinstance(
                         perms.get(k) or [], list) else 0
-                    self.peca(tipo="permissao", escopo=escopo, nome="permissões", origem=arq,
-                              caracteres=len(trecho), linhas=_linhas(trecho), local=local,
-                              permissoes=DetalhePermissoes(perms.get("defaultMode"),
-                                                           contar("allow"), contar("deny"),
-                                                           contar("ask")))
+                    self.item(kind="permissao", scope=scope, name="permissões", source=fpath,
+                              chars=len(snippet), lines=_lines(snippet), local=local,
+                              permissions=PermissionsDetail(perms.get("defaultMode"),
+                                                           tally("allow"), tally("deny"),
+                                                           tally("ask")))
                 else:
-                    self.falha(arq, "permissions: esperava um objeto")
-            if "hooks" in dados:
-                self.hooks(dados["hooks"], arq, escopo, local=local)
-        for _, dados in sorted(lidos, key=lambda x: x[0]):
-            ep = dados.get("enabledPlugins")
+                    self.failure(fpath, "permissions: esperava um objeto")
+            if "hooks" in data:
+                self.hooks(data["hooks"], fpath, scope, local=local)
+        for _, data in sorted(loaded, key=lambda x: x[0]):
+            ep = data.get("enabledPlugins")
             if isinstance(ep, dict):
-                habilitados.update({k: v is True for k, v in ep.items()})
-        return habilitados
+                enabled.update({k: v is True for k, v in ep.items()})
+        return enabled
 
     # --- servidores MCP --------------------------------------------------------------
 
-    def servidores(self, dados: object, origem: Path, escopo: str, *, local=False,
+    def servers(self, data: object, source: Path, scope: str, *, local=False,
                    plugin=None) -> None:
-        if not isinstance(dados, dict):
-            self.falha(origem, "mcpServers: esperava um objeto")
+        if not isinstance(data, dict):
+            self.failure(source, "mcpServers: esperava um objeto")
             return
-        for nome, entrada in dados.items():
-            if not isinstance(entrada, dict):
-                self.falha(origem, f"mcpServers.{nome}: esperava um objeto")
+        for name, input in data.items():
+            if not isinstance(input, dict):
+                self.failure(source, f"mcpServers.{name}: esperava um objeto")
                 continue
-            tipo = entrada.get("type")
-            transporte = str(tipo) if tipo else ("stdio" if "command" in entrada
+            kind = input.get("type")
+            transport = str(kind) if kind else ("stdio" if "command" in input
                                                  else "desconhecido")
-            env = entrada.get("env") if isinstance(entrada.get("env"), dict) else {}
-            cab = entrada.get("headers") if isinstance(entrada.get("headers"), dict) else {}
-            visivel = {k: v for k, v in entrada.items() if k in ("type", "command", "url")}
-            if isinstance(visivel.get("url"), str):
-                visivel["url"] = _url_sem_consulta(visivel["url"])
-            visivel["env"], visivel["headers"] = sorted(env), sorted(cab)
-            trecho = json.dumps(visivel, indent=2, ensure_ascii=False)
-            self.peca(tipo="mcp", escopo=escopo, nome=str(nome), origem=origem,
-                      caracteres=len(trecho), linhas=_linhas(trecho), plugin=plugin,
+            env = input.get("env") if isinstance(input.get("env"), dict) else {}
+            hdr = input.get("headers") if isinstance(input.get("headers"), dict) else {}
+            visible = {k: v for k, v in input.items() if k in ("type", "command", "url")}
+            if isinstance(visible.get("url"), str):
+                visible["url"] = _url_without_query(visible["url"])
+            visible["env"], visible["headers"] = sorted(env), sorted(hdr)
+            snippet = json.dumps(visible, indent=2, ensure_ascii=False)
+            self.item(kind="mcp", scope=scope, name=str(name), source=source,
+                      chars=len(snippet), lines=_lines(snippet), plugin=plugin,
                       local=local,
-                      mcp=DetalheMcp(transporte, sorted(map(str, env)), sorted(map(str, cab))))
+                      mcp=McpDetail(transport, sorted(map(str, env)), sorted(map(str, hdr))))
 
     def mcp(self) -> None:
-        g = self.ler_objeto(self.gerenciado / "managed-mcp.json")
+        g = self.read_object(self.managed / "managed-mcp.json")
         if g is not None:
-            self.servidores(g.get("mcpServers", {}), self.gerenciado / "managed-mcp.json",
+            self.servers(g.get("mcpServers", {}), self.managed / "managed-mcp.json",
                             "gerenciado")
-        cj = self.ler_objeto(self.claude_json)
+        cj = self.read_object(self.claude_json)
         if cj is not None:
             if "mcpServers" in cj:
-                self.servidores(cj["mcpServers"], self.claude_json, "usuario")
-            projetos = cj.get("projects") if isinstance(cj.get("projects"), dict) else {}
-            for chave in dict.fromkeys([str(self.repo), str(self.repo.resolve())]):
-                p = projetos.get(chave)
+                self.servers(cj["mcpServers"], self.claude_json, "usuario")
+            projects = cj.get("projects") if isinstance(cj.get("projects"), dict) else {}
+            for key in dict.fromkeys([str(self.repo), str(self.repo.resolve())]):
+                p = projects.get(key)
                 if isinstance(p, dict) and p.get("mcpServers"):
-                    self.servidores(p["mcpServers"], self.claude_json, "projeto", local=True)
-        mj = self.ler_objeto(self.repo / ".mcp.json")
+                    self.servers(p["mcpServers"], self.claude_json, "projeto", local=True)
+        mj = self.read_object(self.repo / ".mcp.json")
         if mj is not None:
-            self.servidores(mj.get("mcpServers", {}), self.repo / ".mcp.json", "projeto")
+            self.servers(mj.get("mcpServers", {}), self.repo / ".mcp.json", "projeto")
 
     # --- plugins ----------------------------------------------------------------------
 
-    def plugins(self, habilitados: dict[str, bool]) -> None:
-        registro = self.config / "plugins" / "installed_plugins.json"
-        dados = self.ler_objeto(registro)
-        if not dados:
+    def plugins(self, enabled: dict[str, bool]) -> None:
+        record = self.config / "plugins" / "installed_plugins.json"
+        data = self.read_object(record)
+        if not data:
             return
-        instalados = dados.get("plugins")
-        if not isinstance(instalados, dict):
-            self.falha(registro, "plugins: esperava um objeto")
+        installed_items = data.get("plugins")
+        if not isinstance(installed_items, dict):
+            self.failure(record, "plugins: esperava um objeto")
             return
-        repos = {self.repo.resolve(), _raiz_principal(self.repo).resolve()}
-        for ident, registros in instalados.items():
-            if not isinstance(registros, list):
-                self.falha(registro, f"{ident}: esperava uma lista de instalações")
+        repos = {self.repo.resolve(), _main_root(self.repo).resolve()}
+        for ident, records in installed_items.items():
+            if not isinstance(records, list):
+                self.failure(record, f"{ident}: esperava uma lista de instalações")
                 continue
-            aplicaveis = [r for r in registros if isinstance(r, dict) and (
+            applicable = [r for r in records if isinstance(r, dict) and (
                 r.get("scope") == "user"
                 or (r.get("projectPath") and Path(r["projectPath"]).resolve() in repos))]
-            escolhido = aplicaveis[0] if aplicaveis else (registros[0] if registros else {})
-            caminho = Path(escolhido["installPath"]) if escolhido.get("installPath") else None
-            ativo = bool(aplicaveis) and habilitados.get(ident, False)
-            if aplicaveis and (caminho is None or not caminho.is_dir()):
-                self.falha(registro, f"{ident}: pasta do plugin não encontrada")
-                ativo = False
-            self.inv.plugins.append(Plugin(ident, str(escolhido.get("scope")), caminho, ativo))
-            if ativo:
-                self.plugin(caminho, ident.split("@", 1)[0])
+            chosen = applicable[0] if applicable else (records[0] if records else {})
+            path = Path(chosen["installPath"]) if chosen.get("installPath") else None
+            active = bool(applicable) and enabled.get(ident, False)
+            if applicable and (path is None or not path.is_dir()):
+                self.failure(record, f"{ident}: pasta do plugin não encontrada")
+                active = False
+            self.inv.plugins.append(Plugin(ident, str(chosen.get("scope")), path, active))
+            if active:
+                self.plugin(path, ident.split("@", 1)[0])
 
-    def plugin(self, raiz: Path, nome_padrao: str) -> None:
-        manifesto_arq = raiz / ".claude-plugin" / "plugin.json"
-        manifesto = self.ler_objeto(manifesto_arq) or {}
-        nome = str(manifesto.get("name") or nome_padrao)
-        pre = nome + ":"
+    def plugin(self, root: Path, default_name: str) -> None:
+        manifest_file = root / ".claude-plugin" / "plugin.json"
+        manifest = self.read_object(manifest_file) or {}
+        name = str(manifest.get("name") or default_name)
+        pre = name + ":"
 
-        def pastas(chave: str, padrao: str) -> list[Path]:
-            extra = manifesto.get(chave)
+        def folders(key: str, pattern: str) -> list[Path]:
+            extra = manifest.get(key)
             extra = [extra] if isinstance(extra, str) else (extra if isinstance(extra, list) else [])
-            todas = [raiz / padrao] + [raiz / e for e in extra if isinstance(e, str)]
-            return list({p.resolve(): p for p in todas}.values())
+            every = [root / pattern] + [root / e for e in extra if isinstance(e, str)]
+            return list({p.resolve(): p for p in every}.values())
 
-        for p in pastas("skills", "skills"):
-            self.skills_em(p, "plugin", prefixo=pre, plugin=nome)
-        for p in pastas("commands", "commands"):
-            self.comandos_em(p, "plugin", prefixo=pre, plugin=nome)
-        for p in pastas("agents", "agents"):
-            self.agentes_em(p, "plugin", prefixo=pre, plugin=nome)
+        for p in folders("skills", "skills"):
+            self.skills_in(p, "plugin", prefix=pre, plugin=name)
+        for p in folders("commands", "commands"):
+            self.commands_in(p, "plugin", prefix=pre, plugin=name)
+        for p in folders("agents", "agents"):
+            self.agents_in(p, "plugin", prefix=pre, plugin=name)
 
-        hj = self.ler_objeto(raiz / "hooks" / "hooks.json")
+        hj = self.read_object(root / "hooks" / "hooks.json")
         if hj is not None:
-            self.hooks(hj.get("hooks", {}), raiz / "hooks" / "hooks.json", "plugin", plugin=nome)
-        h = manifesto.get("hooks")
+            self.hooks(hj.get("hooks", {}), root / "hooks" / "hooks.json", "plugin", plugin=name)
+        h = manifest.get("hooks")
         if isinstance(h, dict):
-            self.hooks(h.get("hooks", h), manifesto_arq, "plugin", plugin=nome)
-        elif isinstance(h, str) and (raiz / h).resolve() != (raiz / "hooks" / "hooks.json").resolve():
-            dados = self.ler_objeto(raiz / h)
-            if dados is not None:
-                self.hooks(dados.get("hooks", {}), raiz / h, "plugin", plugin=nome)
+            self.hooks(h.get("hooks", h), manifest_file, "plugin", plugin=name)
+        elif isinstance(h, str) and (root / h).resolve() != (root / "hooks" / "hooks.json").resolve():
+            data = self.read_object(root / h)
+            if data is not None:
+                self.hooks(data.get("hooks", {}), root / h, "plugin", plugin=name)
 
-        mj = self.ler_objeto(raiz / ".mcp.json")
+        mj = self.read_object(root / ".mcp.json")
         if mj is not None:
-            self.servidores(mj.get("mcpServers", mj), raiz / ".mcp.json", "plugin", plugin=nome)
-        m = manifesto.get("mcpServers")
+            self.servers(mj.get("mcpServers", mj), root / ".mcp.json", "plugin", plugin=name)
+        m = manifest.get("mcpServers")
         if isinstance(m, dict):
-            self.servidores(m, manifesto_arq, "plugin", plugin=nome)
-        elif isinstance(m, str) and (raiz / m).resolve() != (raiz / ".mcp.json").resolve():
-            dados = self.ler_objeto(raiz / m)
-            if dados is not None:
-                self.servidores(dados.get("mcpServers", dados), raiz / m, "plugin", plugin=nome)
+            self.servers(m, manifest_file, "plugin", plugin=name)
+        elif isinstance(m, str) and (root / m).resolve() != (root / ".mcp.json").resolve():
+            data = self.read_object(root / m)
+            if data is not None:
+                self.servers(data.get("mcpServers", data), root / m, "plugin", plugin=name)
 
 
-def _filhos(pasta: Path) -> list[Path]:
+def _children(folder: Path) -> list[Path]:
     try:
-        return sorted(pasta.iterdir()) if pasta.is_dir() else []
+        return sorted(folder.iterdir()) if folder.is_dir() else []
     except OSError:
         return []
 
 
-def _md_recursivo(pasta: Path) -> list[Path]:
-    if not pasta.is_dir():
+def _recursive_md(folder: Path) -> list[Path]:
+    if not folder.is_dir():
         return []
-    return sorted(p for p in pasta.rglob("*.md") if p.is_file())
+    return sorted(p for p in folder.rglob("*.md") if p.is_file())
 
 
-def _subpastas(repo: Path) -> Iterator[Path]:
+def _subdirs(repo: Path) -> Iterator[Path]:
     """Subdiretórios do repositório, sem ocultos e sem pastas de dependências."""
-    for atual, dirs, _ in os.walk(repo):
-        dirs[:] = sorted(d for d in dirs if not d.startswith(".") and d not in PASTAS_IGNORADAS)
-        if Path(atual) != repo:
-            yield Path(atual)
+    for current, dirs, _ in os.walk(repo):
+        dirs[:] = sorted(d for d in dirs if not d.startswith(".") and d not in IGNORED_DIRS)
+        if Path(current) != repo:
+            yield Path(current)
 
 
 # --------------------------------------------------------------------------
 # Ponto de entrada
 # --------------------------------------------------------------------------
 
-def inventariar(repo: Path, config: Path | None = None, *,
-                claude_json: Path | None = None, gerenciado: Path | None = None,
-                ambiente: Mapping[str, str] | None = None) -> Inventario:
+def take_inventory(repo: Path, config: Path | None = None, *,
+                claude_json: Path | None = None, managed: Path | None = None,
+                environment: Mapping[str, str] | None = None) -> Inventory:
     """Inventário do harness que vale para `repo`.
 
     `config` padrão: CLAUDE_CONFIG_DIR de `ambiente` (ou do processo), senão
@@ -755,52 +755,52 @@ def inventariar(repo: Path, config: Path | None = None, *,
     diretório de política do sistema operacional.
     """
     repo = Path(repo)
-    config = Path(config) if config is not None else diretorio_config(ambiente)
+    config = Path(config) if config is not None else config_dir(environment)
     if claude_json is None:
-        dentro = config / ".claude.json"
+        inside = config / ".claude.json"
         claude_json = (config.parent / ".claude.json"
-                       if not dentro.is_file() and config.name == ".claude" else dentro)
-    if gerenciado is None:
-        gerenciado = GERENCIADO_PADRAO.get(sys.platform, GERENCIADO_PADRAO["linux"])
-    c = _Coleta(repo, config, Path(claude_json), Path(gerenciado))
-    c.instrucoes()
-    c.skills_e_agentes()
-    habilitados = c.configuracoes()
+                       if not inside.is_file() and config.name == ".claude" else inside)
+    if managed is None:
+        managed = DEFAULT_MANAGED.get(sys.platform, DEFAULT_MANAGED["linux"])
+    c = _Collector(repo, config, Path(claude_json), Path(managed))
+    c.instructions()
+    c.skills_and_agents()
+    enabled = c.enabled_plugins()
     c.mcp()
-    c.plugins(habilitados)
+    c.plugins(enabled)
     return c.inv
 
 
-def contagens(inv: Inventario) -> Counter:
-    return Counter((p.tipo, p.escopo) for p in inv.pecas)
+def tallies(inv: Inventory) -> Counter:
+    return Counter((p.kind, p.scope) for p in inv.items)
 
 
 def main(argv: list[str] | None = None) -> int:
-    analisador = argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         prog="python -m dark.inventory",
         description="Imprime as contagens do inventário do harness.")
-    analisador.add_argument("repo", type=Path, nargs="?", default=Path("."))
-    analisador.add_argument("--config", type=Path, default=None)
-    analisador.add_argument("--gerenciado", type=Path, default=None)
-    analisador.add_argument("--nomes", action="store_true",
+    parser.add_argument("repo", type=Path, nargs="?", default=Path("."))
+    parser.add_argument("--config", type=Path, default=None)
+    parser.add_argument("--gerenciado", dest="managed", metavar="GERENCIADO", type=Path, default=None)
+    parser.add_argument("--nomes", dest="names", action="store_true",
                             help="imprime também nomes e falhas (não publique a saída)")
-    args = analisador.parse_args(argv)
-    inv = inventariar(args.repo, args.config, gerenciado=args.gerenciado)
-    ativos = sum(1 for p in inv.plugins if p.ativo)
-    print(f"pecas: {len(inv.pecas)}  falhas: {len(inv.falhas)}  "
-          f"plugins: {ativos} ativos de {len(inv.plugins)}")
-    cont = contagens(inv)
-    print(f"{'tipo':<10}" + "".join(f"{e:>11}" for e in ESCOPOS) + f"{'total':>8}")
-    for t in TIPOS:
-        print(f"{t:<10}" + "".join(f"{cont[(t, e)]:>11}" for e in ESCOPOS)
-              + f"{sum(cont[(t, e)] for e in ESCOPOS):>8}")
-    print(f"locais: {sum(p.local for p in inv.pecas)}  "
-          f"sob_demanda: {sum(p.sob_demanda for p in inv.pecas)}")
-    if args.nomes:
-        for p in sorted(inv.pecas, key=lambda p: (p.tipo, p.escopo, p.nome)):
-            print(f"  {p.tipo:<10} {p.escopo:<10} {p.nome}")
-        for f in inv.falhas:
-            print(f"  falha: {f.arquivo}: {f.mensagem}")
+    args = parser.parse_args(argv)
+    inv = take_inventory(args.repo, args.config, managed=args.managed)
+    active_plugins = sum(1 for p in inv.plugins if p.active)
+    print(f"pecas: {len(inv.items)}  falhas: {len(inv.failures)}  "
+          f"plugins: {active_plugins} ativos de {len(inv.plugins)}")
+    cnt = tallies(inv)
+    print(f"{'tipo':<10}" + "".join(f"{e:>11}" for e in SCOPES) + f"{'total':>8}")
+    for t in TYPES:
+        print(f"{t:<10}" + "".join(f"{cnt[(t, e)]:>11}" for e in SCOPES)
+              + f"{sum(cnt[(t, e)] for e in SCOPES):>8}")
+    print(f"locais: {sum(p.local for p in inv.items)}  "
+          f"sob_demanda: {sum(p.on_demand for p in inv.items)}")
+    if args.names:
+        for p in sorted(inv.items, key=lambda p: (p.kind, p.scope, p.name)):
+            print(f"  {p.kind:<10} {p.scope:<10} {p.name}")
+        for f in inv.failures:
+            print(f"  falha: {f.file}: {f.message}")
     return 0
 
 

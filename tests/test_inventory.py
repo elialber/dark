@@ -20,12 +20,12 @@ from pathlib import Path
 import pytest
 
 from dark import inventory
-from dark.inventory import Inventario
+from dark.inventory import Inventory
 
 FIXTURES = Path(__file__).parent / "fixtures" / "inventario"
 SRC = Path(__file__).parent.parent / "src"
 
-SEGREDOS = [
+SECRETS = [
     "valor-secreto-hook", "valor-secreto-cabecalho-hook",
     "valor-secreto-mcp-projeto", "valor-secreto-cabecalho-mcp",
     "valor-secreto-usuario", "valor-secreto-local", "valor-secreto-manifesto",
@@ -34,58 +34,58 @@ SEGREDOS = [
 ]
 
 
-def _nome_real(nome: str) -> str:
-    if nome.startswith("dot-"):
-        nome = "." + nome[4:]
-    return nome.removesuffix(".fixture")
+def _real_name(name: str) -> str:
+    if name.startswith("dot-"):
+        name = "." + name[4:]
+    return name.removesuffix(".fixture")
 
 
-def _copiar(origem: Path, destino: Path) -> None:
-    destino.mkdir(parents=True, exist_ok=True)
-    for item in origem.iterdir():
-        alvo = destino / _nome_real(item.name)
+def _copy(source: Path, destination: Path) -> None:
+    destination.mkdir(parents=True, exist_ok=True)
+    for item in source.iterdir():
+        target = destination / _real_name(item.name)
         if item.is_dir():
-            _copiar(item, alvo)
+            _copy(item, target)
         else:
-            shutil.copyfile(item, alvo)
+            shutil.copyfile(item, target)
 
 
-def montar(case: str, tmp_path: Path) -> tuple[Path, Path, Path]:
+def mount(case: str, tmp_path: Path) -> tuple[Path, Path, Path]:
     """Copia o caso para tmp_path; devolve (repo, config, gerenciado)."""
     base = tmp_path / case
-    _copiar(FIXTURES / case, base)
-    repo, config, gerenciado = base / "repo", base / "config", base / "gerenciado"
-    for d in (repo, config, gerenciado):
+    _copy(FIXTURES / case, base)
+    repo, config, managed = base / "repo", base / "config", base / "gerenciado"
+    for d in (repo, config, managed):
         d.mkdir(exist_ok=True)
-    for arq in base.rglob("*.json"):
-        texto = arq.read_text(encoding="utf-8")
-        arq.write_text(texto.replace("{REPO}", str(repo)).replace("{CONFIG}", str(config)),
+    for fpath in base.rglob("*.json"):
+        text = fpath.read_text(encoding="utf-8")
+        fpath.write_text(text.replace("{REPO}", str(repo)).replace("{CONFIG}", str(config)),
                        encoding="utf-8")
-    memoria = config / "projects" / "MEMORIA"
-    if memoria.exists():
-        memoria.rename(config / "projects" / inventory.pasta_projeto(repo))
-    return repo, config, gerenciado
+    memory = config / "projects" / "MEMORIA"
+    if memory.exists():
+        memory.rename(config / "projects" / inventory.project_dir(repo))
+    return repo, config, managed
 
 
-def inventariar(case: str, tmp_path: Path) -> Inventario:
-    repo, config, gerenciado = montar(case, tmp_path)
-    return inventory.inventariar(repo, config, gerenciado=gerenciado, ambiente={})
+def take_inventory(case: str, tmp_path: Path) -> Inventory:
+    repo, config, managed = mount(case, tmp_path)
+    return inventory.take_inventory(repo, config, managed=managed, environment={})
 
 
 @pytest.fixture(scope="module")
-def completo(tmp_path_factory):
-    return inventariar("completo", tmp_path_factory.mktemp("inv"))
+def complete(tmp_path_factory):
+    return take_inventory("completo", tmp_path_factory.mktemp("inv"))
 
 
-def _uma(inv: Inventario, tipo: str, nome: str):
-    achadas = [p for p in inv.pecas if p.tipo == tipo and p.nome == nome]
-    assert len(achadas) == 1, (tipo, nome, [(p.tipo, p.nome) for p in inv.pecas])
-    return achadas[0]
+def _single(inv: Inventory, kind: str, name: str):
+    found = [p for p in inv.items if p.kind == kind and p.name == name]
+    assert len(found) == 1, (kind, name, [(p.kind, p.name) for p in inv.items])
+    return found[0]
 
 
 # --- uma peça de cada tipo, em cada escopo ---------------------------------------
 
-ESPERADAS = [
+EXPECTED = [
     # (tipo, nome, escopo, plugin, local, sob_demanda)
     ("instrucao", "CLAUDE.md", "gerenciado", None, False, False),
     ("instrucao", "CLAUDE.md", "usuario", None, False, False),
@@ -118,24 +118,24 @@ ESPERADAS = [
 ]
 
 
-@pytest.mark.parametrize("tipo,nome,escopo,plugin,local,sob_demanda", ESPERADAS)
-def test_peca_de_cada_tipo_em_cada_escopo(completo, tipo, nome, escopo, plugin, local,
-                                          sob_demanda):
-    achadas = [p for p in completo.pecas
-               if p.tipo == tipo and p.nome == nome and p.escopo == escopo]
-    assert len(achadas) == 1, [(p.tipo, p.nome, p.escopo) for p in completo.pecas]
-    p = achadas[0]
-    assert (p.plugin, p.local, p.sob_demanda) == (plugin, local, sob_demanda)
-    assert p.origem.is_file()
-    texto = p.origem.read_text(encoding="utf-8")
-    if tipo in ("instrucao", "skill", "subagente"):
-        assert p.caracteres == len(texto)
-        assert p.linhas == len(texto.splitlines())
-    assert p.caracteres > 0 and p.linhas > 0
+@pytest.mark.parametrize("kind,name,scope,plugin,local,on_demand", EXPECTED)
+def test_peca_de_cada_tipo_em_cada_escopo(complete, kind, name, scope, plugin, local,
+                                          on_demand):
+    found = [p for p in complete.items
+               if p.kind == kind and p.name == name and p.scope == scope]
+    assert len(found) == 1, [(p.kind, p.name, p.scope) for p in complete.items]
+    p = found[0]
+    assert (p.plugin, p.local, p.on_demand) == (plugin, local, on_demand)
+    assert p.source.is_file()
+    text = p.source.read_text(encoding="utf-8")
+    if kind in ("instrucao", "skill", "subagente"):
+        assert p.chars == len(text)
+        assert p.lines == len(text.splitlines())
+    assert p.chars > 0 and p.lines > 0
 
 
-def test_hooks_de_cada_escopo(completo):
-    hooks = {(h.escopo, h.local, h.hook.evento): h for h in completo.pecas if h.tipo == "hook"}
+def test_hooks_de_cada_escopo(complete):
+    hooks = {(h.scope, h.local, h.hook.event): h for h in complete.items if h.kind == "hook"}
     assert set(hooks) == {
         ("gerenciado", False, "UserPromptSubmit"),
         ("usuario", False, "SessionStart"),
@@ -146,25 +146,25 @@ def test_hooks_de_cada_escopo(completo):
         ("usuario", False, None),            # declarado no cabeçalho de uma skill
     }
     pre = hooks[("projeto", False, "PreToolUse")].hook
-    assert (pre.filtro, pre.tipo) == ("Bash", "command")
-    assert pre.comando == "TOKEN_PROJETO=*** ./verifica.sh"
-    assert pre.variaveis == ["TOKEN_PROJETO"]
+    assert (pre.matcher, pre.kind) == ("Bash", "command")
+    assert pre.command == "TOKEN_PROJETO=*** ./verifica.sh"
+    assert pre.variables == ["TOKEN_PROJETO"]
     pos = hooks[("projeto", True, "PostToolUse")].hook
-    assert (pos.filtro, pos.comando) == ("Edit|Write", "./formata.sh")
+    assert (pos.matcher, pos.command) == ("Edit|Write", "./formata.sh")
     stop = hooks[("projeto", False, "Stop")].hook
-    assert (stop.filtro, stop.tipo, stop.comando) == (None, "http", "http://localhost:9/aviso")
-    assert stop.cabecalhos == ["Authorization"] and stop.variaveis == ["CHAVE_AVISO"]
+    assert (stop.matcher, stop.kind, stop.command) == (None, "http", "http://localhost:9/aviso")
+    assert stop.headers == ["Authorization"] and stop.variables == ["CHAVE_AVISO"]
     plugin = hooks[("plugin", False, "PreToolUse")]
     assert plugin.plugin == "plugin-exemplo"
-    assert plugin.hook.comando == "${CLAUDE_PLUGIN_ROOT}/bin/checa"
-    assert hooks[("gerenciado", False, "UserPromptSubmit")].hook.tipo == "prompt"
-    cabecalho = hooks[("usuario", False, None)]
-    assert cabecalho.nome == "skill-com-hook" and cabecalho.hook.analisado is False
+    assert plugin.hook.command == "${CLAUDE_PLUGIN_ROOT}/bin/checa"
+    assert hooks[("gerenciado", False, "UserPromptSubmit")].hook.kind == "prompt"
+    header = hooks[("usuario", False, None)]
+    assert header.name == "skill-com-hook" and header.hook.parsed is False
 
 
-def test_permissoes_de_cada_escopo(completo):
-    perms = {(p.escopo, p.local, p.origem.name): p.permissoes
-             for p in completo.pecas if p.tipo == "permissao"}
+def test_permissoes_de_cada_escopo(complete):
+    perms = {(p.scope, p.local, p.source.name): p.permissions
+             for p in complete.items if p.kind == "permissao"}
     assert set(perms) == {
         ("gerenciado", False, "managed-settings.json"),
         ("gerenciado", False, "10-extra.json"),
@@ -173,192 +173,192 @@ def test_permissoes_de_cada_escopo(completo):
         ("projeto", True, "settings.local.json"),
     }
     proj = perms[("projeto", False, "settings.json")]
-    assert (proj.modo_padrao, proj.permitir, proj.negar, proj.perguntar) == ("acceptEdits", 2, 1, 1)
+    assert (proj.default_mode, proj.allow, proj.deny, proj.ask) == ("acceptEdits", 2, 1, 1)
     local = perms[("projeto", True, "settings.local.json")]
-    assert (local.modo_padrao, local.permitir, local.negar, local.perguntar) == (None, 1, 0, 0)
-    assert perms[("usuario", False, "settings.json")].modo_padrao == "plan"
-    assert perms[("gerenciado", False, "10-extra.json")].perguntar == 1
+    assert (local.default_mode, local.allow, local.deny, local.ask) == (None, 1, 0, 0)
+    assert perms[("usuario", False, "settings.json")].default_mode == "plan"
+    assert perms[("gerenciado", False, "10-extra.json")].ask == 1
 
 
 # --- instruções ----------------------------------------------------------------------
 
-def test_instrucao_conta_itens_e_motivos(completo):
-    i = next(p for p in completo.pecas
-             if p.tipo == "instrucao" and p.nome == "CLAUDE.md" and p.escopo == "projeto")
-    d = i.instrucao
-    assert d.itens == 6                 # 4 com marcador, 2 numerados; bloco de código fora
-    assert d.com_motivo == 3            # "Motivo:", "porque", "para que"
-    assert d.motivo_estimado is True
-    assert d.importa == ["docs/importado.md"]
+def test_instrucao_conta_itens_e_motivos(complete):
+    i = next(p for p in complete.items
+             if p.kind == "instrucao" and p.name == "CLAUDE.md" and p.scope == "projeto")
+    d = i.instruction
+    assert d.item_count == 6                 # 4 com marcador, 2 numerados; bloco de código fora
+    assert d.with_reason == 3            # "Motivo:", "porque", "para que"
+    assert d.estimated_reason is True
+    assert d.imports == ["docs/importado.md"]
 
 
-def test_instrucao_sem_motivo(completo):
-    i = next(p for p in completo.pecas if p.nome == "CLAUDE.local.md")
-    assert (i.instrucao.itens, i.instrucao.com_motivo) == (1, 0)
+def test_instrucao_sem_motivo(complete):
+    i = next(p for p in complete.items if p.name == "CLAUDE.local.md")
+    assert (i.instruction.item_count, i.instruction.with_reason) == (1, 0)
 
 
-def test_importacoes_seguem_ate_quatro_saltos(completo):
-    nomes = {p.nome for p in completo.pecas if p.tipo == "instrucao"}
+def test_importacoes_seguem_ate_quatro_saltos(complete):
+    names = {p.name for p in complete.items if p.kind == "instrucao"}
     assert {"@docs/importado.md", "@docs/nivel2.md", "@docs/nivel3.md",
-            "@docs/nivel4.md"} <= nomes
-    assert "@docs/nivel5.md" not in nomes
-    assert not any("nao-importado" in n or "tambem-nao" in n for n in nomes)
-    imp = _uma(completo, "instrucao", "@docs/importado.md")
-    assert imp.instrucao.importado_por.name == "CLAUDE.md"
-    assert (imp.instrucao.itens, imp.instrucao.com_motivo) == (2, 1)
+            "@docs/nivel4.md"} <= names
+    assert "@docs/nivel5.md" not in names
+    assert not any("nao-importado" in n or "tambem-nao" in n for n in names)
+    imp = _single(complete, "instrucao", "@docs/importado.md")
+    assert imp.instruction.imported_by.name == "CLAUDE.md"
+    assert (imp.instruction.item_count, imp.instruction.with_reason) == (2, 1)
 
 
-def test_memoria_de_topico_e_claude_md_de_plugin_ficam_fora(completo):
-    origens = {p.origem.name for p in completo.pecas}
-    assert "exemplo.md" not in origens
-    assert not any(p.tipo == "instrucao" and p.escopo == "plugin" for p in completo.pecas)
+def test_memoria_de_topico_e_claude_md_de_plugin_ficam_fora(complete):
+    provenances = {p.source.name for p in complete.items}
+    assert "exemplo.md" not in provenances
+    assert not any(p.kind == "instrucao" and p.scope == "plugin" for p in complete.items)
 
 
 # --- skills e subagentes ----------------------------------------------------------------
 
-def test_skill_com_descricao_curta_e_corpo_longo(completo):
-    s = _uma(completo, "skill", "skill-projeto")
-    assert s.descricao.caracteres == len("Faz uma coisa curta.")
-    assert s.descricao.corpo_caracteres > 2000
-    assert s.descricao.corpo_linhas > 40
-    assert s.descricao.corpo_caracteres + s.descricao.caracteres < s.caracteres
+def test_skill_com_descricao_curta_e_corpo_longo(complete):
+    s = _single(complete, "skill", "skill-projeto")
+    assert s.description.chars == len("Faz uma coisa curta.")
+    assert s.description.body_chars > 2000
+    assert s.description.body_lines > 40
+    assert s.description.body_chars + s.description.chars < s.chars
 
 
-def test_descricao_em_bloco_dobrado_e_entre_aspas(completo):
-    a = _uma(completo, "subagente", "agente-projeto")
-    assert a.descricao.caracteres == len("Revisa mudanças de exemplo em duas linhas.")
-    s = _uma(completo, "skill", "skill-usuario")
-    assert s.descricao.caracteres == len("Skill pessoal de exemplo.")
-    assert s.descricao.invocavel_pelo_modelo is False
-    assert _uma(completo, "skill", "comando-usuario").descricao.caracteres == 0
+def test_descricao_em_bloco_dobrado_e_entre_aspas(complete):
+    a = _single(complete, "subagente", "agente-projeto")
+    assert a.description.chars == len("Revisa mudanças de exemplo em duas linhas.")
+    s = _single(complete, "skill", "skill-usuario")
+    assert s.description.chars == len("Skill pessoal de exemplo.")
+    assert s.description.model_invocable is False
+    assert _single(complete, "skill", "comando-usuario").description.chars == 0
 
 
-def test_plugins_inativos_nao_entram_mas_sao_relatados(completo):
-    assert not any("inativa" in p.nome for p in completo.pecas)
-    estado = {p.nome: p.ativo for p in completo.plugins}
-    assert estado == {"plugin-exemplo@mercado-exemplo": True,
+def test_plugins_inativos_nao_entram_mas_sao_relatados(complete):
+    assert not any("inativa" in p.name for p in complete.items)
+    state = {p.name: p.active for p in complete.plugins}
+    assert state == {"plugin-exemplo@mercado-exemplo": True,
                       "plugin-desligado@mercado-exemplo": False,
                       "plugin-outro-projeto@mercado-exemplo": False}
 
 
 # --- servidores MCP e segredos -------------------------------------------------------
 
-def test_servidor_mcp_guarda_transporte_e_nomes_de_variaveis(completo):
-    m = {p.nome: p.mcp for p in completo.pecas if p.tipo == "mcp"}
-    assert m["servidor-projeto"].transporte == "stdio"
-    assert m["servidor-projeto"].variaveis == ["CHAVE_PROJETO"]
-    assert m["servidor-remoto"].transporte == "http"
-    assert m["servidor-remoto"].cabecalhos == ["Authorization"]
-    assert m["servidor-usuario"].transporte == "sse"
-    assert m["servidor-plugin"].transporte == "ws"
-    assert m["servidor-local"].variaveis == ["CHAVE_LOCAL"]
+def test_servidor_mcp_guarda_transporte_e_nomes_de_variaveis(complete):
+    m = {p.name: p.mcp for p in complete.items if p.kind == "mcp"}
+    assert m["servidor-projeto"].transport == "stdio"
+    assert m["servidor-projeto"].variables == ["CHAVE_PROJETO"]
+    assert m["servidor-remoto"].transport == "http"
+    assert m["servidor-remoto"].headers == ["Authorization"]
+    assert m["servidor-usuario"].transport == "sse"
+    assert m["servidor-plugin"].transport == "ws"
+    assert m["servidor-local"].variables == ["CHAVE_LOCAL"]
     assert "servidor-de-outro-projeto" not in m
 
 
-def test_nenhum_valor_secreto_aparece_no_resultado(completo):
-    tudo = repr(completo) + json.dumps(inventory.como_dict(completo), ensure_ascii=False)
-    for segredo in SEGREDOS:
-        assert segredo not in tudo, segredo
+def test_nenhum_valor_secreto_aparece_no_resultado(complete):
+    everything = repr(complete) + json.dumps(inventory.as_dict(complete), ensure_ascii=False)
+    for secret in SECRETS:
+        assert secret not in everything, secret
 
 
 def test_arquivo_de_credenciais_nunca_e_aberto(tmp_path, monkeypatch):
-    repo, config, gerenciado = montar("completo", tmp_path)
-    abertos = []
+    repo, config, managed = mount("completo", tmp_path)
+    opened = []
     original = Path.read_text
 
-    def espiao(self, *a, **k):
-        abertos.append(self.name)
+    def spy(self, *a, **k):
+        opened.append(self.name)
         return original(self, *a, **k)
 
-    monkeypatch.setattr(Path, "read_text", espiao)
-    inventory.inventariar(repo, config, gerenciado=gerenciado, ambiente={})
-    assert abertos and ".credentials.json" not in abertos
+    monkeypatch.setattr(Path, "read_text", spy)
+    inventory.take_inventory(repo, config, managed=managed, environment={})
+    assert opened and ".credentials.json" not in opened
 
 
 # --- falhas, vazio, somente leitura ---------------------------------------------------
 
 def test_configuracao_malformada_relata_e_segue(tmp_path):
-    inv = inventariar("quebrado", tmp_path)
-    falhas = {(f.arquivo.name, f.arquivo.parent.name) for f in inv.falhas}
-    assert ("settings.json", ".claude") in falhas        # projeto, JSON cortado
-    assert ("settings.json", "config") in falhas         # usuário, não é JSON
-    assert (".claude.json", "config") in falhas
-    assert (".mcp.json", "repo") in falhas               # mcpServers não é objeto
-    assert ("SKILL.md", "skill-sem-fim") in falhas
-    assert ("installed_plugins.json", "plugins") in falhas   # pasta do plugin ausente
-    assert any(f.arquivo.name == "nao-existe.md" for f in inv.falhas)
-    assert all(f.mensagem for f in inv.falhas)
-    nomes = {p.nome for p in inv.pecas}
-    assert {"skill-boa", "agente-bom", "CLAUDE.md"} <= nomes
+    inv = take_inventory("quebrado", tmp_path)
+    failures = {(f.file.name, f.file.parent.name) for f in inv.failures}
+    assert ("settings.json", ".claude") in failures        # projeto, JSON cortado
+    assert ("settings.json", "config") in failures         # usuário, não é JSON
+    assert (".claude.json", "config") in failures
+    assert (".mcp.json", "repo") in failures               # mcpServers não é objeto
+    assert ("SKILL.md", "skill-sem-fim") in failures
+    assert ("installed_plugins.json", "plugins") in failures   # pasta do plugin ausente
+    assert any(f.file.name == "nao-existe.md" for f in inv.failures)
+    assert all(f.message for f in inv.failures)
+    names = {p.name for p in inv.items}
+    assert {"skill-boa", "agente-bom", "CLAUDE.md"} <= names
 
 
 def test_repositorio_sem_harness(tmp_path):
-    inv = inventariar("vazio", tmp_path)
-    assert inv.pecas == [] and inv.falhas == [] and inv.plugins == []
+    inv = take_inventory("vazio", tmp_path)
+    assert inv.items == [] and inv.failures == [] and inv.plugins == []
 
 
-def _retrato(raiz: Path) -> dict:
-    return {str(p.relative_to(raiz)): (p.stat().st_mtime_ns, p.read_bytes())
-            for p in raiz.rglob("*") if p.is_file()}
+def _snapshot(root: Path) -> dict:
+    return {str(p.relative_to(root)): (p.stat().st_mtime_ns, p.read_bytes())
+            for p in root.rglob("*") if p.is_file()}
 
 
 def test_somente_leitura(tmp_path):
-    repo, config, gerenciado = montar("completo", tmp_path)
-    antes = _retrato(tmp_path)
-    inventory.inventariar(repo, config, gerenciado=gerenciado, ambiente={})
-    assert _retrato(tmp_path) == antes
+    repo, config, managed = mount("completo", tmp_path)
+    before = _snapshot(tmp_path)
+    inventory.take_inventory(repo, config, managed=managed, environment={})
+    assert _snapshot(tmp_path) == before
 
 
 # --- entradas injetáveis -----------------------------------------------------------------
 
 def test_diretorio_de_configuracao_respeita_variavel(tmp_path):
-    assert inventory.diretorio_config({"CLAUDE_CONFIG_DIR": str(tmp_path)}) == tmp_path
-    assert inventory.diretorio_config({}) == Path.home() / ".claude"
+    assert inventory.config_dir({"CLAUDE_CONFIG_DIR": str(tmp_path)}) == tmp_path
+    assert inventory.config_dir({}) == Path.home() / ".claude"
 
 
 def test_config_padrao_vem_do_ambiente(tmp_path):
-    repo, config, gerenciado = montar("completo", tmp_path)
-    inv = inventory.inventariar(repo, gerenciado=gerenciado,
-                                 ambiente={"CLAUDE_CONFIG_DIR": str(config)})
-    assert any(p.nome == "skill-usuario" for p in inv.pecas)
+    repo, config, managed = mount("completo", tmp_path)
+    inv = inventory.take_inventory(repo, managed=managed,
+                                 environment={"CLAUDE_CONFIG_DIR": str(config)})
+    assert any(p.name == "skill-usuario" for p in inv.items)
 
 
 def test_claude_json_fica_ao_lado_da_pasta_padrao(tmp_path):
-    casa = tmp_path / "casa"
-    (casa / ".claude").mkdir(parents=True)
-    (casa / ".claude.json").write_text('{"mcpServers": {"servidor-ao-lado": {"command": "x"}}}',
+    home_dir = tmp_path / "casa"
+    (home_dir / ".claude").mkdir(parents=True)
+    (home_dir / ".claude.json").write_text('{"mcpServers": {"servidor-ao-lado": {"command": "x"}}}',
                                        encoding="utf-8")
-    vazio = tmp_path / "repo"
-    vazio.mkdir()
-    inv = inventory.inventariar(vazio, casa / ".claude", gerenciado=tmp_path / "nada",
-                                 ambiente={})
-    assert [p.nome for p in inv.pecas] == ["servidor-ao-lado"]
+    empty = tmp_path / "repo"
+    empty.mkdir()
+    inv = inventory.take_inventory(empty, home_dir / ".claude", managed=tmp_path / "nada",
+                                 environment={})
+    assert [p.name for p in inv.items] == ["servidor-ao-lado"]
 
 
 def test_pasta_de_projeto_codifica_o_caminho():
-    assert inventory.pasta_projeto(Path("/mnt/c/Repos/Ex_1")) == "-mnt-c-Repos-Ex-1"
+    assert inventory.project_dir(Path("/mnt/c/Repos/Ex_1")) == "-mnt-c-Repos-Ex-1"
 
 
 def test_nao_importa_o_leitor():
-    codigo = ("import sys; import dark.inventory; "
+    code = ("import sys; import dark.inventory; "
               "sys.exit(1 if 'dark.reader' in sys.modules else 0)")
-    r = subprocess.run([sys.executable, "-c", codigo], env={**os.environ, "PYTHONPATH": str(SRC)})
+    r = subprocess.run([sys.executable, "-c", code], env={**os.environ, "PYTHONPATH": str(SRC)})
     assert r.returncode == 0
 
 
-def test_pecas_sao_dataclasses_congeladas(completo):
-    p = completo.pecas[0]
+def test_pecas_sao_dataclasses_congeladas(complete):
+    p = complete.items[0]
     assert dataclasses.is_dataclass(p)
     with pytest.raises(dataclasses.FrozenInstanceError):
-        p.nome = "outro"
+        p.name = "outro"
 
 
 # --- comando mínimo -----------------------------------------------------------------------
 
 def test_comando_imprime_contagens(tmp_path, capsys):
-    repo, config, gerenciado = montar("completo", tmp_path)
+    repo, config, managed = mount("completo", tmp_path)
     assert inventory.main([str(repo), "--config", str(config),
-                            "--gerenciado", str(gerenciado)]) == 0
-    saida = capsys.readouterr().out
-    assert "skill" in saida and "usuario" in saida and "falhas: 0" in saida
-    assert "skill-projeto" not in saida            # nomes só com --nomes
+                            "--gerenciado", str(managed)]) == 0
+    output = capsys.readouterr().out
+    assert "skill" in output and "usuario" in output and "falhas: 0" in output
+    assert "skill-projeto" not in output            # nomes só com --nomes

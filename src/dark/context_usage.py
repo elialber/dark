@@ -27,10 +27,10 @@ from pathlib import Path
 # executor(argumentos, diretorio) -> saída padrão
 Executor = Callable[[Sequence[str], Path], str]
 
-ARGUMENTOS = ["claude", "-p", "/context", "--no-session-persistence"]
+ARGUMENTS = ["claude", "-p", "/context", "--no-session-persistence"]
 
 
-class SaidaInvalida(ValueError):
+class InvalidOutput(ValueError):
     """A saída não traz nenhuma categoria reconhecível."""
 
 
@@ -39,229 +39,229 @@ class SaidaInvalida(ValueError):
 # --------------------------------------------------------------------------
 
 @dataclass(frozen=True)
-class Categoria:
-    nome: str
+class Category:
+    name: str
     tokens: int
-    tipo: str            # "usado" (conta no total), "adiado", "livre", "reserva"
-    conhecida: bool
+    kind: str            # "usado" (conta no total), "adiado", "livre", "reserva"
+    known: bool
 
 
 @dataclass(frozen=True)
 class Item:
     """Uma linha das tabelas de detalhe: skill, ferramenta MCP, agente, memória."""
-    nome: str            # skill, ferramenta, tipo de agente ou caminho do arquivo
-    origem: str          # coluna Source; servidor, no caso de ferramenta MCP
+    name: str            # skill, ferramenta, tipo de agente ou caminho do arquivo
+    source: str          # coluna Source; servidor, no caso de ferramenta MCP
     tokens: int
 
 
 @dataclass(frozen=True)
-class Reparticao:
-    modelo: str | None
+class Breakdown:
+    model: str | None
     total: int | None                    # "Tokens:" do cabeçalho
-    janela: int | None                   # tamanho da janela, mesmo lugar
-    categorias: list[Categoria]
+    window: int | None                   # tamanho da janela, mesmo lugar
+    categories: list[Category]
     skills: list[Item] = field(default_factory=list)
-    ferramentas_mcp: list[Item] = field(default_factory=list)
-    agentes: list[Item] = field(default_factory=list)
-    memoria: list[Item] = field(default_factory=list)
-    nao_reconhecido: list[str] = field(default_factory=list)
+    mcp_tools: list[Item] = field(default_factory=list)
+    agents: list[Item] = field(default_factory=list)
+    memory: list[Item] = field(default_factory=list)
+    unrecognized: list[str] = field(default_factory=list)
 
     @property
-    def soma_categorias(self) -> int:
+    def categories_sum(self) -> int:
         """Soma das categorias que entram no total informado."""
-        return sum(c.tokens for c in self.categorias if c.tipo == "usado")
+        return sum(c.tokens for c in self.categories if c.kind == "usado")
 
     @property
-    def adiadas(self) -> int:
+    def deferred(self) -> int:
         """Ferramentas adiadas (embutidas e MCP): listadas, fora do total."""
-        return sum(c.tokens for c in self.categorias if c.tipo == "adiado")
+        return sum(c.tokens for c in self.categories if c.kind == "adiado")
 
 
 @dataclass(frozen=True)
-class NaoAtribuido:
-    medido: int          # total pelo usage, recebido de fora
-    informado: int       # total do /context
+class Unattributed:
+    measured: int          # total pelo usage, recebido de fora
+    given: int       # total do /context
     tokens: int          # medido - informado
-    percentual: float    # tokens / medido * 100
+    percent: float    # tokens / medido * 100
 
 
 # --------------------------------------------------------------------------
 # Números: "319", "1,234", "2.5k", "~220", "1m"
 # --------------------------------------------------------------------------
 
-_NUMERO = re.compile(r"~?(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?([kKmM]?)")
-_SUFIXO = {"": 1, "k": 1_000, "m": 1_000_000}
+_NUMBER = re.compile(r"~?(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?([kKmM]?)")
+_SUFFIX = {"": 1, "k": 1_000, "m": 1_000_000}
 
 
-def numero(texto: str) -> int | None:
-    m = _NUMERO.fullmatch(texto.strip())
+def number(text: str) -> int | None:
+    m = _NUMBER.fullmatch(text.strip())
     if not m:
         return None
-    inteiro, decimais, sufixo = m.groups()
-    valor = float(inteiro.replace(",", "") + "." + (decimais or "0"))
-    return round(valor * _SUFIXO[sufixo.lower()])
+    integer, decimals, suffix = m.groups()
+    value = float(integer.replace(",", "") + "." + (decimals or "0"))
+    return round(value * _SUFFIX[suffix.lower()])
 
 
 # --------------------------------------------------------------------------
 # Análise
 # --------------------------------------------------------------------------
 
-_LIVRE = {"Free space": "livre", "Autocompact buffer": "reserva"}
-_CONHECIDAS = {
+_FREE = {"Free space": "livre", "Autocompact buffer": "reserva"}
+_KNOWN = {
     "System prompt", "System tools", "System tools (deferred)",
     "MCP tools", "MCP tools (deferred)", "Custom agents", "Memory files",
-    "Skills", "Messages", *_LIVRE,
+    "Skills", "Messages", *_FREE,
 }
 
 # seção -> (campo da Reparticao, cabeçalho esperado, colunas nome/origem/tokens)
-_DETALHES = {
+_DETAILS = {
     "Skills": ("skills", ("Skill", "Source", "Tokens"), (0, 1, 2)),
-    "MCP Tools": ("ferramentas_mcp", ("Tool", "Server", "Tokens"), (0, 1, 2)),
-    "Custom Agents": ("agentes", ("Agent Type", "Source", "Tokens"), (0, 1, 2)),
-    "Memory Files": ("memoria", ("Type", "Path", "Tokens"), (1, 0, 2)),
+    "MCP Tools": ("mcp_tools", ("Tool", "Server", "Tokens"), (0, 1, 2)),
+    "Custom Agents": ("agents", ("Agent Type", "Source", "Tokens"), (0, 1, 2)),
+    "Memory Files": ("memory", ("Type", "Path", "Tokens"), (1, 0, 2)),
 }
-_CATEGORIAS = "Estimated usage by category"
-_CABECALHO_CATEGORIAS = ("Category", "Tokens", "Percentage")
+_CATEGORIES = "Estimated usage by category"
+_CATEGORIES_HEADER = ("Category", "Tokens", "Percentage")
 
 _TOKENS = re.compile(r"\*\*Tokens:\*\*\s*(\S+)\s*/\s*(\S+)(?:\s*\(.*\))?")
-_MODELO = re.compile(r"\*\*Model:\*\*\s*(.+?)")
-_SEPARADOR = re.compile(r"\|[\s:|-]*\|")
+_MODEL = re.compile(r"\*\*Model:\*\*\s*(.+?)")
+_SEPARATOR = re.compile(r"\|[\s:|-]*\|")
 
 
-def _tipo(nome: str) -> str:
-    if nome in _LIVRE:
-        return _LIVRE[nome]
-    if nome.endswith("(deferred)"):
+def _type(name: str) -> str:
+    if name in _FREE:
+        return _FREE[name]
+    if name.endswith("(deferred)"):
         return "adiado"
     return "usado"
 
 
-def _celulas(linha: str) -> tuple[str, ...] | None:
-    if not (linha.startswith("|") and linha.endswith("|")):
+def _cells(line: str) -> tuple[str, ...] | None:
+    if not (line.startswith("|") and line.endswith("|")):
         return None
-    return tuple(c.strip() for c in linha[1:-1].split("|"))
+    return tuple(c.strip() for c in line[1:-1].split("|"))
 
 
-def analisar(texto: str) -> Reparticao:
-    modelo = total = janela = None
-    categorias: list[Categoria] = []
-    detalhes: dict[str, list[Item]] = {campo: [] for campo, _, _ in _DETALHES.values()}
-    nao_reconhecido: list[str] = []
+def parse(text: str) -> Breakdown:
+    model = total = window = None
+    categories: list[Category] = []
+    details: dict[str, list[Item]] = {field_name: [] for field_name, _, _ in _DETAILS.values()}
+    unrecognized: list[str] = []
 
-    secao: str | None = None      # None = cabeçalho, antes da primeira seção ###
-    cabecalho: tuple[str, ...] | None = None
+    section: str | None = None      # None = cabeçalho, antes da primeira seção ###
+    header: tuple[str, ...] | None = None
 
-    for bruta in texto.splitlines():
-        linha = bruta.strip()
-        if not linha:
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
             continue
 
-        if linha.startswith("## ") and not linha.startswith("### "):
-            if linha != "## Context Usage":
-                nao_reconhecido.append(linha)
-            secao, cabecalho = None, None
+        if line.startswith("## ") and not line.startswith("### "):
+            if line != "## Context Usage":
+                unrecognized.append(line)
+            section, header = None, None
             continue
-        if linha.startswith("### "):
-            secao, cabecalho = linha[4:].strip(), None
-            if secao != _CATEGORIAS and secao not in _DETALHES:
-                nao_reconhecido.append(linha)
+        if line.startswith("### "):
+            section, header = line[4:].strip(), None
+            if section != _CATEGORIES and section not in _DETAILS:
+                unrecognized.append(line)
             continue
 
-        if secao is None:
-            if m := _MODELO.fullmatch(linha):
-                modelo = m.group(1)
-            elif (m := _TOKENS.fullmatch(linha)) and numero(m.group(1)) is not None:
-                total, janela = numero(m.group(1)), numero(m.group(2))
+        if section is None:
+            if m := _MODEL.fullmatch(line):
+                model = m.group(1)
+            elif (m := _TOKENS.fullmatch(line)) and number(m.group(1)) is not None:
+                total, window = number(m.group(1)), number(m.group(2))
             else:
-                nao_reconhecido.append(linha)
+                unrecognized.append(line)
             continue
 
-        conhecida = secao == _CATEGORIAS or secao in _DETALHES
-        celulas = _celulas(linha)
-        if not conhecida or celulas is None:
-            nao_reconhecido.append(linha)
+        known = section == _CATEGORIES or section in _DETAILS
+        cells = _cells(line)
+        if not known or cells is None:
+            unrecognized.append(line)
             continue
-        if _SEPARADOR.fullmatch(linha.replace(" ", "")):
+        if _SEPARATOR.fullmatch(line.replace(" ", "")):
             continue
-        if cabecalho is None:
-            cabecalho = celulas
-            esperado = (_CABECALHO_CATEGORIAS if secao == _CATEGORIAS
-                        else _DETALHES[secao][1])
-            if cabecalho != esperado:
-                nao_reconhecido.append(linha)
+        if header is None:
+            header = cells
+            expected = (_CATEGORIES_HEADER if section == _CATEGORIES
+                        else _DETAILS[section][1])
+            if header != expected:
+                unrecognized.append(line)
             continue
-        if cabecalho is not None and len(celulas) != len(cabecalho):
-            nao_reconhecido.append(linha)
+        if header is not None and len(cells) != len(header):
+            unrecognized.append(line)
             continue
 
-        if secao == _CATEGORIAS:
-            if cabecalho != _CABECALHO_CATEGORIAS:
-                nao_reconhecido.append(linha)
+        if section == _CATEGORIES:
+            if header != _CATEGORIES_HEADER:
+                unrecognized.append(line)
                 continue
-            nome, tokens = celulas[0], numero(celulas[1])
+            name, tokens = cells[0], number(cells[1])
             if tokens is None:
-                nao_reconhecido.append(linha)
+                unrecognized.append(line)
                 continue
-            categoria = Categoria(nome, tokens, _tipo(nome), nome in _CONHECIDAS)
-            if not categoria.conhecida:
-                nao_reconhecido.append(f"categoria desconhecida: {linha}")
-            categorias.append(categoria)
+            category = Category(name, tokens, _type(name), name in _KNOWN)
+            if not category.known:
+                unrecognized.append(f"categoria desconhecida: {line}")
+            categories.append(category)
         else:
-            campo, esperado, (i_nome, i_origem, i_tokens) = _DETALHES[secao]
-            tokens = numero(celulas[i_tokens]) if cabecalho == esperado else None
+            field_name, expected, (i_name, i_source, i_tokens) = _DETAILS[section]
+            tokens = number(cells[i_tokens]) if header == expected else None
             if tokens is None:
-                nao_reconhecido.append(linha)
+                unrecognized.append(line)
                 continue
-            detalhes[campo].append(Item(celulas[i_nome], celulas[i_origem], tokens))
+            details[field_name].append(Item(cells[i_name], cells[i_source], tokens))
 
-    if not categorias:
-        raise SaidaInvalida("nenhuma categoria encontrada na saída do /context")
-    return Reparticao(modelo, total, janela, categorias,
-                      nao_reconhecido=nao_reconhecido, **detalhes)
+    if not categories:
+        raise InvalidOutput("nenhuma categoria encontrada na saída do /context")
+    return Breakdown(model, total, window, categories,
+                      unrecognized=unrecognized, **details)
 
 
 # --------------------------------------------------------------------------
 # Parte não atribuída
 # --------------------------------------------------------------------------
 
-def nao_atribuido(reparticao: Reparticao, total_usage: int) -> NaoAtribuido:
+def unattributed(breakdown: Breakdown, total_usage: int) -> Unattributed:
     """Diferença entre o total medido pelo `usage` e o informado pelo comando.
 
     Usa o total do cabeçalho; sem ele, a soma das categorias.
     """
     if total_usage <= 0:
         raise ValueError("total do usage tem de ser positivo")
-    informado = reparticao.total if reparticao.total is not None else reparticao.soma_categorias
-    diferenca = total_usage - informado
-    return NaoAtribuido(total_usage, informado, diferenca, diferenca / total_usage * 100)
+    given = breakdown.total if breakdown.total is not None else breakdown.categories_sum
+    difference = total_usage - given
+    return Unattributed(total_usage, given, difference, difference / total_usage * 100)
 
 
 # --------------------------------------------------------------------------
 # Execução
 # --------------------------------------------------------------------------
 
-def _executor_padrao(argumentos: Sequence[str], diretorio: Path) -> str:
-    resultado = subprocess.run(
-        list(argumentos), cwd=diretorio, stdin=subprocess.DEVNULL,
+def _default_executor(arguments: Sequence[str], directory: Path) -> str:
+    result = subprocess.run(
+        list(arguments), cwd=directory, stdin=subprocess.DEVNULL,
         capture_output=True, text=True, timeout=120, check=True,
     )
-    return resultado.stdout
+    return result.stdout
 
 
-def executar(repositorio: Path | str, executor: Executor | None = None) -> str:
+def execute(repository: Path | str, executor: Executor | None = None) -> str:
     """Roda `/context` no repositório e devolve o texto.
 
     `--no-session-persistence` evita que a execução deixe uma transcrição
     no diretório do usuário, misturada ao histórico real.
     """
-    repositorio = Path(repositorio)
-    if not repositorio.is_dir():
-        raise FileNotFoundError(repositorio)
-    return (executor or _executor_padrao)(list(ARGUMENTOS), repositorio)
+    repository = Path(repository)
+    if not repository.is_dir():
+        raise FileNotFoundError(repository)
+    return (executor or _default_executor)(list(ARGUMENTS), repository)
 
 
-def medir(repositorio: Path | str, executor: Executor | None = None) -> Reparticao:
-    return analisar(executar(repositorio, executor))
+def measure(repository: Path | str, executor: Executor | None = None) -> Breakdown:
+    return parse(execute(repository, executor))
 
 
 # --------------------------------------------------------------------------
@@ -270,31 +270,31 @@ def medir(repositorio: Path | str, executor: Executor | None = None) -> Repartic
 
 def main(argv: Sequence[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument("repositorio", nargs="?", default=".")
-    p.add_argument("--arquivo", help="analisa um texto já salvo em vez de rodar o comando")
+    p.add_argument("repository", metavar="repositorio", nargs="?", default=".")
+    p.add_argument("--arquivo", dest="file", metavar="ARQUIVO", help="analisa um texto já salvo em vez de rodar o comando")
     p.add_argument("--usage", type=int, help="total medido pelo usage, para a parte não atribuída")
-    p.add_argument("--nomes", action="store_true", help="mostra nomes de skills e itens")
+    p.add_argument("--nomes", dest="names", action="store_true", help="mostra nomes de skills e itens")
     a = p.parse_args(argv)
 
-    texto = (Path(a.arquivo).read_text(encoding="utf-8") if a.arquivo
-             else executar(a.repositorio))
-    r = analisar(texto)
-    print(f"total informado: {r.total}  soma das categorias: {r.soma_categorias}"
-          f"  adiadas (fora do total): {r.adiadas}")
-    for c in r.categorias:
-        print(f"  {c.nome:<26} {c.tokens:>9}  {c.tipo}{'' if c.conhecida else '  (nova)'}")
-    for rotulo, itens in (("skills", r.skills), ("ferramentas MCP", r.ferramentas_mcp),
-                          ("agentes", r.agentes), ("arquivos de memória", r.memoria)):
-        print(f"{rotulo}: {len(itens)} itens, {sum(i.tokens for i in itens)} tokens")
-        if a.nomes:
-            for i in itens:
-                print(f"  {i.nome}  [{i.origem}]  {i.tokens}")
+    text = (Path(a.file).read_text(encoding="utf-8") if a.file
+             else execute(a.repository))
+    r = parse(text)
+    print(f"total informado: {r.total}  soma das categorias: {r.categories_sum}"
+          f"  adiadas (fora do total): {r.deferred}")
+    for c in r.categories:
+        print(f"  {c.name:<26} {c.tokens:>9}  {c.kind}{'' if c.known else '  (nova)'}")
+    for label, items in (("skills", r.skills), ("ferramentas MCP", r.mcp_tools),
+                          ("agentes", r.agents), ("arquivos de memória", r.memory)):
+        print(f"{label}: {len(items)} itens, {sum(i.tokens for i in items)} tokens")
+        if a.names:
+            for i in items:
+                print(f"  {i.name}  [{i.source}]  {i.tokens}")
     if a.usage:
-        na = nao_atribuido(r, a.usage)
-        print(f"não atribuído: {na.tokens} tokens ({na.percentual:.1f}% de {na.medido})")
-    print(f"não reconhecido: {len(r.nao_reconhecido)}")
-    for linha in r.nao_reconhecido:
-        print(f"  {linha if a.nomes else linha[:40]}")
+        unattr = unattributed(r, a.usage)
+        print(f"não atribuído: {unattr.tokens} tokens ({unattr.percent:.1f}% de {unattr.measured})")
+    print(f"não reconhecido: {len(r.unrecognized)}")
+    for line in r.unrecognized:
+        print(f"  {line if a.names else line[:40]}")
     return 0
 
 

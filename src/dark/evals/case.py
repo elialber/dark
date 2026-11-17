@@ -11,149 +11,149 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-ORIGENS = ("manual", "minerado")
-TEMPO_LIMITE_PADRAO = 300
+PROVENANCES = ("manual", "minerado")
+DEFAULT_TIMEOUT = 300
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
-class ErroFormato(ValueError):
+class CaseFormatError(ValueError):
     pass
 
 
 @dataclass
-class Aceite:
+class Acceptance:
     # Texto roda pelo shell (sh -c); lista roda direto, sem shell.
-    comando: str | list[str]
-    arquivos: list[str] = field(default_factory=list)
+    command: str | list[str]
+    files: list[str] = field(default_factory=list)
     # Commit de onde vêm os arquivos; vazio quer dizer commit_solucao.
-    arquivos_de: str | None = None
-    tempo_limite: int = TEMPO_LIMITE_PADRAO
+    files_from: str | None = None
+    timeout_s: int = DEFAULT_TIMEOUT
 
-    def origem_arquivos(self, case: "Caso") -> str | None:
-        return self.arquivos_de or case.commit_solucao
+    def files_source(self, case: "Caso") -> str | None:
+        return self.files_from or case.solution_commit
 
 
 @dataclass
-class Caso:
+class Case:
     id: str
-    origem: str
-    commit_base: str
-    pedido: str
-    aceite: Aceite
-    commit_solucao: str | None = None
-    notas: str = ""
+    source: str
+    base_commit: str
+    prompt: str
+    acceptance: Acceptance
+    solution_commit: str | None = None
+    notes: str = ""
 
 
 # --- leitura -----------------------------------------------------------------
 
-_CAMPOS = {"id", "origem", "commit_base", "pedido", "aceite", "commit_solucao", "notas"}
-_OBRIGATORIOS = ("id", "origem", "commit_base", "pedido", "aceite")
-_CAMPOS_ACEITE = {"comando", "arquivos", "arquivos_de", "tempo_limite"}
+_FIELDS = {"id", "origem", "commit_base", "pedido", "aceite", "commit_solucao", "notas"}
+_REQUIRED = ("id", "origem", "commit_base", "pedido", "aceite")
+_ACCEPTANCE_FIELDS = {"comando", "arquivos", "arquivos_de", "tempo_limite"}
 
 
-def _texto(d: dict, chave: str, onde: str, vazio_ok: bool = False) -> str:
-    v = d[chave]
+def _text(d: dict, key: str, where: str, empty_ok: bool = False) -> str:
+    v = d[key]
     if not isinstance(v, str):
-        raise ErroFormato(f"{onde}{chave}: esperado texto")
-    if not vazio_ok and not v.strip():
-        raise ErroFormato(f"{onde}{chave}: vazio")
+        raise CaseFormatError(f"{where}{key}: esperado texto")
+    if not empty_ok and not v.strip():
+        raise CaseFormatError(f"{where}{key}: vazio")
     return v
 
 
-def de_dict(d: dict) -> Caso:
-    desconhecidos = set(d) - _CAMPOS
-    if desconhecidos:
-        raise ErroFormato(f"campo desconhecido: {', '.join(sorted(desconhecidos))}")
-    for chave in _OBRIGATORIOS:
-        if chave not in d:
-            raise ErroFormato(f"campo obrigatório ausente: {chave}")
+def from_dict(d: dict) -> Case:
+    unknowns = set(d) - _FIELDS
+    if unknowns:
+        raise CaseFormatError(f"campo desconhecido: {', '.join(sorted(unknowns))}")
+    for key in _REQUIRED:
+        if key not in d:
+            raise CaseFormatError(f"campo obrigatório ausente: {key}")
 
-    id_ = _texto(d, "id", "")
+    id_ = _text(d, "id", "")
     if not _ID.match(id_):
-        raise ErroFormato(f"id: só letras, dígitos, '.', '_' e '-': {id_!r}")
-    origem = _texto(d, "origem", "")
-    if origem not in ORIGENS:
-        raise ErroFormato(f"origem: {origem!r} não é {' nem '.join(ORIGENS)}")
+        raise CaseFormatError(f"id: só letras, dígitos, '.', '_' e '-': {id_!r}")
+    source = _text(d, "origem", "")
+    if source not in PROVENANCES:
+        raise CaseFormatError(f"origem: {source!r} não é {' nem '.join(PROVENANCES)}")
 
     a = d["aceite"]
     if not isinstance(a, dict):
-        raise ErroFormato("aceite: esperada uma tabela [aceite]")
-    desconhecidos = set(a) - _CAMPOS_ACEITE
-    if desconhecidos:
-        raise ErroFormato(f"aceite: campo desconhecido: {', '.join(sorted(desconhecidos))}")
+        raise CaseFormatError("aceite: esperada uma tabela [aceite]")
+    unknowns = set(a) - _ACCEPTANCE_FIELDS
+    if unknowns:
+        raise CaseFormatError(f"aceite: campo desconhecido: {', '.join(sorted(unknowns))}")
     if "comando" not in a:
-        raise ErroFormato("campo obrigatório ausente: aceite.comando")
-    comando = a["comando"]
-    if isinstance(comando, list):
-        if not all(isinstance(x, str) for x in comando):
-            raise ErroFormato("aceite.comando: lista só de textos")
-    elif not isinstance(comando, str):
-        raise ErroFormato("aceite.comando: texto ou lista de textos")
-    arquivos = a.get("arquivos", [])
-    if not isinstance(arquivos, list) or not all(isinstance(x, str) for x in arquivos):
-        raise ErroFormato("aceite.arquivos: lista de caminhos")
-    for caminho in arquivos:
-        if caminho.startswith("/") or ".." in Path(caminho).parts:
-            raise ErroFormato(f"aceite.arquivos: caminho fora do repositório: {caminho}")
-    tempo = a.get("tempo_limite", TEMPO_LIMITE_PADRAO)
-    if not isinstance(tempo, int) or isinstance(tempo, bool) or tempo <= 0:
-        raise ErroFormato("aceite.tempo_limite: inteiro positivo, em segundos")
-    de = a.get("arquivos_de") or None
+        raise CaseFormatError("campo obrigatório ausente: aceite.comando")
+    command = a["comando"]
+    if isinstance(command, list):
+        if not all(isinstance(x, str) for x in command):
+            raise CaseFormatError("aceite.comando: lista só de textos")
+    elif not isinstance(command, str):
+        raise CaseFormatError("aceite.comando: texto ou lista de textos")
+    files = a.get("arquivos", [])
+    if not isinstance(files, list) or not all(isinstance(x, str) for x in files):
+        raise CaseFormatError("aceite.arquivos: lista de caminhos")
+    for path in files:
+        if path.startswith("/") or ".." in Path(path).parts:
+            raise CaseFormatError(f"aceite.arquivos: caminho fora do repositório: {path}")
+    time_ = a.get("tempo_limite", DEFAULT_TIMEOUT)
+    if not isinstance(time_, int) or isinstance(time_, bool) or time_ <= 0:
+        raise CaseFormatError("aceite.tempo_limite: inteiro positivo, em segundos")
+    from_commit = a.get("arquivos_de") or None
 
-    solucao = d.get("commit_solucao") or None
-    if arquivos and not (de or solucao):
-        raise ErroFormato("aceite.arquivos sem commit de origem: "
+    solution = d.get("commit_solucao") or None
+    if files and not (from_commit or solution):
+        raise CaseFormatError("aceite.arquivos sem commit de origem: "
                           "informe aceite.arquivos_de ou commit_solucao")
 
-    return Caso(
+    return Case(
         id=id_,
-        origem=origem,
-        commit_base=_texto(d, "commit_base", ""),
-        pedido=_texto(d, "pedido", "", vazio_ok=True),
-        aceite=Aceite(comando=comando, arquivos=list(arquivos), arquivos_de=de,
-                      tempo_limite=tempo),
-        commit_solucao=solucao,
-        notas=_texto(d, "notas", "", vazio_ok=True) if "notas" in d else "",
+        source=source,
+        base_commit=_text(d, "commit_base", ""),
+        prompt=_text(d, "pedido", "", empty_ok=True),
+        acceptance=Acceptance(command=command, files=list(files), files_from=from_commit,
+                      timeout_s=time_),
+        solution_commit=solution,
+        notes=_text(d, "notas", "", empty_ok=True) if "notas" in d else "",
     )
 
 
-def de_toml(texto: str) -> Caso:
+def from_toml(text: str) -> Case:
     try:
-        dados = tomllib.loads(texto)
+        data = tomllib.loads(text)
     except tomllib.TOMLDecodeError as e:
-        raise ErroFormato(f"TOML inválido: {e}") from e
-    return de_dict(dados)
+        raise CaseFormatError(f"TOML inválido: {e}") from e
+    return from_dict(data)
 
 
-def carregar(caminho: Path) -> Caso:
+def load(path: Path) -> Case:
     try:
-        return de_toml(Path(caminho).read_text(encoding="utf-8"))
-    except ErroFormato as e:
-        raise ErroFormato(f"{caminho}: {e}") from e
+        return from_toml(Path(path).read_text(encoding="utf-8"))
+    except CaseFormatError as e:
+        raise CaseFormatError(f"{path}: {e}") from e
 
 
 # --- escrita -----------------------------------------------------------------
 
 def _str(s: str) -> str:
     """Texto TOML básico (entre aspas), com escape completo."""
-    saida = []
+    output = []
     for ch in s:
         if ch == "\\":
-            saida.append("\\\\")
+            output.append("\\\\")
         elif ch == '"':
-            saida.append('\\"')
+            output.append('\\"')
         elif ch == "\n":
-            saida.append("\\n")
+            output.append("\\n")
         elif ch == "\t":
-            saida.append("\\t")
+            output.append("\\t")
         elif ord(ch) < 0x20 or ord(ch) == 0x7F:
-            saida.append(f"\\u{ord(ch):04x}")
+            output.append(f"\\u{ord(ch):04x}")
         else:
-            saida.append(ch)
-    return '"' + "".join(saida) + '"'
+            output.append(ch)
+    return '"' + "".join(output) + '"'
 
 
-def _str_longo(s: str) -> str:
+def _long_str(s: str) -> str:
     """Texto de várias linhas, legível, quando é seguro; senão o básico."""
     if "\n" not in s:
         return _str(s)
@@ -163,29 +163,29 @@ def _str_longo(s: str) -> str:
     return '"""\n' + s + '"""'
 
 
-def _lista(xs: list[str]) -> str:
+def _list(xs: list[str]) -> str:
     if not xs:
         return "[]"
     return "[\n" + "".join(f"  {_str(x)},\n" for x in xs) + "]"
 
 
-def para_toml(c: Caso) -> str:
-    linhas = [
+def to_toml(c: Case) -> str:
+    lines = [
         f"id = {_str(c.id)}",
-        f"origem = {_str(c.origem)}",
-        f"commit_base = {_str(c.commit_base)}",
+        f"origem = {_str(c.source)}",
+        f"commit_base = {_str(c.base_commit)}",
     ]
-    if c.commit_solucao:
-        linhas.append(f"commit_solucao = {_str(c.commit_solucao)}")
-    linhas.append(f"pedido = {_str_longo(c.pedido)}")
-    linhas.append(f"notas = {_str_longo(c.notas)}")
-    linhas.append("")
-    linhas.append("[aceite]")
-    a = c.aceite
-    cmd = _str(a.comando) if isinstance(a.comando, str) else _lista(a.comando)
-    linhas.append(f"comando = {cmd}")
-    linhas.append(f"arquivos = {_lista(a.arquivos)}")
-    if a.arquivos_de:
-        linhas.append(f"arquivos_de = {_str(a.arquivos_de)}")
-    linhas.append(f"tempo_limite = {a.tempo_limite}")
-    return "\n".join(linhas) + "\n"
+    if c.solution_commit:
+        lines.append(f"commit_solucao = {_str(c.solution_commit)}")
+    lines.append(f"pedido = {_long_str(c.prompt)}")
+    lines.append(f"notas = {_long_str(c.notes)}")
+    lines.append("")
+    lines.append("[aceite]")
+    a = c.acceptance
+    cmd = _str(a.command) if isinstance(a.command, str) else _list(a.command)
+    lines.append(f"comando = {cmd}")
+    lines.append(f"arquivos = {_list(a.files)}")
+    if a.files_from:
+        lines.append(f"arquivos_de = {_str(a.files_from)}")
+    lines.append(f"tempo_limite = {a.timeout_s}")
+    return "\n".join(lines) + "\n"

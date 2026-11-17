@@ -35,292 +35,292 @@ from pathlib import Path
 # --- execução ----------------------------------------------------------------------
 
 @dataclass(frozen=True)
-class Execucao:
-    codigo: int
-    saida: str
-    erro: str
+class Run:
+    code: int
+    output: str
+    error: str
 
 
 # executor(args, cwd, entrada=None) -> Execucao. `args` não inclui "git".
-Executor = Callable[..., Execucao]
+Executor = Callable[..., Run]
 
-SUBCOMANDOS_LEITURA = frozenset({
+READ_SUBCOMMANDS = frozenset({
     "rev-parse", "rev-list", "log", "for-each-ref", "merge-base",
     "diff", "diff-tree", "patch-id", "cherry",
 })
 # subcomandos que têm formas de escrita: só a forma listada passa
-SUBCOMANDOS_COM_FORMA = {"worktree": frozenset({"list"})}
+SUBCOMMANDS_WITH_SHAPE = {"worktree": frozenset({"list"})}
 
-_AMBIENTE_REMOVIDO = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE")
+_REMOVED_ENV = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE")
 
 
-class ComandoProibido(Exception):
+class ForbiddenCommand(Exception):
     """Pedido de um comando git fora da lista de leitura."""
 
 
-class _FalhaGit(Exception):
+class _GitFailure(Exception):
     pass
 
 
-class _GitAusente(Exception):
+class _GitMissing(Exception):
     pass
 
 
-def executor_padrao(args: list[str], cwd: Path, entrada: str | None = None) -> Execucao:
+def default_executor(args: list[str], cwd: Path, input: str | None = None) -> Run:
     """Roda `git <args>` em `cwd`, sem pager, sem prompt e sem locks opcionais."""
-    env = {k: v for k, v in os.environ.items() if k not in _AMBIENTE_REMOVIDO}
+    env = {k: v for k, v in os.environ.items() if k not in _REMOVED_ENV}
     env.update(LC_ALL="C", GIT_OPTIONAL_LOCKS="0", GIT_TERMINAL_PROMPT="0",
                GIT_PAGER="cat", GIT_NO_REPLACE_OBJECTS="1")
     r = subprocess.run(
         ["git", "-c", "log.showSignature=false", "-c", "core.fsmonitor=false", *args],
-        cwd=cwd, env=env, input=entrada, capture_output=True,
+        cwd=cwd, env=env, input=input, capture_output=True,
         encoding="utf-8", errors="surrogateescape",
     )
-    return Execucao(r.returncode, r.stdout, r.stderr)
+    return Run(r.returncode, r.stdout, r.stderr)
 
 
-def _git(executor: Executor, cwd: Path, args: list[str], entrada: str | None = None,
-         *, aceita: Iterable[int] = (0,)) -> Execucao:
+def _git(executor: Executor, cwd: Path, args: list[str], input: str | None = None,
+         *, accepted: Iterable[int] = (0,)) -> Run:
     if not args:
-        raise ComandoProibido("comando vazio")
+        raise ForbiddenCommand("comando vazio")
     sub = args[0]
-    if sub in SUBCOMANDOS_COM_FORMA:
-        if len(args) < 2 or args[1] not in SUBCOMANDOS_COM_FORMA[sub]:
-            raise ComandoProibido(" ".join(args[:2]))
-    elif sub not in SUBCOMANDOS_LEITURA:
-        raise ComandoProibido(sub)
+    if sub in SUBCOMMANDS_WITH_SHAPE:
+        if len(args) < 2 or args[1] not in SUBCOMMANDS_WITH_SHAPE[sub]:
+            raise ForbiddenCommand(" ".join(args[:2]))
+    elif sub not in READ_SUBCOMMANDS:
+        raise ForbiddenCommand(sub)
     try:
-        r = executor(args, cwd, entrada)
+        r = executor(args, cwd, input)
     except FileNotFoundError as e:
-        raise _GitAusente(str(e)) from e
-    if r.codigo not in tuple(aceita):
-        raise _FalhaGit(f"git {sub}: {r.erro.strip().splitlines()[-1] if r.erro.strip() else r.codigo}")
+        raise _GitMissing(str(e)) from e
+    if r.code not in tuple(accepted):
+        raise _GitFailure(f"git {sub}: {r.error.strip().splitlines()[-1] if r.error.strip() else r.code}")
     return r
 
 
 # --- tipos de resultado ------------------------------------------------------------
 
-class Situacao(enum.Enum):
+class Status(enum.Enum):
     OK = "ok"
-    INEXISTENTE = "inexistente"            # caminho não existe
-    NAO_GIT = "nao_git"                    # existe, mas não está num repositório
-    SEM_COMMITS = "sem_commits"
-    GIT_AUSENTE = "git_ausente"            # executável não encontrado
-    ERRO = "erro"                          # o git falhou; ver `detalhe`
-    COMMIT_INEXISTENTE = "commit_inexistente"
-    HASH_AMBIGUO = "hash_ambiguo"          # prefixo curto casa com mais de um objeto
-    NAO_SE_APLICA = "nao_se_aplica"        # ex.: retoque pedido para commit de merge
+    MISSING = "inexistente"            # caminho não existe
+    NOT_GIT = "nao_git"                    # existe, mas não está num repositório
+    NO_COMMITS = "sem_commits"
+    GIT_MISSING = "git_ausente"            # executável não encontrado
+    ERROR = "erro"                          # o git falhou; ver `detalhe`
+    COMMIT_MISSING = "commit_inexistente"
+    AMBIGUOUS_HASH = "hash_ambiguo"          # prefixo curto casa com mais de um objeto
+    NOT_APPLICABLE = "nao_se_aplica"        # ex.: retoque pedido para commit de merge
 
 
-class Classe(enum.Enum):
-    NENHUM = "nenhum"
-    UM = "um"
-    AMBIGUO = "ambiguo"                    # mais de um: o módulo não escolhe
+class WindowClass(enum.Enum):
+    NONE = "nenhum"
+    ONE = "um"
+    AMBIGUOUS = "ambiguo"                    # mais de um: o módulo não escolhe
 
 
 @dataclass(frozen=True)
 class CommitInfo:
     hash: str
-    pais: tuple[str, ...]
-    data_commit: datetime                  # com o fuso gravado no commit
-    data_autor: datetime
-    autor: str                             # "nome <email>"; não sai do processo
-    mensagem: str
-    so_reflog: bool                        # nenhuma ref nem HEAD alcança; só o reflog
+    parents: tuple[str, ...]
+    commit_date: datetime                  # com o fuso gravado no commit
+    author_date: datetime
+    author: str                             # "nome <email>"; não sai do processo
+    message: str
+    reflog_only: bool                        # nenhuma ref nem HEAD alcança; só o reflog
 
     @property
-    def assunto(self) -> str:
-        return self.mensagem.split("\n", 1)[0]
+    def subject(self) -> str:
+        return self.message.split("\n", 1)[0]
 
     @property
     def merge(self) -> bool:
-        return len(self.pais) > 1
+        return len(self.parents) > 1
 
 
 @dataclass
-class Repositorio:
-    situacao: Situacao
-    caminho: Path
-    raiz: Path | None = None               # topo do worktree aberto (None se bare)
+class Repository:
+    status: Status
+    path: Path
+    root: Path | None = None               # topo do worktree aberto (None se bare)
     git_dir: Path | None = None
-    comum: Path | None = None              # diretório comum a todos os worktrees
-    branch_padrao: str | None = None       # ref completa, ex. refs/heads/main
-    origem_padrao: str | None = None       # parametro | origin/HEAD | nome convencional
-    detalhe: str | None = None
-    executor: Executor = field(default=executor_padrao, repr=False)
-    _indice: dict[str, CommitInfo] | None = field(default=None, repr=False)
-    _amends_reflog: list[tuple[str, str]] | None = field(default=None, repr=False)
-    _arquivos: dict[str, frozenset[str]] | None = field(default=None, repr=False)
+    common_dir: Path | None = None              # diretório comum a todos os worktrees
+    default_branch: str | None = None       # ref completa, ex. refs/heads/main
+    default_remote: str | None = None       # parametro | origin/HEAD | nome convencional
+    detail: str | None = None
+    executor: Executor = field(default=default_executor, repr=False)
+    _index: dict[str, CommitInfo] | None = field(default=None, repr=False)
+    _reflog_amends: list[tuple[str, str]] | None = field(default=None, repr=False)
+    _files: dict[str, frozenset[str]] | None = field(default=None, repr=False)
 
-    def git(self, args: list[str], entrada: str | None = None, *,
-            aceita: Iterable[int] = (0,), cwd: Path | None = None) -> Execucao:
-        return _git(self.executor, cwd or self.raiz or self.git_dir or self.caminho,
-                    args, entrada, aceita=aceita)
+    def git(self, args: list[str], input: str | None = None, *,
+            accepted: Iterable[int] = (0,), cwd: Path | None = None) -> Run:
+        return _git(self.executor, cwd or self.root or self.git_dir or self.path,
+                    args, input, accepted=accepted)
 
 
 @dataclass
-class Janela:
-    situacao: Situacao
-    inicio: datetime | None = None
-    fim: datetime | None = None
+class Window:
+    status: Status
+    start: datetime | None = None
+    end: datetime | None = None
     commits: list[CommitInfo] = field(default_factory=list)
-    classe: Classe | None = None
-    detalhe: str | None = None
+    window_class: WindowClass | None = None
+    detail: str | None = None
 
 
 @dataclass
-class SituacaoCommit:
-    situacao: Situacao
+class CommitStatus:
+    status: Status
     hash: str | None = None
-    existe: bool = False
+    exists: bool = False
     branches: list[str] = field(default_factory=list)       # locais, sem refs/heads/
-    remotos: list[str] = field(default_factory=list)
+    remotes: list[str] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
-    outras_refs: list[str] = field(default_factory=list)    # stash, notes...
-    head_destacado: bool = False           # alcançável pelo HEAD destacado de algum worktree
-    na_padrao: bool | None = None          # None: branch padrão desconhecida
-    so_reflog: bool = False
-    pode_ser_squash: bool | None = None    # fora da padrão: squash/rebase não detectável
-    copia_na_padrao: bool | None = None    # a padrão tem commit com o mesmo patch (git cherry)
-    aviso: str | None = None
-    detalhe: str | None = None
+    other_refs: list[str] = field(default_factory=list)    # stash, notes...
+    detached_head: bool = False           # alcançável pelo HEAD destacado de algum worktree
+    on_default: bool | None = None          # None: branch padrão desconhecida
+    reflog_only: bool = False
+    maybe_squash: bool | None = None    # fora da padrão: squash/rebase não detectável
+    copy_on_default: bool | None = None    # a padrão tem commit com o mesmo patch (git cherry)
+    warning: str | None = None
+    detail: str | None = None
 
 
 @dataclass
-class Substituto:
+class Replacer:
     hash: str
-    evidencias: list[str]                  # "reflog" e/ou "estrutura"
-    intervalo: timedelta                   # data de commit do substituto menos a do original
+    evidence: list[str]                  # "reflog" e/ou "estrutura"
+    interval: timedelta                   # data de commit do substituto menos a do original
 
 
 @dataclass
 class Amend:
-    situacao: Situacao
+    status: Status
     hash: str | None = None
-    substituido: bool = False
-    substitutos: list[Substituto] = field(default_factory=list)
-    detalhe: str | None = None
+    replaced: bool = False
+    replacers: list[Replacer] = field(default_factory=list)
+    detail: str | None = None
 
 
 @dataclass
-class ReversaoEncontrada:
+class RevertFound:
     hash: str
-    pela_mensagem: bool                    # "This reverts commit <hash>"
-    conteudo_inverso: bool | None          # patch igual ao inverso do original; None: não deu para medir
-    intervalo: timedelta
-    so_reflog: bool
+    by_message: bool                    # "This reverts commit <hash>"
+    inverse_content: bool | None          # patch igual ao inverso do original; None: não deu para medir
+    interval: timedelta
+    reflog_only: bool
 
 
 @dataclass
-class Reversoes:
-    situacao: Situacao
+class Reverts:
+    status: Status
     hash: str | None = None
-    revertido: bool = False
-    por: list[ReversaoEncontrada] = field(default_factory=list)
-    detalhe: str | None = None
+    reverted_by: bool = False
+    by: list[RevertFound] = field(default_factory=list)
+    detail: str | None = None
 
 
 @dataclass
-class RetoqueEncontrado:
+class RetouchFound:
     hash: str
-    arquivos: list[str]                    # arquivos em comum com o commit original
-    intervalo: timedelta
-    so_reflog: bool
+    files: list[str]                    # arquivos em comum com o commit original
+    interval: timedelta
+    reflog_only: bool
 
 
 @dataclass
-class Retoques:
-    situacao: Situacao
+class Retouches:
+    status: Status
     hash: str | None = None
-    prazo: timedelta | None = None
-    arquivos: list[str] = field(default_factory=list)       # o que o commit alterou, menos os ignorados
-    ignorados: list[str] = field(default_factory=list)      # alterados, mas fora da medida
-    retoques: list[RetoqueEncontrado] = field(default_factory=list)
-    arquivos_retocados: list[str] = field(default_factory=list)
-    reversoes_excluidas: int = 0
-    prazo_aberto: bool | None = None       # None: `agora` não informado
-    fora_da_padrao: bool | None = None     # se sim, retoques feitos após squash não aparecem
-    confianca: str = "baixa"
-    detalhe: str | None = None
+    deadline: timedelta | None = None
+    files: list[str] = field(default_factory=list)       # o que o commit alterou, menos os ignorados
+    ignored: list[str] = field(default_factory=list)      # alterados, mas fora da medida
+    retouches: list[RetouchFound] = field(default_factory=list)
+    retouched_files: list[str] = field(default_factory=list)
+    excluded_reverts: int = 0
+    deadline_open: bool | None = None       # None: `agora` não informado
+    off_default: bool | None = None     # se sim, retoques feitos após squash não aparecem
+    confidence: str = "baixa"
+    detail: str | None = None
 
 
-def _protegido(tipo):
+def _guarded(kind):
     """Situação do repositório, git ausente e falha do git viram resultado."""
     def deco(fn):
         @functools.wraps(fn)
-        def envolvido(repo: Repositorio, *args, **kw):
-            if repo.situacao is not Situacao.OK:
-                return tipo(situacao=repo.situacao)
+        def involved(repo: Repository, *args, **kw):
+            if repo.status is not Status.OK:
+                return kind(status=repo.status)
             try:
                 return fn(repo, *args, **kw)
-            except _GitAusente as e:
-                return tipo(situacao=Situacao.GIT_AUSENTE, detalhe=str(e))
-            except _FalhaGit as e:
-                return tipo(situacao=Situacao.ERRO, detalhe=str(e))
-        return envolvido
+            except _GitMissing as e:
+                return kind(status=Status.GIT_MISSING, detail=str(e))
+            except _GitFailure as e:
+                return kind(status=Status.ERROR, detail=str(e))
+        return involved
     return deco
 
 
 # --- abertura ------------------------------------------------------------------------
 
-def abrir(caminho: str | Path, *, executor: Executor | None = None,
-          branch_padrao: str | None = None) -> Repositorio:
+def open_repository(path: str | Path, *, executor: Executor | None = None,
+          default_branch: str | None = None) -> Repository:
     """Localiza o repositório que contém `caminho` (emenda E3)."""
-    executor = executor or executor_padrao
-    p = Path(caminho)
-    repo = Repositorio(Situacao.OK, p, executor=executor)
+    executor = executor or default_executor
+    p = Path(path)
+    repo = Repository(Status.OK, p, executor=executor)
     if not p.exists():
-        repo.situacao = Situacao.INEXISTENTE
+        repo.status = Status.MISSING
         return repo
     if not p.is_dir():
-        repo.situacao, repo.detalhe = Situacao.NAO_GIT, "não é diretório"
+        repo.status, repo.detail = Status.NOT_GIT, "não é diretório"
         return repo
     try:
         r = _git(executor, p, ["rev-parse", "--is-bare-repository", "--absolute-git-dir",
-                               "--git-common-dir"], aceita=range(256))
-        if r.codigo != 0:
-            if "not a git repository" in r.erro:
-                repo.situacao = Situacao.NAO_GIT
+                               "--git-common-dir"], accepted=range(256))
+        if r.code != 0:
+            if "not a git repository" in r.error:
+                repo.status = Status.NOT_GIT
             else:
-                repo.situacao = Situacao.ERRO
-                repo.detalhe = r.erro.strip() or f"código {r.codigo}"
+                repo.status = Status.ERROR
+                repo.detail = r.error.strip() or f"código {r.code}"
             return repo
-        bare, git_dir, comum = r.saida.splitlines()[:3]
+        bare, git_dir, common_dir = r.output.splitlines()[:3]
         repo.git_dir = Path(git_dir)
-        comum_p = Path(comum)
-        repo.comum = (comum_p if comum_p.is_absolute() else p / comum_p).resolve()
+        common_p = Path(common_dir)
+        repo.common_dir = (common_p if common_p.is_absolute() else p / common_p).resolve()
         if bare != "true":
-            topo = _git(executor, p, ["rev-parse", "--show-toplevel"]).saida.strip()
-            repo.raiz = Path(topo).resolve()
-        if not repo.git(["rev-list", "-n", "1", "--all", "--reflog"]).saida.strip():
-            repo.situacao = Situacao.SEM_COMMITS
+            top = _git(executor, p, ["rev-parse", "--show-toplevel"]).output.strip()
+            repo.root = Path(top).resolve()
+        if not repo.git(["rev-list", "-n", "1", "--all", "--reflog"]).output.strip():
+            repo.status = Status.NO_COMMITS
             return repo
-        repo.branch_padrao, repo.origem_padrao = _branch_padrao(repo, branch_padrao)
-    except _GitAusente as e:
-        repo.situacao, repo.detalhe = Situacao.GIT_AUSENTE, str(e)
-    except _FalhaGit as e:
-        repo.situacao, repo.detalhe = Situacao.ERRO, str(e)
+        repo.default_branch, repo.default_remote = _default_branch(repo, default_branch)
+    except _GitMissing as e:
+        repo.status, repo.detail = Status.GIT_MISSING, str(e)
+    except _GitFailure as e:
+        repo.status, repo.detail = Status.ERROR, str(e)
     return repo
 
 
-def _ref_existe(repo: Repositorio, ref: str) -> bool:
+def _ref_exists(repo: Repository, ref: str) -> bool:
     return repo.git(["rev-parse", "--verify", "--quiet", ref + "^{commit}"],
-                    aceita=(0, 1, 128)).codigo == 0
+                    accepted=(0, 1, 128)).code == 0
 
 
-def _branch_padrao(repo: Repositorio, pedida: str | None) -> tuple[str | None, str | None]:
-    if pedida:
-        ref = pedida if pedida.startswith("refs/") else f"refs/heads/{pedida}"
+def _default_branch(repo: Repository, requested: str | None) -> tuple[str | None, str | None]:
+    if requested:
+        ref = requested if requested.startswith("refs/") else f"refs/heads/{requested}"
         return ref, "parametro"
     r = repo.git(["rev-parse", "--symbolic-full-name", "refs/remotes/origin/HEAD"],
-                 aceita=range(256))
-    alvo = r.saida.strip() if r.codigo == 0 else ""
-    if alvo.startswith("refs/remotes/origin/"):
-        local = "refs/heads/" + alvo.removeprefix("refs/remotes/origin/")
-        return (local if _ref_existe(repo, local) else alvo), "origin/HEAD"
-    for nome in ("main", "master"):
-        if _ref_existe(repo, f"refs/heads/{nome}"):
-            return f"refs/heads/{nome}", "nome convencional"
+                 accepted=range(256))
+    target = r.output.strip() if r.code == 0 else ""
+    if target.startswith("refs/remotes/origin/"):
+        local = "refs/heads/" + target.removeprefix("refs/remotes/origin/")
+        return (local if _ref_exists(repo, local) else target), "origin/HEAD"
+    for name in ("main", "master"):
+        if _ref_exists(repo, f"refs/heads/{name}"):
+            return f"refs/heads/{name}", "nome convencional"
     return None, None
 
 
@@ -329,175 +329,175 @@ def _branch_padrao(repo: Repositorio, pedida: str | None) -> tuple[str | None, s
 _FMT = "%H%x1f%P%x1f%cI%x1f%aI%x1f%an <%ae>%x1f%B%x1e"
 
 
-def _parse_log(saida: str, so_reflog: set[str]) -> list[CommitInfo]:
+def _parse_log(output: str, reflog_only: set[str]) -> list[CommitInfo]:
     out = []
-    for bloco in saida.split("\x1e"):
-        bloco = bloco.lstrip("\n")
-        if not bloco:
+    for block in output.split("\x1e"):
+        block = block.lstrip("\n")
+        if not block:
             continue
-        h, pais, ci, ai, autor, msg = bloco.split("\x1f", 5)
-        out.append(CommitInfo(h, tuple(pais.split()), datetime.fromisoformat(ci),
-                              datetime.fromisoformat(ai), autor, msg.rstrip("\n"),
-                              h in so_reflog))
+        h, parents, ci, ai, author, msg = block.split("\x1f", 5)
+        out.append(CommitInfo(h, tuple(parents.split()), datetime.fromisoformat(ci),
+                              datetime.fromisoformat(ai), author, msg.rstrip("\n"),
+                              h in reflog_only))
     return out
 
 
-def _indice(repo: Repositorio) -> dict[str, CommitInfo]:
+def _index(repo: Repository) -> dict[str, CommitInfo]:
     """Todo commit alcançável por ref, HEAD de worktree ou reflog."""
-    if repo._indice is None:
-        so = set(repo.git(["rev-list", "--reflog", "--not", "--all"]).saida.split())
-        log = repo.git(["log", "--all", "--reflog", "--format=" + _FMT]).saida
-        repo._indice = {c.hash: c for c in _parse_log(log, so)}
-    return repo._indice
+    if repo._index is None:
+        only = set(repo.git(["rev-list", "--reflog", "--not", "--all"]).output.split())
+        log = repo.git(["log", "--all", "--reflog", "--format=" + _FMT]).output
+        repo._index = {c.hash: c for c in _parse_log(log, only)}
+    return repo._index
 
 
 _HASH = re.compile(r"[0-9a-fA-F]{4,64}")
 
 
-def _resolver(repo: Repositorio, hash_: str) -> tuple[Situacao, CommitInfo | None]:
+def _resolve(repo: Repository, hash_: str) -> tuple[Status, CommitInfo | None]:
     if not isinstance(hash_, str) or not _HASH.fullmatch(hash_):
-        return Situacao.COMMIT_INEXISTENTE, None
+        return Status.COMMIT_MISSING, None
     r = repo.git(["rev-parse", "--verify", "--quiet", hash_.lower() + "^{commit}"],
-                 aceita=range(256))
-    if r.codigo != 0:
-        if "ambiguous" in r.erro:
-            return Situacao.HASH_AMBIGUO, None
-        return Situacao.COMMIT_INEXISTENTE, None
-    completo = r.saida.strip()
-    idx = _indice(repo)
-    if completo in idx:
-        return Situacao.OK, idx[completo]
+                 accepted=range(256))
+    if r.code != 0:
+        if "ambiguous" in r.error:
+            return Status.AMBIGUOUS_HASH, None
+        return Status.COMMIT_MISSING, None
+    complete = r.output.strip()
+    idx = _index(repo)
+    if complete in idx:
+        return Status.OK, idx[complete]
     # existe no banco de objetos, mas nada o alcança (reflog expirado, ainda sem gc)
-    log = repo.git(["log", "-1", "--no-walk", "--format=" + _FMT, completo]).saida
+    log = repo.git(["log", "-1", "--no-walk", "--format=" + _FMT, complete]).output
     info = _parse_log(log, set())[0]
-    return Situacao.OK, info
+    return Status.OK, info
 
 
-def _instante(t: datetime, nome: str) -> datetime:
+def _instant(t: datetime, name: str) -> datetime:
     if not isinstance(t, datetime) or t.tzinfo is None or t.utcoffset() is None:
-        raise ValueError(f"{nome}: horário sem fuso; informe um datetime com tzinfo")
+        raise ValueError(f"{name}: horário sem fuso; informe um datetime com tzinfo")
     return t
 
 
 # --- 1. janela -----------------------------------------------------------------------
 
-@_protegido(Janela)
-def commits_na_janela(repo: Repositorio, inicio: datetime, fim: datetime) -> Janela:
+@_guarded(Window)
+def commits_in_window(repo: Repository, start: datetime, end: datetime) -> Window:
     """Commits cuja data de commit cai em [inicio, fim], por instante.
 
     O git grava segundos inteiros; por isso o início é truncado ao segundo
     (o commit feito em 12:00:00.900 aparece como 12:00:00). Inclui commits
     que só o reflog alcança. Mais de um é AMBIGUO: o módulo não escolhe.
     """
-    _instante(inicio, "inicio")
-    _instante(fim, "fim")
-    if fim < inicio:
+    _instant(start, "inicio")
+    _instant(end, "fim")
+    if end < start:
         raise ValueError("fim antes do início")
-    piso = inicio.replace(microsecond=0)
-    achados = sorted((c for c in _indice(repo).values() if piso <= c.data_commit <= fim),
-                     key=lambda c: (c.data_commit, c.hash))
-    classe = (Classe.NENHUM, Classe.UM)[len(achados)] if len(achados) < 2 else Classe.AMBIGUO
-    return Janela(Situacao.OK, inicio, fim, achados, classe)
+    floor = start.replace(microsecond=0)
+    findings = sorted((c for c in _index(repo).values() if floor <= c.commit_date <= end),
+                     key=lambda c: (c.commit_date, c.hash))
+    window_class = (WindowClass.NONE, WindowClass.ONE)[len(findings)] if len(findings) < 2 else WindowClass.AMBIGUOUS
+    return Window(Status.OK, start, end, findings, window_class)
 
 
 # --- 2. situação ---------------------------------------------------------------------
 
-def _worktrees(repo: Repositorio) -> list[dict[str, str]]:
-    saida = repo.git(["worktree", "list", "--porcelain", "-z"]).saida
-    blocos, atual = [], {}
-    for campo in saida.split("\0"):
-        if not campo:
-            if atual:
-                blocos.append(atual)
-            atual = {}
+def _worktrees(repo: Repository) -> list[dict[str, str]]:
+    output = repo.git(["worktree", "list", "--porcelain", "-z"]).output
+    blocks, current = [], {}
+    for field_name in output.split("\0"):
+        if not field_name:
+            if current:
+                blocks.append(current)
+            current = {}
             continue
-        chave, _, valor = campo.partition(" ")
-        atual[chave] = valor
-    if atual:
-        blocos.append(atual)
-    return blocos
+        key, _, value = field_name.partition(" ")
+        current[key] = value
+    if current:
+        blocks.append(current)
+    return blocks
 
 
-def _ancestral(repo: Repositorio, a: str, b: str) -> bool:
-    return repo.git(["merge-base", "--is-ancestor", a, b], aceita=(0, 1)).codigo == 0
+def _is_ancestor(repo: Repository, a: str, b: str) -> bool:
+    return repo.git(["merge-base", "--is-ancestor", a, b], accepted=(0, 1)).code == 0
 
 
-@_protegido(SituacaoCommit)
-def situacao_commit(repo: Repositorio, hash_: str) -> SituacaoCommit:
-    sit, c = _resolver(repo, hash_)
+@_guarded(CommitStatus)
+def commit_status(repo: Repository, hash_: str) -> CommitStatus:
+    st, c = _resolve(repo, hash_)
     if c is None:
-        return SituacaoCommit(sit)
-    s = SituacaoCommit(Situacao.OK, c.hash, existe=True)
-    refs = repo.git(["for-each-ref", "--contains", c.hash, "--format=%(refname)"]).saida.split("\n")
+        return CommitStatus(st)
+    s = CommitStatus(Status.OK, c.hash, exists=True)
+    refs = repo.git(["for-each-ref", "--contains", c.hash, "--format=%(refname)"]).output.split("\n")
     for ref in filter(None, refs):
         if ref.startswith("refs/heads/"):
             s.branches.append(ref.removeprefix("refs/heads/"))
         elif ref.startswith("refs/remotes/"):
             if not ref.endswith("/HEAD"):
-                s.remotos.append(ref.removeprefix("refs/remotes/"))
+                s.remotes.append(ref.removeprefix("refs/remotes/"))
         elif ref.startswith("refs/tags/"):
             s.tags.append(ref.removeprefix("refs/tags/"))
         else:
-            s.outras_refs.append(ref)
-    for lista in (s.branches, s.remotos, s.tags, s.outras_refs):
-        lista.sort()
+            s.other_refs.append(ref)
+    for lst in (s.branches, s.remotes, s.tags, s.other_refs):
+        lst.sort()
     for wt in _worktrees(repo):
-        if "detached" in wt and wt.get("HEAD") and _ancestral(repo, c.hash, wt["HEAD"]):
-            s.head_destacado = True
-    s.so_reflog = c.so_reflog
-    if repo.branch_padrao and _ref_existe(repo, repo.branch_padrao):
-        s.na_padrao = _ancestral(repo, c.hash, repo.branch_padrao)
-        s.pode_ser_squash = not s.na_padrao
-        if not s.na_padrao:
-            s.copia_na_padrao = _copia_na_padrao(repo, c)
-            s.aviso = ("fora da branch padrão: se foi incorporado por squash ou rebase, "
+        if "detached" in wt and wt.get("HEAD") and _is_ancestor(repo, c.hash, wt["HEAD"]):
+            s.detached_head = True
+    s.reflog_only = c.reflog_only
+    if repo.default_branch and _ref_exists(repo, repo.default_branch):
+        s.on_default = _is_ancestor(repo, c.hash, repo.default_branch)
+        s.maybe_squash = not s.on_default
+        if not s.on_default:
+            s.copy_on_default = _copy_on_default(repo, c)
+            s.warning = ("fora da branch padrão: se foi incorporado por squash ou rebase, "
                        "o conteúdo pode estar lá com outro hash; o módulo não detecta squash")
     return s
 
 
-def _copia_na_padrao(repo: Repositorio, c: CommitInfo) -> bool | None:
+def _copy_on_default(repo: Repository, c: CommitInfo) -> bool | None:
     """`git cherry`: há na padrão um commit com o mesmo patch? (rebase, cherry-pick,
     squash de um commit só). Squash de vários commits não é detectado."""
-    if len(c.pais) != 1:
+    if len(c.parents) != 1:
         return None
-    r = repo.git(["cherry", repo.branch_padrao, c.hash, c.pais[0]])
-    for linha in r.saida.splitlines():
-        sinal, _, h = linha.partition(" ")
+    r = repo.git(["cherry", repo.default_branch, c.hash, c.parents[0]])
+    for line in r.output.splitlines():
+        sign, _, h = line.partition(" ")
         if h.strip() == c.hash:
-            return sinal == "-"
+            return sign == "-"
     return None
 
 
 # --- 3. amend ------------------------------------------------------------------------
 
-def _amends_reflog(repo: Repositorio) -> list[tuple[str, str]]:
+def _reflog_amends(repo: Repository) -> list[tuple[str, str]]:
     """Pares (antigo, novo) das entradas "commit (amend)" dos reflogs legíveis:
     HEAD de cada worktree existente e cada branch local."""
-    if repo._amends_reflog is not None:
-        return repo._amends_reflog
-    leituras: list[tuple[Path, str]] = []
+    if repo._reflog_amends is not None:
+        return repo._reflog_amends
+    readings: list[tuple[Path, str]] = []
     for wt in _worktrees(repo):
         p = Path(wt.get("worktree", ""))
         if "bare" not in wt and p.is_dir():
-            leituras.append((p, "HEAD"))
-    base = repo.raiz or repo.git_dir or repo.caminho
-    heads = repo.git(["for-each-ref", "--format=%(refname)", "refs/heads"]).saida.split("\n")
-    leituras += [(base, ref) for ref in heads if ref]
-    pares: set[tuple[str, str]] = set()
-    for cwd, ref in leituras:
-        r = repo.git(["log", "-g", "--format=%H%x1f%gs", ref, "--"], cwd=cwd, aceita=range(256))
-        if r.codigo != 0:
+            readings.append((p, "HEAD"))
+    base = repo.root or repo.git_dir or repo.path
+    heads = repo.git(["for-each-ref", "--format=%(refname)", "refs/heads"]).output.split("\n")
+    readings += [(base, ref) for ref in heads if ref]
+    pairs: set[tuple[str, str]] = set()
+    for cwd, ref in readings:
+        r = repo.git(["log", "-g", "--format=%H%x1f%gs", ref, "--"], cwd=cwd, accepted=range(256))
+        if r.code != 0:
             continue
-        entradas = [linha.split("\x1f", 1) for linha in r.saida.splitlines() if "\x1f" in linha]
-        for i, (novo, assunto) in enumerate(entradas):
-            if assunto.startswith("commit (amend)") and i + 1 < len(entradas):
-                pares.add((entradas[i + 1][0], novo))
-    repo._amends_reflog = sorted(pares)
-    return repo._amends_reflog
+        entries = [line.split("\x1f", 1) for line in r.output.splitlines() if "\x1f" in line]
+        for i, (new, subject) in enumerate(entries):
+            if subject.startswith("commit (amend)") and i + 1 < len(entries):
+                pairs.add((entries[i + 1][0], new))
+    repo._reflog_amends = sorted(pairs)
+    return repo._reflog_amends
 
 
-@_protegido(Amend)
-def amend(repo: Repositorio, hash_: str) -> Amend:
+@_guarded(Amend)
+def amend(repo: Repository, hash_: str) -> Amend:
     """O commit foi substituído por amend?
 
     Evidências: "reflog" (entrada "commit (amend)" cujo valor anterior é
@@ -505,39 +505,39 @@ def amend(repo: Repositorio, hash_: str) -> Amend:
     e mesma data de autor, feito depois: é o que o amend preserva). A
     estrutura também casa com `rebase -i` que reescreve sem mudar a base.
     """
-    sit, c = _resolver(repo, hash_)
+    st, c = _resolve(repo, hash_)
     if c is None:
-        return Amend(sit)
-    idx = _indice(repo)
+        return Amend(st)
+    idx = _index(repo)
     evid: dict[str, list[str]] = {}
-    for antigo, novo in _amends_reflog(repo):
-        if antigo == c.hash and novo != c.hash:
-            evid.setdefault(novo, []).append("reflog")
+    for old, new in _reflog_amends(repo):
+        if old == c.hash and new != c.hash:
+            evid.setdefault(new, []).append("reflog")
     for d in idx.values():
-        if (d.hash != c.hash and d.pais == c.pais and d.autor == c.autor
-                and d.data_autor == c.data_autor and d.data_commit >= c.data_commit):
+        if (d.hash != c.hash and d.parents == c.parents and d.author == c.author
+                and d.author_date == c.author_date and d.commit_date >= c.commit_date):
             evid.setdefault(d.hash, []).append("estrutura")
     subs = []
     for h, ev in evid.items():
-        d = idx.get(h) or _resolver(repo, h)[1]
+        d = idx.get(h) or _resolve(repo, h)[1]
         if d is None:
             continue
-        subs.append(Substituto(h, ev, d.data_commit - c.data_commit))
-    subs.sort(key=lambda s: (s.intervalo, s.hash))
-    return Amend(Situacao.OK, c.hash, bool(subs), subs)
+        subs.append(Replacer(h, ev, d.commit_date - c.commit_date))
+    subs.sort(key=lambda s: (s.interval, s.hash))
+    return Amend(Status.OK, c.hash, bool(subs), subs)
 
 
 @dataclass
-class Substituicao:
-    situacao: Situacao
+class Replacement:
+    status: Status
     hash: str | None = None
-    substitui: bool = False
-    originais: list[Substituto] = field(default_factory=list)   # intervalo: este menos o original
-    detalhe: str | None = None
+    replaces: bool = False
+    originals: list[Replacer] = field(default_factory=list)   # intervalo: este menos o original
+    detail: str | None = None
 
 
-@_protegido(Substituicao)
-def substituidos(repo: Repositorio, hash_: str) -> Substituicao:
+@_guarded(Replacement)
+def replaced_commits(repo: Repository, hash_: str) -> Replacement:
     """O commit substituiu outro por amend? A pergunta inversa de `amend`.
 
     Mesmas evidências: "reflog" (entrada "commit (amend)" cujo valor novo é
@@ -545,34 +545,34 @@ def substituidos(repo: Repositorio, hash_: str) -> Substituicao:
     mesma data de autor, feito antes ou no mesmo segundo). Serve para o
     histórico arbitrar o amend de uma chamada de commit (E7, acréscimos).
     """
-    sit, c = _resolver(repo, hash_)
+    st, c = _resolve(repo, hash_)
     if c is None:
-        return Substituicao(sit)
-    idx = _indice(repo)
+        return Replacement(st)
+    idx = _index(repo)
     evid: dict[str, list[str]] = {}
-    for antigo, novo in _amends_reflog(repo):
-        if novo == c.hash and antigo != c.hash:
-            evid.setdefault(antigo, []).append("reflog")
+    for old, new in _reflog_amends(repo):
+        if new == c.hash and old != c.hash:
+            evid.setdefault(old, []).append("reflog")
     for d in idx.values():
-        if (d.hash != c.hash and d.pais == c.pais and d.autor == c.autor
-                and d.data_autor == c.data_autor and d.data_commit <= c.data_commit):
+        if (d.hash != c.hash and d.parents == c.parents and d.author == c.author
+                and d.author_date == c.author_date and d.commit_date <= c.commit_date):
             evid.setdefault(d.hash, []).append("estrutura")
-    originais = []
+    originals = []
     for h, ev in evid.items():
-        d = idx.get(h) or _resolver(repo, h)[1]
+        d = idx.get(h) or _resolve(repo, h)[1]
         if d is None:
             continue
-        originais.append(Substituto(h, ev, c.data_commit - d.data_commit))
-    originais.sort(key=lambda s: (s.intervalo, s.hash))
-    return Substituicao(Situacao.OK, c.hash, bool(originais), originais)
+        originals.append(Replacer(h, ev, c.commit_date - d.commit_date))
+    originals.sort(key=lambda s: (s.interval, s.hash))
+    return Replacement(Status.OK, c.hash, bool(originals), originals)
 
 
 # --- 4. reversão ---------------------------------------------------------------------
 
-_REVERTE = re.compile(r"This reverts commit ([0-9a-f]{7,64})")
+_REVERTS = re.compile(r"This reverts commit ([0-9a-f]{7,64})")
 
 
-def _mapa_de_arquivos(repo: Repositorio) -> dict[str, frozenset[str]]:
+def _file_map(repo: Repository) -> dict[str, frozenset[str]]:
     """Arquivos alterados por todo commit sem merge do índice, numa só chamada.
 
     Antes (goal 011) era um processo git por commit e por candidato; no
@@ -580,103 +580,103 @@ def _mapa_de_arquivos(repo: Repositorio) -> dict[str, frozenset[str]]:
     (goal 013). O resultado é o mesmo: lista em relação ao único pai, ou
     tudo na raiz, sem detecção de renomeação.
     """
-    if repo._arquivos is None:
-        saida = repo.git(["log", "--all", "--reflog", "--no-merges", "--no-renames",
-                          "--format=%x1e%H", "--name-only", "-z"]).saida
-        mapa = {}
-        for bloco in saida.split("\x1e"):
-            if not bloco.strip():
+    if repo._files is None:
+        output = repo.git(["log", "--all", "--reflog", "--no-merges", "--no-renames",
+                          "--format=%x1e%H", "--name-only", "-z"]).output
+        mapping = {}
+        for block in output.split("\x1e"):
+            if not block.strip():
                 continue
-            h, _, resto = bloco.partition("\0")
-            mapa[h.strip()] = frozenset(filter(None, resto.lstrip("\n").split("\0")))
-        repo._arquivos = mapa
-    return repo._arquivos
+            h, _, rest = block.partition("\0")
+            mapping[h.strip()] = frozenset(filter(None, rest.lstrip("\n").split("\0")))
+        repo._files = mapping
+    return repo._files
 
 
-def _arquivos(repo: Repositorio, h: str) -> list[str]:
+def _files(repo: Repository, h: str) -> list[str]:
     """Arquivos alterados pelo commit em relação ao primeiro pai (todos, se raiz)."""
-    mapa = _mapa_de_arquivos(repo)
-    if h in mapa:
-        return sorted(mapa[h])
+    mapping = _file_map(repo)
+    if h in mapping:
+        return sorted(mapping[h])
     r = repo.git(["diff-tree", "--no-commit-id", "-r", "--name-only", "-z", "--root", h])
-    return sorted(set(filter(None, r.saida.split("\0"))))
+    return sorted(set(filter(None, r.output.split("\0"))))
 
 
-def _tocam(repo: Repositorio, arquivos: list[str]) -> set[str]:
+def _touching(repo: Repository, files: list[str]) -> set[str]:
     """Commits sem merge, em qualquer ref ou reflog, que alteram algum dos arquivos."""
-    if not arquivos:
+    if not files:
         return set()
-    alvo = set(arquivos)
-    return {h for h, fs in _mapa_de_arquivos(repo).items() if fs & alvo}
+    target = set(files)
+    return {h for h, fs in _file_map(repo).items() if fs & target}
 
 
 _DIFF = ["--no-color", "--no-ext-diff", "--no-renames", "--full-index", "-p"]
 
 
-def _patch_id(repo: Repositorio, diff: str) -> str | None:
+def _patch_id(repo: Repository, diff: str) -> str | None:
     if not diff.strip():
         return None
-    r = repo.git(["patch-id", "--stable"], entrada=diff)
-    return r.saida.split()[0] if r.saida.strip() else None
+    r = repo.git(["patch-id", "--stable"], input=diff)
+    return r.output.split()[0] if r.output.strip() else None
 
 
-def _reversoes(repo: Repositorio, c: CommitInfo) -> list[ReversaoEncontrada]:
-    idx = _indice(repo)
-    candidatos: dict[str, bool] = {}
+def _reverts(repo: Repository, c: CommitInfo) -> list[RevertFound]:
+    idx = _index(repo)
+    candidates: dict[str, bool] = {}
     for d in idx.values():
-        if d.hash != c.hash and any(c.hash.startswith(m) for m in _REVERTE.findall(d.mensagem)):
-            candidatos[d.hash] = True
-    alvo = _arquivos(repo, c.hash)
-    for h in _tocam(repo, alvo):
+        if d.hash != c.hash and any(c.hash.startswith(m) for m in _REVERTS.findall(d.message)):
+            candidates[d.hash] = True
+    target = _files(repo, c.hash)
+    for h in _touching(repo, target):
         d = idx.get(h)
-        if d and h != c.hash and d.data_commit >= c.data_commit and h not in candidatos:
-            candidatos[h] = False
-    if not candidatos:
+        if d and h != c.hash and d.commit_date >= c.commit_date and h not in candidates:
+            candidates[h] = False
+    if not candidates:
         return []
-    calculado: list[str | None] = []
+    computed: list[str | None] = []
 
-    def inverso() -> str | None:
+    def inverse() -> str | None:
         # Só calcula o patch inverso quando algum candidato precisa (goal 013).
-        if not calculado:
-            calculado.append(_patch_id(repo, repo.git(["diff", *_DIFF, c.hash, c.pais[0]]).saida)
-                             if c.pais else None)
-        return calculado[0]
+        if not computed:
+            computed.append(_patch_id(repo, repo.git(["diff", *_DIFF, c.hash, c.parents[0]]).output)
+                             if c.parents else None)
+        return computed[0]
 
-    achados = []
-    for h, pela_msg in candidatos.items():
+    findings = []
+    for h, by_msg in candidates.items():
         d = idx[h]
-        if not c.pais or len(d.pais) != 1:
-            conteudo = None
-        elif not pela_msg and _arquivos(repo, h) != alvo:
-            conteudo = False
-        elif inverso() is None:
-            conteudo = None
+        if not c.parents or len(d.parents) != 1:
+            content = None
+        elif not by_msg and _files(repo, h) != target:
+            content = False
+        elif inverse() is None:
+            content = None
         else:
-            pid = _patch_id(repo, repo.git(["diff", *_DIFF, d.pais[0], h]).saida)
-            conteudo = pid is not None and pid == inverso()
-        if pela_msg or conteudo:
-            achados.append(ReversaoEncontrada(h, pela_msg, conteudo,
-                                              d.data_commit - c.data_commit, d.so_reflog))
-    achados.sort(key=lambda x: (x.intervalo, x.hash))
-    return achados
+            pid = _patch_id(repo, repo.git(["diff", *_DIFF, d.parents[0], h]).output)
+            content = pid is not None and pid == inverse()
+        if by_msg or content:
+            findings.append(RevertFound(h, by_msg, content,
+                                              d.commit_date - c.commit_date, d.reflog_only))
+    findings.sort(key=lambda x: (x.interval, x.hash))
+    return findings
 
 
-@_protegido(Reversoes)
-def reversoes(repo: Repositorio, hash_: str) -> Reversoes:
+@_guarded(Reverts)
+def reverts(repo: Repository, hash_: str) -> Reverts:
     """Commits que revertem este: pela mensagem padrão do `git revert` ou por
     conteúdo (patch igual ao inverso do original, mesmo sem a mensagem)."""
-    sit, c = _resolver(repo, hash_)
+    st, c = _resolve(repo, hash_)
     if c is None:
-        return Reversoes(sit)
-    por = _reversoes(repo, c)
-    return Reversoes(Situacao.OK, c.hash, bool(por), por)
+        return Reverts(st)
+    by = _reverts(repo, c)
+    return Reverts(Status.OK, c.hash, bool(by), by)
 
 
 # --- 5. retoque ----------------------------------------------------------------------
 
-@_protegido(Retoques)
-def retoques(repo: Repositorio, hash_: str, dias: float, *,
-             agora: datetime | None = None, ignorar: Iterable[str] = ()) -> Retoques:
+@_guarded(Retouches)
+def retouches(repo: Repository, hash_: str, days: float, *,
+             now: datetime | None = None, ignore: Iterable[str] = ()) -> Retouches:
     """Outros commits que alteram de novo os arquivos deste, em até `dias`.
 
     Definição (sinal fraco de retrabalho, confiança baixa): commit D é
@@ -692,42 +692,42 @@ def retoques(repo: Repositorio, hash_: str, dias: float, *,
 
     Não diz se D corrige C: o módulo não sabe a intenção do segundo commit.
     """
-    prazo = timedelta(days=dias)
-    if agora is not None:
-        _instante(agora, "agora")
-    sit, c = _resolver(repo, hash_)
+    deadline = timedelta(days=days)
+    if now is not None:
+        _instant(now, "agora")
+    st, c = _resolve(repo, hash_)
     if c is None:
-        return Retoques(sit)
+        return Retouches(st)
     if c.merge:
-        return Retoques(Situacao.NAO_SE_APLICA, c.hash, prazo,
-                        detalhe="commit de merge: os arquivos dependem do pai escolhido")
-    padroes = list(ignorar)
-    todos = _arquivos(repo, c.hash)
-    fora = [a for a in todos if any(fnmatch.fnmatchcase(a, p) for p in padroes)]
-    res = Retoques(Situacao.OK, c.hash, prazo, ignorados=fora,
-                   arquivos=[a for a in todos if a not in fora])
-    if agora is not None:
-        res.prazo_aberto = c.data_commit + prazo > agora
-    if repo.branch_padrao and _ref_existe(repo, repo.branch_padrao):
-        res.fora_da_padrao = not _ancestral(repo, c.hash, repo.branch_padrao)
-    idx = _indice(repo)
-    descendentes = set(repo.git(["rev-list", "--ancestry-path", "--all", "--reflog",
-                                 "^" + c.hash]).saida.split())
-    revertem = {x.hash for x in _reversoes(repo, c)}
-    alvo = set(res.arquivos)
-    for h in _tocam(repo, res.arquivos):
+        return Retouches(Status.NOT_APPLICABLE, c.hash, deadline,
+                        detail="commit de merge: os arquivos dependem do pai escolhido")
+    patterns = list(ignore)
+    all_ = _files(repo, c.hash)
+    excluded = [a for a in all_ if any(fnmatch.fnmatchcase(a, p) for p in patterns)]
+    res = Retouches(Status.OK, c.hash, deadline, ignored=excluded,
+                   files=[a for a in all_ if a not in excluded])
+    if now is not None:
+        res.deadline_open = c.commit_date + deadline > now
+    if repo.default_branch and _ref_exists(repo, repo.default_branch):
+        res.off_default = not _is_ancestor(repo, c.hash, repo.default_branch)
+    idx = _index(repo)
+    descendants = set(repo.git(["rev-list", "--ancestry-path", "--all", "--reflog",
+                                 "^" + c.hash]).output.split())
+    reverters = {x.hash for x in _reverts(repo, c)}
+    target = set(res.files)
+    for h in _touching(repo, res.files):
         d = idx.get(h)
-        if d is None or h == c.hash or h not in descendentes:
+        if d is None or h == c.hash or h not in descendants:
             continue
-        intervalo = d.data_commit - c.data_commit
-        if intervalo > prazo:
+        interval = d.commit_date - c.commit_date
+        if interval > deadline:
             continue
-        if h in revertem:
-            res.reversoes_excluidas += 1
+        if h in reverters:
+            res.excluded_reverts += 1
             continue
-        comuns = sorted(alvo & set(_arquivos(repo, h)))
-        if comuns:
-            res.retoques.append(RetoqueEncontrado(h, comuns, intervalo, d.so_reflog))
-    res.retoques.sort(key=lambda x: (x.intervalo, x.hash))
-    res.arquivos_retocados = sorted({a for x in res.retoques for a in x.arquivos})
+        common = sorted(target & set(_files(repo, h)))
+        if common:
+            res.retouches.append(RetouchFound(h, common, interval, d.reflog_only))
+    res.retouches.sort(key=lambda x: (x.interval, x.hash))
+    res.retouched_files = sorted({a for x in res.retouches for a in x.files})
     return res

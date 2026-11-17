@@ -23,189 +23,189 @@ from pathlib import Path
 
 from dark import audit, inventory, reader, commit_linking, report
 
-_GIT_SO_LEITURA = {"GIT_OPTIONAL_LOCKS": "0"}
+_GIT_READ_ONLY = {"GIT_OPTIONAL_LOCKS": "0"}
 
 
 def _git(*args: str) -> subprocess.CompletedProcess | None:
     try:
         return subprocess.run(["git", *args], capture_output=True, text=True,
-                              env={**os.environ, **_GIT_SO_LEITURA})
+                              env={**os.environ, **_GIT_READ_ONLY})
     except OSError:
         return None
 
 
 @cache
-def identidade_git(raiz: Path) -> str | None:
+def git_identity(root: Path) -> str | None:
     """Identidade do repositório (E15): o commit inicial.
 
     Com mais de uma raiz no histórico, todas, em ordem. None quando não há
     commit, a pasta não existe mais ou o git não está disponível.
     """
-    r = _git("-C", str(raiz), "rev-list", "--max-parents=0", "HEAD")
+    r = _git("-C", str(root), "rev-list", "--max-parents=0", "HEAD")
     if r is None or r.returncode != 0:
         return None
     return ",".join(sorted(r.stdout.split())) or None
 
 
-def _repositorio_proximo(caminho: Path) -> Path | None:
+def _nearest_repository(path: Path) -> Path | None:
     """Pasta com `.git` mais próxima (a do próprio worktree, não a principal)."""
-    for pasta in (caminho, *caminho.parents):
-        if (pasta / ".git").exists():
-            return pasta
+    for folder in (path, *path.parents):
+        if (folder / ".git").exists():
+            return folder
     return None
 
 
-def aviso_de_saida(destino: Path) -> str | None:
+def output_warning(destination: Path) -> str | None:
     """Aviso se o arquivo de saída cai dentro de um repositório git sem estar ignorado."""
-    destino = Path(os.path.abspath(destino))
-    raiz = _repositorio_proximo(destino.parent)
-    if raiz is None:
+    destination = Path(os.path.abspath(destination))
+    root = _nearest_repository(destination.parent)
+    if root is None:
         return None
-    r = _git("-C", str(raiz), "check-ignore", "-q", str(destino))
+    r = _git("-C", str(root), "check-ignore", "-q", str(destination))
     if r is not None and r.returncode == 0:
         return None
-    return (f"aviso: {destino} fica dentro do repositório git {raiz} e não está "
+    return (f"aviso: {destination} fica dentro do repositório git {root} e não está "
             f"ignorado pelo git. O relatório traz nomes reais de skills, ferramentas "
             f"e servidores; cuidado para não versioná-lo.")
 
 
-def _confirmar(pergunta: str) -> bool:
+def _confirm(question: str) -> bool:
     if not sys.stdin.isatty():
         return True          # sem terminal, o aviso fica registrado e o comando segue
     try:
-        return input(f"{pergunta} [s/N] ").strip().lower() in ("s", "sim")
+        return input(f"{question} [s/N] ").strip().lower() in ("s", "sim")
     except EOFError:
         return False
 
 
-def _inventario(repos: list[Path], args: argparse.Namespace) -> inventory.Inventario | None:
+def _inventory(repos: list[Path], args: argparse.Namespace) -> inventory.Inventory | None:
     """Inventário de cada repositório, juntado; o escopo do usuário entra uma vez."""
-    existentes = [r for r in repos if r.is_dir()]
-    if not existentes:
+    existing = [r for r in repos if r.is_dir()]
+    if not existing:
         return None
-    junto = inventory.Inventario()
-    vistos_p, vistos_pl, vistos_f = set(), set(), set()
-    for r in existentes:
-        inv = inventory.inventariar(r, args.config, gerenciado=args.gerenciado)
-        for p in inv.pecas:
-            chave = (p.tipo, p.escopo, p.nome, str(p.origem))
-            if chave not in vistos_p:
-                vistos_p.add(chave)
-                junto.pecas.append(p)
+    combined = inventory.Inventory()
+    seen_p, seen_pl, seen_f = set(), set(), set()
+    for r in existing:
+        inv = inventory.take_inventory(r, args.config, managed=args.managed)
+        for p in inv.items:
+            key = (p.kind, p.scope, p.name, str(p.source))
+            if key not in seen_p:
+                seen_p.add(key)
+                combined.items.append(p)
         for pl in inv.plugins:
-            if (pl.nome, pl.ativo) not in vistos_pl:
-                vistos_pl.add((pl.nome, pl.ativo))
-                junto.plugins.append(pl)
-        for f in inv.falhas:
-            if (str(f.arquivo), f.mensagem) not in vistos_f:
-                vistos_f.add((str(f.arquivo), f.mensagem))
-                junto.falhas.append(f)
-    return junto
+            if (pl.name, pl.active) not in seen_pl:
+                seen_pl.add((pl.name, pl.active))
+                combined.plugins.append(pl)
+        for f in inv.failures:
+            if (str(f.file), f.message) not in seen_f:
+                seen_f.add((str(f.file), f.message))
+                combined.failures.append(f)
+    return combined
 
 
-def _auditar(args: argparse.Namespace) -> int:
-    if args.todos and args.caminho is not None:
+def _audit(args: argparse.Namespace) -> int:
+    if args.all_ and args.path is not None:
         print("dark auditar: informe o caminho de um repositório ou --todos, não os dois",
               file=sys.stderr)
         return 2
-    if not args.todos and args.caminho is None:
-        args.caminho = Path.cwd()
+    if not args.all_ and args.path is None:
+        args.path = Path.cwd()
     try:
-        ate = reader.instante(args.ate) if args.ate else None
+        cutoff = reader.instant(args.cutoff) if args.cutoff else None
     except ValueError:
-        print(f"dark auditar: --ate não é um horário ISO 8601: {args.ate}", file=sys.stderr)
+        print(f"dark auditar: --ate não é um horário ISO 8601: {args.cutoff}", file=sys.stderr)
         return 2
-    if args.dias is not None and args.dias < 1:
+    if args.days is not None and args.days < 1:
         print("dark auditar: --dias precisa ser 1 ou mais", file=sys.stderr)
         return 2
 
-    raiz = None
-    if not args.todos:
-        alvo = Path(os.path.abspath(args.caminho))
-        raiz = reader.raiz_git_de(alvo) if alvo.exists() else None
-        if raiz is None:
-            print(f"dark auditar: {args.caminho} não é um repositório git", file=sys.stderr)
+    root = None
+    if not args.all_:
+        target = Path(os.path.abspath(args.path))
+        root = reader.git_root_of(target) if target.exists() else None
+        if root is None:
+            print(f"dark auditar: {args.path} não é um repositório git", file=sys.stderr)
             return 2
 
-    leitura = reader.ler_tudo(args.config, ate=ate)
+    reading = reader.read_all(args.config, cutoff=cutoff)
 
-    def fora(texto: str) -> bool:
-        return any(x in texto for x in args.excluir_pasta)
+    def excluded(text: str) -> bool:
+        return any(x in text for x in args.exclude_dir)
 
-    sessoes = [s for s in leitura.sessoes if not fora(s.pasta_projeto)]
-    falhas = [f for f in leitura.falhas if not fora(str(f.arquivo))]
-    diretorios: list[Path] = []
-    if raiz is not None:
-        selecao = audit.selecionar(sessoes, raiz, identidade_git)
-        sessoes, diretorios = selecao.sessoes, selecao.diretorios
-        pastas = ({audit.pasta_de_projeto(d) for d in diretorios}
-                  | {s.pasta_projeto for s in sessoes})
-        falhas = audit.falhas_das_pastas(falhas, pastas)
+    sessions = [s for s in reading.sessions if not excluded(s.project_dir)]
+    failures = [f for f in reading.failures if not excluded(str(f.file))]
+    directories: list[Path] = []
+    if root is not None:
+        selection = audit.select(sessions, root, git_identity)
+        sessions, directories = selection.sessions, selection.directories
+        folders = ({audit.project_dir_of(d) for d in directories}
+                  | {s.project_dir for s in sessions})
+        failures = audit.failures_of_dirs(failures, folders)
 
-    desde = None
-    if args.dias is not None:
-        desde = (ate or datetime.now(timezone.utc)) - timedelta(days=args.dias)
-        sessoes = audit.do_periodo(sessoes, desde)
+    since = None
+    if args.days is not None:
+        since = (cutoff or datetime.now(timezone.utc)) - timedelta(days=args.days)
+        sessions = audit.in_period(sessions, since)
 
     # Inventário: o do repositório auditado, ou o de cada repositório das sessões.
-    repos = [raiz] if raiz is not None else sorted(
-        {s.repositorio for s in sessoes if s.repositorio is not None}, key=str)
-    inv = _inventario(repos, args)
+    repos = [root] if root is not None else sorted(
+        {s.repository for s in sessions if s.repository is not None}, key=str)
+    inv = _inventory(repos, args)
     # Git: só os repositórios das chamadas de commit das sessões selecionadas.
-    validas = [s for s in sessoes if not s.so_comando_local]
-    lig = None if args.sem_git else commit_linking.ligar(validas)
+    valid_sessions = [s for s in sessions if not s.local_command_only]
+    links = None if args.no_git else commit_linking.link_commits(valid_sessions)
 
-    resultado = audit.auditar(sessoes, falhas, repositorio=raiz, diretorios=diretorios,
-                                  desde=desde, ate=ate, inventory=inv, commit_linking=lig,
-                                  sem_git=args.sem_git)
-    texto = report.markdown(resultado)
-    codigo = 1 if falhas and not sessoes else 0
+    result = audit.audit(sessions, failures, repository=root, directories=directories,
+                                  since=since, cutoff=cutoff, inventory=inv, commit_linking=links,
+                                  no_git=args.no_git)
+    text = report.markdown(result)
+    code = 1 if failures and not sessions else 0
 
-    if args.saida is None:
-        sys.stdout.write(texto)
-        return codigo
-    aviso = aviso_de_saida(args.saida)
-    if aviso:
-        print(aviso, file=sys.stderr)
-        if not _confirmar("Gravar mesmo assim?"):
+    if args.output is None:
+        sys.stdout.write(text)
+        return code
+    warning = output_warning(args.output)
+    if warning:
+        print(warning, file=sys.stderr)
+        if not _confirm("Gravar mesmo assim?"):
             print("dark auditar: nada foi gravado", file=sys.stderr)
             return 1
-    args.saida.parent.mkdir(parents=True, exist_ok=True)
-    args.saida.write_text(texto, encoding="utf-8")
-    print(f"relatório gravado em {args.saida}", file=sys.stderr)
-    return codigo
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(text, encoding="utf-8")
+    print(f"relatório gravado em {args.output}", file=sys.stderr)
+    return code
 
 
 def main(argv: list[str] | None = None) -> int:
-    analisador = argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         prog="dark", description="Mede o harness do Claude Code de um repositório.")
-    comandos = analisador.add_subparsers(dest="comando", required=True)
-    a = comandos.add_parser(
+    commands = parser.add_subparsers(dest="command", required=True)
+    a = commands.add_parser(
         "auditar", help="relatório local sobre o harness de um repositório",
         description="Lê as transcrições do Claude Code e gera um relatório em Markdown. "
                     "Não altera o repositório auditado.")
-    a.add_argument("caminho", nargs="?", type=Path,
+    a.add_argument("path", metavar="caminho", nargs="?", type=Path,
                    help="repositório a auditar, qualquer pasta dentro dele "
                         "(padrão: o diretório atual)")
-    a.add_argument("--dias", type=int, default=None,
+    a.add_argument("--dias", dest="days", metavar="DIAS", type=int, default=None,
                    help="só sessões iniciadas nos últimos N dias (padrão: todo o histórico)")
-    a.add_argument("--ate", default=None,
+    a.add_argument("--ate", dest="cutoff", metavar="ATE", default=None,
                    help="ignora registros depois deste instante (ISO 8601; sem fuso, UTC)")
-    a.add_argument("--todos", action="store_true",
+    a.add_argument("--todos", dest="all_", action="store_true",
                    help="todas as sessões, de qualquer repositório (conferência)")
-    a.add_argument("--saida", type=Path, default=None,
+    a.add_argument("--saida", dest="output", metavar="SAIDA", type=Path, default=None,
                    help="grava o relatório neste arquivo (padrão: saída padrão)")
     a.add_argument("--config", type=Path, default=None,
                    help="diretório de configuração (padrão: CLAUDE_CONFIG_DIR ou ~/.claude)")
-    a.add_argument("--excluir-pasta", action="append", default=[],
+    a.add_argument("--excluir-pasta", dest="exclude_dir", metavar="EXCLUIR_PASTA", action="append", default=[],
                    help="ignora pastas de projeto cujo nome contém o texto (conferência)")
-    a.add_argument("--sem-git", action="store_true",
+    a.add_argument("--sem-git", dest="no_git", action="store_true",
                    help="não consulta o histórico git para ligar commits (mais rápido)")
-    a.add_argument("--gerenciado", type=Path, default=None,
+    a.add_argument("--gerenciado", dest="managed", metavar="GERENCIADO", type=Path, default=None,
                    help="diretório de política gerenciada (conferência; padrão: o do sistema)")
-    args = analisador.parse_args(argv)
-    if args.comando == "auditar":
-        return _auditar(args)
+    args = parser.parse_args(argv)
+    if args.command == "auditar":
+        return _audit(args)
     return 2
 
 

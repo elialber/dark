@@ -19,163 +19,163 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .case import Caso
-from .git import ErroGit, Executor, Git, executor_padrao
+from .case import Case
+from .git import GitError, Executor, Git, default_executor
 
 # Códigos com que o shell diz que não conseguiu executar o comando.
-_SHELL_NAO_RODOU = {126, 127}
-_SAIDA_GUARDADA = 4000
+_SHELL_DID_NOT_RUN = {126, 127}
+_SAVED_OUTPUT = 4000
 
 
-class Motivo(str, enum.Enum):
-    NAO_FALHA_NA_BASE = "não falha na base"
-    NAO_PASSA_NA_SOLUCAO = "não passa na solução"
-    COMANDO_NAO_RODA = "comando não roda"
-    TEMPO_ESGOTADO = "tempo esgotado"
-    ERRO_DE_PREPARACAO = "erro de preparação"
+class Reason(str, enum.Enum):
+    DOES_NOT_FAIL_ON_BASE = "não falha na base"
+    DOES_NOT_PASS_ON_SOLUTION = "não passa na solução"
+    COMMAND_DOES_NOT_RUN = "comando não roda"
+    TIMED_OUT = "tempo esgotado"
+    SETUP_ERROR = "erro de preparação"
 
 
 @dataclass
-class Execucao:
-    rotulo: str                 # "base" ou "solucao"
+class AcceptanceRun:
+    label: str                 # "base" ou "solucao"
     commit: str
-    codigo: int | None          # None quando não rodou ou estourou o tempo
-    duracao: float              # segundos, só do comando de aceite
-    tempo_esgotado: bool = False
-    nao_rodou: bool = False
-    saida: str = ""             # final da saída combinada, para diagnóstico
+    code: int | None          # None quando não rodou ou estourou o tempo
+    duration: float              # segundos, só do comando de aceite
+    timed_out: bool = False
+    did_not_run: bool = False
+    output: str = ""             # final da saída combinada, para diagnóstico
 
 
 @dataclass
-class Resultado:
+class ValidationResult:
     case: str
-    valido: bool
-    motivo: Motivo | None = None
-    detalhe: str = ""
-    execucoes: list[Execucao] = field(default_factory=list)
-    duracao_total: float = 0.0
+    valid: bool
+    reason: Reason | None = None
+    detail: str = ""
+    runs: list[AcceptanceRun] = field(default_factory=list)
+    total_duration: float = 0.0
 
 
-def rodar_aceite(comando: str | list[str], cwd: Path, tempo_limite: int) -> tuple[
+def run_acceptance(command: str | list[str], cwd: Path, timeout_s: int) -> tuple[
         int | None, float, bool, bool, str]:
     """Roda o comando; devolve (código, duração, tempo_esgotado, não_rodou, saída).
 
     O processo roda em grupo próprio, para que o estouro de tempo mate
     também os filhos.
     """
-    if isinstance(comando, str):
-        argv = ["sh", "-c", comando] if comando.strip() else []
+    if isinstance(command, str):
+        argv = ["sh", "-c", command] if command.strip() else []
     else:
-        argv = list(comando)
+        argv = list(command)
     if not argv:
         return None, 0.0, False, True, "comando vazio"
-    inicio = time.monotonic()
+    start = time.monotonic()
     try:
         proc = subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                                 start_new_session=True)
     except OSError as e:
-        return None, time.monotonic() - inicio, False, True, str(e)
+        return None, time.monotonic() - start, False, True, str(e)
     try:
-        bruto, _ = proc.communicate(timeout=tempo_limite)
+        raw, _ = proc.communicate(timeout=timeout_s)
     except subprocess.TimeoutExpired:
         try:
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
-        bruto, _ = proc.communicate()
-        return None, time.monotonic() - inicio, True, False, _final(bruto)
-    duracao = time.monotonic() - inicio
-    saida = _final(bruto)
-    if isinstance(comando, str) and proc.returncode in _SHELL_NAO_RODOU:
-        return proc.returncode, duracao, False, True, saida
-    return proc.returncode, duracao, False, False, saida
+        raw, _ = proc.communicate()
+        return None, time.monotonic() - start, True, False, _final(raw)
+    duration = time.monotonic() - start
+    output = _final(raw)
+    if isinstance(command, str) and proc.returncode in _SHELL_DID_NOT_RUN:
+        return proc.returncode, duration, False, True, output
+    return proc.returncode, duration, False, False, output
 
 
-def _final(bruto: bytes | None) -> str:
-    texto = (bruto or b"").decode("utf-8", "replace")
-    return texto[-_SAIDA_GUARDADA:]
+def _final(raw: bytes | None) -> str:
+    text = (raw or b"").decode("utf-8", "replace")
+    return text[-_SAVED_OUTPUT:]
 
 
-def _preparar(git: Git, commit: str, arquivos: list[str], de: str | None) -> None:
+def _prepare(git: Git, commit: str, files: list[str], from_commit: str | None) -> None:
     git("checkout", "--quiet", "--force", "--detach", commit)
     git("clean", "-q", "-fdx")
-    if arquivos:
-        git("checkout", de, "--", *arquivos)
+    if files:
+        git("checkout", from_commit, "--", *files)
 
 
-def validar(case: Caso, repo: Path, *, dir_trabalho: Path | None = None,
-            executor: Executor = executor_padrao) -> Resultado:
-    inicio = time.monotonic()
-    res = Resultado(case=case.id, valido=False)
-    origem = Path(repo).resolve()
-    de = case.aceite.origem_arquivos(case)
+def validate(case: Case, repo: Path, *, workdir: Path | None = None,
+            executor: Executor = default_executor) -> ValidationResult:
+    start = time.monotonic()
+    res = ValidationResult(case=case.id, valid=False)
+    source_repo = Path(repo).resolve()
+    from_commit = case.acceptance.files_source(case)
 
-    if case.aceite.arquivos and not de:
-        return _fim(res, inicio, Motivo.ERRO_DE_PREPARACAO,
+    if case.acceptance.files and not from_commit:
+        return _end(res, start, Reason.SETUP_ERROR,
                     "aceite.arquivos sem commit de origem")
 
-    etapas = [("base", case.commit_base)]
-    if case.commit_solucao:
-        etapas.append(("solucao", case.commit_solucao))
+    steps = [("base", case.base_commit)]
+    if case.solution_commit:
+        steps.append(("solucao", case.solution_commit))
 
-    with tempfile.TemporaryDirectory(prefix="dark-eval-", dir=dir_trabalho) as tmp:
-        copia = Path(tmp) / "repo"
+    with tempfile.TemporaryDirectory(prefix="dark-eval-", dir=workdir) as tmp:
+        clone = Path(tmp) / "repo"
         try:
             # Clone local: lê a origem, não grava nada nela.
             # Objetos do git são imutáveis: os hardlinks do clone local não
             # deixam a cópia alterar a origem.
             executor(["git", "clone", "--quiet", "--no-checkout",
-                      str(origem), str(copia)], Path(tmp))
-        except ErroGit as e:
-            return _fim(res, inicio, Motivo.ERRO_DE_PREPARACAO, f"clone: {e}")
-        git = Git(copia, executor)
+                      str(source_repo), str(clone)], Path(tmp))
+        except GitError as e:
+            return _end(res, start, Reason.SETUP_ERROR, f"clone: {e}")
+        git = Git(clone, executor)
 
-        for rotulo, commit in etapas:
+        for label, commit in steps:
             try:
-                _preparar(git, commit, case.aceite.arquivos, de)
-            except ErroGit as e:
-                return _fim(res, inicio, Motivo.ERRO_DE_PREPARACAO, f"{rotulo}: {e}")
-            codigo, dur, esgotou, nao_rodou, saida = rodar_aceite(
-                case.aceite.comando, copia, case.aceite.tempo_limite)
-            res.execucoes.append(Execucao(rotulo, commit, codigo, dur, esgotou,
-                                          nao_rodou, saida))
-            if esgotou:
-                return _fim(res, inicio, Motivo.TEMPO_ESGOTADO,
-                            f"{rotulo}: passou de {case.aceite.tempo_limite}s")
-            if nao_rodou:
-                return _fim(res, inicio, Motivo.COMANDO_NAO_RODA,
-                            f"{rotulo}: {saida.strip()[-300:]}")
-            if rotulo == "base" and codigo == 0:
-                return _fim(res, inicio, Motivo.NAO_FALHA_NA_BASE,
+                _prepare(git, commit, case.acceptance.files, from_commit)
+            except GitError as e:
+                return _end(res, start, Reason.SETUP_ERROR, f"{label}: {e}")
+            code, dur, expired, did_not_run, output = run_acceptance(
+                case.acceptance.command, clone, case.acceptance.timeout_s)
+            res.runs.append(AcceptanceRun(label, commit, code, dur, expired,
+                                          did_not_run, output))
+            if expired:
+                return _end(res, start, Reason.TIMED_OUT,
+                            f"{label}: passou de {case.acceptance.timeout_s}s")
+            if did_not_run:
+                return _end(res, start, Reason.COMMAND_DOES_NOT_RUN,
+                            f"{label}: {output.strip()[-300:]}")
+            if label == "base" and code == 0:
+                return _end(res, start, Reason.DOES_NOT_FAIL_ON_BASE,
                             "o aceite já passa no commit_base")
-            if rotulo == "solucao" and codigo != 0:
-                return _fim(res, inicio, Motivo.NAO_PASSA_NA_SOLUCAO,
-                            f"código {codigo} no commit_solucao")
+            if label == "solucao" and code != 0:
+                return _end(res, start, Reason.DOES_NOT_PASS_ON_SOLUTION,
+                            f"código {code} no commit_solucao")
 
-    res.valido = True
-    res.duracao_total = time.monotonic() - inicio
+    res.valid = True
+    res.total_duration = time.monotonic() - start
     return res
 
 
-def _fim(res: Resultado, inicio: float, motivo: Motivo, detalhe: str) -> Resultado:
-    res.valido = False
-    res.motivo = motivo
-    res.detalhe = detalhe
-    res.duracao_total = time.monotonic() - inicio
+def _end(res: ValidationResult, start: float, reason: Reason, detail: str) -> ValidationResult:
+    res.valid = False
+    res.reason = reason
+    res.detail = detail
+    res.total_duration = time.monotonic() - start
     return res
 
 
-def descrever(res: Resultado) -> str:
+def describe(res: ValidationResult) -> str:
     """Texto curto para a linha de comando."""
-    linhas = [f"caso {res.case}: " + ("VÁLIDO" if res.valido else
-                                      f"INVÁLIDO ({res.motivo.value})")]
-    if res.detalhe:
-        linhas.append(f"  detalhe: {res.detalhe}")
-    for e in res.execucoes:
-        estado = ("tempo esgotado" if e.tempo_esgotado else
-                  "não rodou" if e.nao_rodou else f"código {e.codigo}")
-        linhas.append(f"  {e.rotulo:<8} {e.commit[:7]}  {estado:<16} {e.duracao:6.2f}s")
-    linhas.append(f"  total: {res.duracao_total:.2f}s")
-    return "\n".join(linhas)
+    lines = [f"caso {res.case}: " + ("VÁLIDO" if res.valid else
+                                      f"INVÁLIDO ({res.reason.value})")]
+    if res.detail:
+        lines.append(f"  detalhe: {res.detail}")
+    for e in res.runs:
+        state = ("tempo esgotado" if e.timed_out else
+                  "não rodou" if e.did_not_run else f"código {e.code}")
+        lines.append(f"  {e.label:<8} {e.commit[:7]}  {state:<16} {e.duration:6.2f}s")
+    lines.append(f"  total: {res.total_duration:.2f}s")
+    return "\n".join(lines)
 

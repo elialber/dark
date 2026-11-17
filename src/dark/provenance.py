@@ -35,133 +35,133 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from dark.inventory import Peca, Plugin
-from dark.reader import Sessao, servidor_mcp
+from dark.inventory import HarnessItem, Plugin
+from dark.reader import Session, mcp_server
 
-ORIGENS = ("projeto", "usuario", "plugin", "gerenciado", "conta", "embutida", "sem_arquivo")
-COM_ARQUIVO = frozenset({"projeto", "usuario", "plugin", "gerenciado"})
-PLATAFORMA = frozenset({"conta", "embutida"})
-CATEGORIAS = ("skills", "tipos_subagente", "ferramentas", "servidores_mcp")
+PROVENANCES = ("projeto", "usuario", "plugin", "gerenciado", "conta", "embutida", "sem_arquivo")
+WITH_FILE = frozenset({"projeto", "usuario", "plugin", "gerenciado"})
+PLATFORM = frozenset({"conta", "embutida"})
+CATEGORIES = ("skills", "subagent_types", "tools", "mcp_servers")
 
-PREFIXO_CONECTOR = "claude_ai_"
+CONNECTOR_PREFIX = "claude_ai_"
 
 
 @dataclass(frozen=True)
-class Origem:
-    origem: str                      # um de ORIGENS
-    caminho: Path | None = None      # arquivo da peça, quando há
+class Provenance:
+    provenance: str                      # um de ORIGENS
+    path: Path | None = None      # arquivo da peça, quando há
 
     @property
-    def mutavel(self) -> bool:
+    def mutable(self) -> bool:
         """Só o que tem arquivo é tratado como algo que o usuário pode mudar."""
-        return self.origem in COM_ARQUIVO
+        return self.provenance in WITH_FILE
 
     @property
-    def plataforma(self) -> bool:
-        return self.origem in PLATAFORMA
+    def platform(self) -> bool:
+        return self.provenance in PLATFORM
 
 
 @dataclass(frozen=True)
-class Anunciados:
+class Announced:
     skills: set[str] = field(default_factory=set)
-    tipos_subagente: set[str] = field(default_factory=set)
-    tipos_embutidos: set[str] = field(default_factory=set)
-    ferramentas: set[str] = field(default_factory=set)
+    subagent_types: set[str] = field(default_factory=set)
+    builtin_types: set[str] = field(default_factory=set)
+    tools: set[str] = field(default_factory=set)
 
     @property
-    def servidores_mcp(self) -> set[str]:
-        return {s for s in map(servidor_mcp, self.ferramentas) if s}
+    def mcp_servers(self) -> set[str]:
+        return {s for s in map(mcp_server, self.tools) if s}
 
 
-def anunciados_de(sessoes: Iterable[Sessao]) -> Anunciados:
+def announced_from(sessions: Iterable[Session]) -> Announced:
     """União do que as sessões anunciaram (a lista da sessão principal)."""
-    a = Anunciados()
-    for s in sessoes:
-        a.skills.update(s.disponivel.skills)
-        a.tipos_subagente.update(s.disponivel.tipos_subagente)
-        a.tipos_embutidos.update(s.disponivel.tipos_embutidos)
-        a.ferramentas.update(s.disponivel.ferramentas)
+    a = Announced()
+    for s in sessions:
+        a.skills.update(s.available.skills)
+        a.subagent_types.update(s.available.subagent_types)
+        a.builtin_types.update(s.available.builtin_types)
+        a.tools.update(s.available.tools)
     return a
 
 
 @dataclass
-class Origens:
-    skills: dict[str, Origem]
-    tipos_subagente: dict[str, Origem]
-    ferramentas: dict[str, Origem]
-    servidores_mcp: dict[str, Origem]
+class Provenances:
+    skills: dict[str, Provenance]
+    subagent_types: dict[str, Provenance]
+    tools: dict[str, Provenance]
+    mcp_servers: dict[str, Provenance]
     # Instaladas, carregadas no início e não anunciadas: não pesam na lista.
-    nao_anunciados: dict[str, list[Peca]]
+    not_announced: dict[str, list[HarnessItem]]
 
-    def contagem(self, categoria: str) -> Counter:
-        return Counter(o.origem for o in getattr(self, categoria).values())
-
-
-def _com_arquivo(p: Peca) -> Origem:
-    return Origem(p.escopo, p.origem)
+    def counts(self, category: str) -> Counter:
+        return Counter(o.provenance for o in getattr(self, category).values())
 
 
-def classificar(anunciados: Anunciados, pecas: Iterable[Peca],
-                plugins: Iterable[Plugin] = ()) -> Origens:
-    pecas = [p for p in pecas]
-    nomes_de_plugin = {p.nome.split("@", 1)[0] for p in plugins}
+def _with_file(p: HarnessItem) -> Provenance:
+    return Provenance(p.scope, p.source)
 
-    def por_nome(tipo: str) -> dict[str, Peca]:
-        out: dict[str, Peca] = {}
-        for p in sorted(pecas, key=lambda p: (p.sob_demanda, str(p.origem))):
-            if p.tipo == tipo:
-                out.setdefault(p.nome, p)
+
+def classify(announced: Announced, items: Iterable[HarnessItem],
+                plugins: Iterable[Plugin] = ()) -> Provenances:
+    items = [p for p in items]
+    plugin_names = {p.name.split("@", 1)[0] for p in plugins}
+
+    def by_name(kind: str) -> dict[str, HarnessItem]:
+        out: dict[str, HarnessItem] = {}
+        for p in sorted(items, key=lambda p: (p.on_demand, str(p.source))):
+            if p.kind == kind:
+                out.setdefault(p.name, p)
         return out
 
-    skills_inv, agentes_inv = por_nome("skill"), por_nome("subagente")
-    servidores_inv: dict[str, Peca] = {}
-    for p in pecas:
-        if p.tipo == "mcp":
-            nome = f"plugin_{p.plugin}_{p.nome}" if p.escopo == "plugin" else p.nome
-            servidores_inv.setdefault(nome, p)
+    skills_inv, agents_inv = by_name("skill"), by_name("subagente")
+    servers_inv: dict[str, HarnessItem] = {}
+    for p in items:
+        if p.kind == "mcp":
+            name = f"plugin_{p.plugin}_{p.name}" if p.scope == "plugin" else p.name
+            servers_inv.setdefault(name, p)
 
     skills = {}
-    for nome in anunciados.skills:
-        if nome in skills_inv:
-            skills[nome] = _com_arquivo(skills_inv[nome])
-        elif ":" in nome:
-            prefixo = nome.split(":", 1)[0]
-            skills[nome] = Origem("sem_arquivo" if prefixo in nomes_de_plugin else "conta")
+    for name in announced.skills:
+        if name in skills_inv:
+            skills[name] = _with_file(skills_inv[name])
+        elif ":" in name:
+            prefix = name.split(":", 1)[0]
+            skills[name] = Provenance("sem_arquivo" if prefix in plugin_names else "conta")
         else:
-            skills[nome] = Origem("embutida")
+            skills[name] = Provenance("embutida")
 
-    tipos = {}
-    for nome in anunciados.tipos_subagente:
-        if nome in agentes_inv:
-            tipos[nome] = _com_arquivo(agentes_inv[nome])
-        elif nome in anunciados.tipos_embutidos:
-            tipos[nome] = Origem("embutida")
+    kinds = {}
+    for name in announced.subagent_types:
+        if name in agents_inv:
+            kinds[name] = _with_file(agents_inv[name])
+        elif name in announced.builtin_types:
+            kinds[name] = Provenance("embutida")
         else:
-            tipos[nome] = Origem("sem_arquivo")
+            kinds[name] = Provenance("sem_arquivo")
 
-    servidores = {}
-    for nome in anunciados.servidores_mcp:
-        if nome in servidores_inv:
-            servidores[nome] = _com_arquivo(servidores_inv[nome])
-        elif nome.startswith(PREFIXO_CONECTOR):
-            servidores[nome] = Origem("conta")
+    servers = {}
+    for name in announced.mcp_servers:
+        if name in servers_inv:
+            servers[name] = _with_file(servers_inv[name])
+        elif name.startswith(CONNECTOR_PREFIX):
+            servers[name] = Provenance("conta")
         else:
-            servidores[nome] = Origem("sem_arquivo")
+            servers[name] = Provenance("sem_arquivo")
 
-    ferramentas = {}
-    for nome in anunciados.ferramentas:
-        servidor = servidor_mcp(nome)
-        ferramentas[nome] = servidores[servidor] if servidor else Origem("embutida")
+    tools = {}
+    for name in announced.tools:
+        server = mcp_server(name)
+        tools[name] = servers[server] if server else Provenance("embutida")
 
-    def nao_anunciados(tipo: str, anunciados_: set[str]) -> list[Peca]:
+    def not_announced(kind: str, announced_: set[str]) -> list[HarnessItem]:
         """Uma peça por nome: a mesma skill em dois repositórios conta uma vez."""
-        por_nome_: dict[str, Peca] = {}
-        for p in sorted(pecas, key=lambda p: (p.nome, str(p.origem))):
-            if p.tipo == tipo and not p.sob_demanda and p.nome not in anunciados_:
-                por_nome_.setdefault(p.nome, p)
-        return list(por_nome_.values())
+        by_name_: dict[str, HarnessItem] = {}
+        for p in sorted(items, key=lambda p: (p.name, str(p.source))):
+            if p.kind == kind and not p.on_demand and p.name not in announced_:
+                by_name_.setdefault(p.name, p)
+        return list(by_name_.values())
 
-    return Origens(skills, tipos, ferramentas, servidores, {
-        "skills": nao_anunciados("skill", anunciados.skills),
-        "tipos_subagente": nao_anunciados("subagente", anunciados.tipos_subagente),
+    return Provenances(skills, kinds, tools, servers, {
+        "skills": not_announced("skill", announced.skills),
+        "subagent_types": not_announced("subagente", announced.subagent_types),
     })

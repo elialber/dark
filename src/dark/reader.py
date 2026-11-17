@@ -35,7 +35,7 @@ _ENVELOPE = {
     "slug", "agentId",
 }
 
-CAMPOS_CONHECIDOS: dict[str, set[str]] = {
+KNOWN_FIELDS: dict[str, set[str]] = {
     "user": _ENVELOPE | {
         "message", "promptId", "origin", "turnOrigin", "promptSource",
         "permissionMode", "isMeta", "isCompactSummary", "isVisibleInTranscriptOnly",
@@ -104,9 +104,9 @@ CAMPOS_CONHECIDOS: dict[str, set[str]] = {
     "artifact-comment-monitor": {"type", "sessionId", "artifacts", "v"},
 }
 
-_CONVERSA = ("user", "assistant", "attachment", "system")
+_CONVERSATION = ("user", "assistant", "attachment", "system")
 
-ANEXOS_CONHECIDOS = {
+KNOWN_ATTACHMENTS = {
     "agent_listing_delta", "auto_mode", "auto_mode_exit", "bash_output_audience_note",
     "batching_reminder_sent", "command_permissions", "compact_file_reference",
     "credential_org", "date", "deferred_tools_delta", "deferred_tools_record",
@@ -119,12 +119,12 @@ ANEXOS_CONHECIDOS = {
     "task_status", "thinking_drop", "total_tokens_reminder",
 }
 
-SUBTIPOS_DE_SISTEMA = {
+SYSTEM_SUBTYPES = {
     "agents_killed", "away_summary", "compact_boundary", "informational",
     "local_command", "stop_hook_summary", "turn_duration",
 }
 
-BLOCOS_CONHECIDOS = {
+KNOWN_BLOCKS = {
     "assistant": {"text", "thinking", "tool_use"},
     "user": {"text", "image", "tool_result"},
 }
@@ -133,7 +133,7 @@ BLOCOS_CONHECIDOS = {
 # `type` e sem as chaves que repetem o que outra chave já traz (a lista de
 # nomes ao lado do texto renderizado, por exemplo). Em anexo de hook, só o
 # `content`, que é o que o modelo recebe.
-_ANEXO_IGNORA = {
+_ATTACHMENT_IGNORED_KEYS = {
     "skill_listing": {"names", "digests"},
     "agent_listing_delta": {"addedTypes", "builtInTypes", "builtInPluginTypes",
                             "removedTypes"},
@@ -144,22 +144,22 @@ _ANEXO_IGNORA = {
        for h in ("hook_success", "hook_non_blocking_error", "hook_cancelled")},
 }
 # Anexos que repetem o que já foi contado em outro lugar.
-_ANEXO_FORA = {"prompt_snapshot"}
+_ATTACHMENT_EXCLUDED = {"prompt_snapshot"}
 
 
-def _texto_total(valor: object) -> int:
-    if isinstance(valor, str):
-        return len(valor)
-    if isinstance(valor, dict):
-        return sum(_texto_total(v) for v in valor.values())
-    if isinstance(valor, list):
-        return sum(_texto_total(v) for v in valor)
+def _total_text(value: object) -> int:
+    if isinstance(value, str):
+        return len(value)
+    if isinstance(value, dict):
+        return sum(_total_text(v) for v in value.values())
+    if isinstance(value, list):
+        return sum(_total_text(v) for v in value)
     return 0
 
 
-def tamanho_do_anexo(anexo: dict) -> int:
-    ignora = _ANEXO_IGNORA.get(anexo.get("type"), set()) | {"type"}
-    return sum(_texto_total(v) for k, v in anexo.items() if k not in ignora)
+def attachment_size(attachment: dict) -> int:
+    ignored_keys = _ATTACHMENT_IGNORED_KEYS.get(attachment.get("type"), set()) | {"type"}
+    return sum(_total_text(v) for k, v in attachment.items() if k not in ignored_keys)
 
 
 _HOOKS = {
@@ -173,46 +173,46 @@ _HOOKS = {
 # Modelo interno
 # --------------------------------------------------------------------------
 
-class ErroDeFormato(Exception):
+class FormatError(Exception):
     """Um campo de que o leitor depende está ausente ou mudou de tipo."""
 
-    def __init__(self, arquivo: Path, linha: int, mensagem: str):
-        self.arquivo, self.linha, self.mensagem = Path(arquivo), linha, mensagem
-        super().__init__(f"{self.arquivo.name}, linha {linha}: {mensagem}")
+    def __init__(self, file: Path, line: int, message: str):
+        self.file, self.line, self.message = Path(file), line, message
+        super().__init__(f"{self.file.name}, linha {line}: {message}")
 
 
 @dataclass(frozen=True)
 class Tokens:
-    entrada: int = 0
-    saida: int = 0
-    cache_criacao: int = 0
-    cache_leitura: int = 0
+    input: int = 0
+    output: int = 0
+    cache_creation: int = 0
+    cache_read: int = 0
 
     @property
     def total(self) -> int:
-        return self.entrada + self.saida + self.cache_criacao + self.cache_leitura
+        return self.input + self.output + self.cache_creation + self.cache_read
 
-    def __add__(self, outro: Tokens) -> Tokens:
-        return Tokens(self.entrada + outro.entrada, self.saida + outro.saida,
-                      self.cache_criacao + outro.cache_criacao,
-                      self.cache_leitura + outro.cache_leitura)
+    def __add__(self, other: Tokens) -> Tokens:
+        return Tokens(self.input + other.input, self.output + other.output,
+                      self.cache_creation + other.cache_creation,
+                      self.cache_read + other.cache_read)
 
 
-def _soma(itens: Iterable[Tokens]) -> Tokens:
+def _sum(items: Iterable[Tokens]) -> Tokens:
     total = Tokens()
-    for t in itens:
+    for t in items:
         total = total + t
     return total
 
 
 @dataclass
-class Resultado:
+class ToolResult:
     """Resultado de uma chamada de ferramenta."""
     timestamp: datetime
-    erro: bool
-    estruturado: object            # toolUseResult: objeto, lista ou string
-    decisao: dict | None           # permissionDecision
-    negacao: str | None            # toolDenialKind
+    error: bool
+    structured: object            # toolUseResult: objeto, lista ou string
+    decision: dict | None           # permissionDecision
+    denial: str | None            # toolDenialKind
 
 
 @dataclass(frozen=True)
@@ -220,277 +220,277 @@ class Commit:
     """Chamada Bash que executa `git commit` (E7, terceira versão)."""
     hash: str | None          # gitOperation.commit.sha; None se não ficou registrado
     amend: bool
-    silencioso: bool          # -q ou --quiet: o hash não aparece na saída
-    quantidade: int = 1       # commits no mesmo comando
-    aproximado: bool = False  # o comando não pôde ser analisado; detecção por padrão
+    silent: bool          # -q ou --quiet: o hash não aparece na saída
+    count: int = 1       # commits no mesmo comando
+    approximate: bool = False  # o comando não pôde ser analisado; detecção por padrão
     # gitOperation.commit.kind, guardado à parte: não entra em `amend`, porque
     # dá falso positivo com `--amend` dentro de heredoc (E7, acréscimos).
-    kind_registrado: str | None = None
+    recorded_kind: str | None = None
 
 
 @dataclass
-class Chamada:
+class ToolCall:
     """Chamada de ferramenta (bloco tool_use), com o resultado quando existe."""
     id: str
-    nome: str
-    entrada: dict
+    name: str
+    input: dict
     timestamp: datetime
     cwd: str | None
     message_id: str
-    pedido_id: str | None = None
-    resultado: Resultado | None = None
+    prompt_id: str | None = None
+    result: ToolResult | None = None
     commit: Commit | None = None
 
 
 @dataclass
-class Resposta:
+class Response:
     """Uma resposta da API: os registros assistant de mesmo message.id."""
     message_id: str
-    modelo: str | None
+    model: str | None
     timestamp: datetime            # do primeiro registro
     tokens: Tokens                 # contado uma vez (E4)
     stop_reason: str | None
-    blocos: list[str] = field(default_factory=list)
-    registros: int = 0
-    pedido_id: str | None = None
-    copiada: bool = False          # histórico copiado por fork
-    sintetica: bool = False        # gerada localmente (model "<synthetic>")
+    blocks: list[str] = field(default_factory=list)
+    records: int = 0
+    prompt_id: str | None = None
+    copied: bool = False          # histórico copiado por fork
+    synthetic: bool = False        # gerada localmente (model "<synthetic>")
     skill: str | None = None       # attributionSkill
 
 
 @dataclass
-class Pedido:
+class Prompt:
     """Um promptId de origem humana (E9)."""
     id: str
     timestamp: datetime
-    tamanho: int                   # caracteres do texto; o texto não é guardado
-    fonte: str | None              # promptSource
-    modo_permissao: str | None = None   # permissionMode no envio do pedido
-    registros: int = 1             # mais de um só em arquivo de fork
+    size: int                   # caracteres do texto; o texto não é guardado
+    source: str | None              # promptSource
+    permission_mode: str | None = None   # permissionMode no envio do pedido
+    records: int = 1             # mais de um só em arquivo de fork
     tokens: Tokens = field(default_factory=Tokens)
-    tokens_subagentes: Tokens = field(default_factory=Tokens)
+    subagent_tokens: Tokens = field(default_factory=Tokens)
 
 
 @dataclass
-class Intervencao:
-    tipo: str                      # interrupcao | rejeicao | mensagem_no_meio
+class Intervention:
+    kind: str                      # interrupcao | rejeicao | mensagem_no_meio
     timestamp: datetime
-    pedido_id: str | None = None
-    com_comentario: bool | None = None   # só em rejeicao
+    prompt_id: str | None = None
+    with_comment: bool | None = None   # só em rejeicao
 
 
 @dataclass
-class EventoHook:
+class HookEvent:
     """Desfecho visível de um hook (E6, versão final).
 
     tipo: sucesso (com saída) | erro_sem_bloqueio | cancelado (tempo esgotado)
     | bloqueio | confirmacao (o hook pediu confirmação ao usuário)
     | decisao (o hook liberou) | parada | hook_* (anexo ainda não conhecido).
     """
-    tipo: str
+    kind: str
     timestamp: datetime
-    evento: str | None = None      # PreToolUse, SessionStart...
-    nome: str | None = None
-    codigo_saida: int | None = None
+    event: str | None = None      # PreToolUse, SessionStart...
+    name: str | None = None
+    exit_code: int | None = None
     tool_use_id: str | None = None
-    bloqueou: bool = False
-    subagente_id: str | None = None   # de qual subagente veio, se veio de um
+    blocked: bool = False
+    subagent_id: str | None = None   # de qual subagente veio, se veio de um
 
 
 @dataclass
-class Desconhecidos:
-    tipos: Counter = field(default_factory=Counter)
-    campos: Counter = field(default_factory=Counter)
+class Unknowns:
+    kinds: Counter = field(default_factory=Counter)
+    fields: Counter = field(default_factory=Counter)
 
-    def somar(self, outro: Desconhecidos) -> None:
-        self.tipos.update(outro.tipos)
-        self.campos.update(outro.campos)
+    def add_up(self, other: Unknowns) -> None:
+        self.kinds.update(other.kinds)
+        self.fields.update(other.fields)
 
 
 @dataclass
-class Disponivel:
+class Available:
     """O que foi anunciado ao modelo na sessão, com os nomes como vieram."""
     skills: set[str] = field(default_factory=set)
-    tipos_subagente: set[str] = field(default_factory=set)
-    ferramentas: set[str] = field(default_factory=set)
-    tipos_embutidos: set[str] = field(default_factory=set)   # builtInTypes do anúncio
+    subagent_types: set[str] = field(default_factory=set)
+    tools: set[str] = field(default_factory=set)
+    builtin_types: set[str] = field(default_factory=set)   # builtInTypes do anúncio
 
     @property
-    def servidores_mcp(self) -> set[str]:
-        return {s for s in map(servidor_mcp, self.ferramentas) if s}
+    def mcp_servers(self) -> set[str]:
+        return {s for s in map(mcp_server, self.tools) if s}
 
 
-def servidor_mcp(ferramenta: str) -> str | None:
+def mcp_server(tool: str) -> str | None:
     """Servidor de uma ferramenta MCP (`mcp__<servidor>__<ferramenta>`)."""
-    partes = ferramenta.split("__")
-    return partes[1] if len(partes) >= 3 and partes[0] == "mcp" else None
+    parts = tool.split("__")
+    return parts[1] if len(parts) >= 3 and parts[0] == "mcp" else None
 
 
 @dataclass(frozen=True)
-class Falha:
+class ReadFailure:
     """Arquivo que não pôde ser lido (E12). Linha 0: falha ao abrir."""
-    arquivo: Path
-    linha: int
-    mensagem: str
+    file: Path
+    line: int
+    message: str
 
     def __str__(self) -> str:
-        return f"{self.arquivo.name}, linha {self.linha}: {self.mensagem}"
+        return f"{self.file.name}, linha {self.line}: {self.message}"
 
 
 @dataclass
-class Subagente:
+class Subagent:
     id: str
-    caminho: Path
-    tipo: str | None = None
+    path: Path
+    kind: str | None = None
     tool_use_id: str | None = None   # chamada Agent que o acionou
-    profundidade: int | None = None
-    pedido_id: str | None = None
-    respostas: list[Resposta] = field(default_factory=list)
-    chamadas: list[Chamada] = field(default_factory=list)
+    depth: int | None = None
+    prompt_id: str | None = None
+    responses: list[Response] = field(default_factory=list)
+    calls: list[ToolCall] = field(default_factory=list)
 
     @property
     def tokens(self) -> Tokens:
-        return _soma(r.tokens for r in self.respostas if not r.copiada)
+        return _sum(r.tokens for r in self.responses if not r.copied)
 
 
 @dataclass(frozen=True)
-class PartesIniciais:
+class InitialParts:
     """Tamanhos, em caracteres, das partes do primeiro pedido (E11, terceira versão).
 
     Só tamanhos; nenhum conteúdo. `sistema` e as ferramentas vêm da forma da
     requisição (`api-request-shape`) e ficam None quando ela não foi gravada.
     `anexos` vai do tipo do anexo ao tamanho do texto que o modelo recebe.
     """
-    sistema: int | None
-    ferramentas: int | None          # definições das ferramentas que não são MCP
-    ferramentas_mcp: int | None      # definições de ferramentas MCP carregadas (não adiadas)
-    anexos: dict[str, int]
-    pedido: int | None               # o primeiro pedido humano
+    system: int | None
+    tools: int | None          # definições das ferramentas que não são MCP
+    mcp_tools: int | None      # definições de ferramentas MCP carregadas (não adiadas)
+    attachments: dict[str, int]
+    prompt: int | None               # o primeiro pedido humano
 
 
 @dataclass
-class Sessao:
+class Session:
     id: str
-    caminho: Path
-    pasta_projeto: str
-    inicio: datetime | None = None
-    fim: datetime | None = None
-    versoes: list[str] = field(default_factory=list)
-    versao: str | None = None            # a do registro mais recente
+    path: Path
+    project_dir: str
+    start: datetime | None = None
+    end: datetime | None = None
+    versions: list[str] = field(default_factory=list)
+    version: str | None = None            # a do registro mais recente
     cwds: list[str] = field(default_factory=list)
-    repositorio: Path | None = None      # raiz git mais frequente entre os cwds (E3)
-    repositorios: Counter = field(default_factory=Counter)
-    copiada_de: str | None = None        # sessão de origem, se for fork
-    pedidos: list[Pedido] = field(default_factory=list)
-    respostas: list[Resposta] = field(default_factory=list)
-    chamadas: list[Chamada] = field(default_factory=list)
-    subagentes: list[Subagente] = field(default_factory=list)
-    intervencoes: list[Intervencao] = field(default_factory=list)
-    hooks: list[EventoHook] = field(default_factory=list)
-    desconhecidos: Desconhecidos = field(default_factory=Desconhecidos)
-    linhas: int = 0
-    linhas_cortadas: int = 0
-    respostas_sem_pedido: int = 0
-    falhas: list[Falha] = field(default_factory=list)   # subagentes ilegíveis
-    disponivel: Disponivel = field(default_factory=Disponivel)
-    contexto_inicial: int | None = None   # tokens de entrada da 1ª resposta; None em fork
-    comandos: list[str] = field(default_factory=list)   # /comandos digitados, sem a barra
-    comandos_locais: int = 0             # registros system/local_command
-    partes_iniciais: PartesIniciais | None = None
+    repository: Path | None = None      # raiz git mais frequente entre os cwds (E3)
+    repositories: Counter = field(default_factory=Counter)
+    copied_from: str | None = None        # sessão de origem, se for fork
+    prompts: list[Prompt] = field(default_factory=list)
+    responses: list[Response] = field(default_factory=list)
+    calls: list[ToolCall] = field(default_factory=list)
+    subagents: list[Subagent] = field(default_factory=list)
+    interventions: list[Intervention] = field(default_factory=list)
+    hooks: list[HookEvent] = field(default_factory=list)
+    unknowns: Unknowns = field(default_factory=Unknowns)
+    lines: int = 0
+    truncated_lines: int = 0
+    responses_without_prompt: int = 0
+    failures: list[ReadFailure] = field(default_factory=list)   # subagentes ilegíveis
+    available: Available = field(default_factory=Available)
+    initial_context: int | None = None   # tokens de entrada da 1ª resposta; None em fork
+    commands: list[str] = field(default_factory=list)   # /comandos digitados, sem a barra
+    local_commands: int = 0             # registros system/local_command
+    initial_parts: InitialParts | None = None
 
     @property
-    def so_comando_local(self) -> bool:
+    def local_command_only(self) -> bool:
         """Sessão sem resposta de modelo cujos pedidos são todos comandos locais.
 
         É o rastro de `claude -p /context` e afins: não entra nos indicadores
         (lote 006).
         """
-        return (self.comandos_locais > 0
-                and not any(not r.sintetica for r in self.respostas)
-                and len(self.pedidos) <= len(self.comandos))
+        return (self.local_commands > 0
+                and not any(not r.synthetic for r in self.responses)
+                and len(self.prompts) <= len(self.commands))
 
     @property
-    def tokens_principal(self) -> Tokens:
-        return _soma(r.tokens for r in self.respostas if not r.copiada)
+    def main_tokens(self) -> Tokens:
+        return _sum(r.tokens for r in self.responses if not r.copied)
 
     @property
-    def tokens_subagentes(self) -> Tokens:
-        return _soma(s.tokens for s in self.subagentes)
+    def subagent_tokens(self) -> Tokens:
+        return _sum(s.tokens for s in self.subagents)
 
     @property
     def tokens(self) -> Tokens:
-        return self.tokens_principal + self.tokens_subagentes
+        return self.main_tokens + self.subagent_tokens
 
-    def resposta(self, message_id: str) -> Resposta:
-        return next(r for r in self.respostas if r.message_id == message_id)
+    def response(self, message_id: str) -> Response:
+        return next(r for r in self.responses if r.message_id == message_id)
 
-    def chamada(self, tool_use_id: str) -> Chamada:
-        return next(c for c in self.chamadas if c.id == tool_use_id)
+    def call(self, tool_use_id: str) -> ToolCall:
+        return next(c for c in self.calls if c.id == tool_use_id)
 
 
 @dataclass
-class Leitura:
+class ReadResult:
     """Resultado de ler_tudo: o que foi lido e o que falhou (E12)."""
-    sessoes: list[Sessao] = field(default_factory=list)
-    falhas: list[Falha] = field(default_factory=list)
+    sessions: list[Session] = field(default_factory=list)
+    failures: list[ReadFailure] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
-class ArquivosSessao:
-    principal: Path
-    subagentes: list[Path]
-    pasta_projeto: str
+class SessionFiles:
+    main_file: Path
+    subagents: list[Path]
+    project_dir: str
 
 
 # --------------------------------------------------------------------------
 # Localizar
 # --------------------------------------------------------------------------
 
-def diretorio_config(ambiente: Mapping[str, str] | None = None) -> Path:
+def config_dir(environment: Mapping[str, str] | None = None) -> Path:
     """Diretório de configuração do Claude Code, respeitando CLAUDE_CONFIG_DIR."""
-    ambiente = os.environ if ambiente is None else ambiente
-    definido = ambiente.get("CLAUDE_CONFIG_DIR")
-    return Path(definido) if definido else Path.home() / ".claude"
+    environment = os.environ if environment is None else environment
+    defined = environment.get("CLAUDE_CONFIG_DIR")
+    return Path(defined) if defined else Path.home() / ".claude"
 
 
-def _subagentes_de(principal: Path) -> list[Path]:
-    pasta = principal.with_suffix("") / "subagents"
-    return sorted(pasta.glob("agent-*.jsonl")) if pasta.is_dir() else []
+def _subagents_of(main_file: Path) -> list[Path]:
+    folder = main_file.with_suffix("") / "subagents"
+    return sorted(folder.glob("agent-*.jsonl")) if folder.is_dir() else []
 
 
-def localizar_sessoes(config: Path) -> list[ArquivosSessao]:
+def find_sessions(config: Path) -> list[SessionFiles]:
     """Arquivos principais de sessão e, para cada um, os de subagente."""
-    projetos = Path(config) / "projects"
-    if not projetos.is_dir():
+    projects = Path(config) / "projects"
+    if not projects.is_dir():
         return []
-    return [ArquivosSessao(p, _subagentes_de(p), p.parent.name)
-            for p in sorted(projetos.glob("*/*.jsonl"))]
+    return [SessionFiles(p, _subagents_of(p), p.parent.name)
+            for p in sorted(projects.glob("*/*.jsonl"))]
 
 
-def raiz_git_de(caminho: Path) -> Path | None:
+def git_root_of(path: Path) -> Path | None:
     """Raiz do repositório git que contém o caminho, olhando só o disco.
 
     Sobe a partir do primeiro ancestral que ainda existe. Em worktree, devolve
     o repositório principal.
     """
-    atual = Path(caminho)
-    for pasta in (atual, *atual.parents):
-        marca = pasta / ".git"
-        if marca.is_dir():
-            return pasta
-        if marca.is_file():
+    current = Path(path)
+    for folder in (current, *current.parents):
+        marker = folder / ".git"
+        if marker.is_dir():
+            return folder
+        if marker.is_file():
             try:
-                conteudo = marca.read_text(encoding="utf-8", errors="replace").strip()
+                content = marker.read_text(encoding="utf-8", errors="replace").strip()
             except OSError:
-                return pasta
-            if conteudo.startswith("gitdir:"):
-                gitdir = Path(conteudo.removeprefix("gitdir:").strip())
+                return folder
+            if content.startswith("gitdir:"):
+                gitdir = Path(content.removeprefix("gitdir:").strip())
                 if not gitdir.is_absolute():
-                    gitdir = (pasta / gitdir).resolve()
-                partes = gitdir.parts
-                if "worktrees" in partes and ".git" in partes:
-                    return Path(*partes[:partes.index(".git")])
-            return pasta
+                    gitdir = (folder / gitdir).resolve()
+                parts = gitdir.parts
+                if "worktrees" in parts and ".git" in parts:
+                    return Path(*parts[:parts.index(".git")])
+            return folder
     return None
 
 
@@ -498,13 +498,13 @@ def raiz_git_de(caminho: Path) -> Path | None:
 # Ler
 # --------------------------------------------------------------------------
 
-def instante(valor: str | datetime) -> datetime:
+def instant(value: str | datetime) -> datetime:
     """Converte um horário ISO 8601 em instante UTC.
 
     Aceita com ou sem milissegundos e com "Z" ou deslocamento. Horário sem
     fuso é tomado como UTC. Levanta ValueError se não for um horário.
     """
-    dt = valor if isinstance(valor, datetime) else datetime.fromisoformat(valor)
+    dt = value if isinstance(value, datetime) else datetime.fromisoformat(value)
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
@@ -513,19 +513,19 @@ def instante(valor: str | datetime) -> datetime:
 # -- git commit ---------------------------------------------------------------
 
 _HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
-_GIT_COM_VALOR = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
-_COMMIT_COM_VALOR = {"-m", "-F", "-C", "-c", "-t", "--message", "--file", "--author",
+_GIT_OPTS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
+_COMMIT_OPTS_WITH_VALUE = {"-m", "-F", "-C", "-c", "-t", "--message", "--file", "--author",
                      "--date", "--reuse-message", "--reedit-message", "--fixup",
                      "--squash", "--template", "--cleanup", "--pathspec-from-file"}
-_APROXIMADO = re.compile(
+_APPROXIMATE = re.compile(
     r"(?:^|[;&|(\n])\s*(?:(?:[A-Za-z_][A-Za-z0-9_]*=\S*|then|do|else|elif|if|while|until"
     r"|\{|!|sudo|env|command|time)\s+)*git\s+"
     r"(?:-[Cc]\s+\S+\s+)*commit(?=\s|$)")
 # Palavras do shell depois das quais vem um comando (`if` e `while` também:
 # a condição é executada).
-_PALAVRAS_DO_SHELL = {"then", "do", "else", "elif", "if", "while", "until", "{", "!"}
+_SHELL_WORDS = {"then", "do", "else", "elif", "if", "while", "until", "{", "!"}
 # Prefixos que executam o comando seguinte, com as opções que levam valor.
-_PREFIXOS: dict[str, set[str]] = {
+_PREFIXES: dict[str, set[str]] = {
     "sudo": {"-u", "-g", "-C", "-D", "-h", "-p", "-r", "-t", "-U", "-T", "--user",
              "--group", "--chdir", "--host", "--prompt", "--role", "--type",
              "--other-user", "--command-timeout", "--close-from"},
@@ -536,49 +536,49 @@ _PREFIXOS: dict[str, set[str]] = {
 
 
 @dataclass(frozen=True)
-class AnaliseCommit:
-    quantidade: int
+class CommitAnalysis:
+    count: int
     amend: bool
-    silencioso: bool
-    aproximado: bool = False
+    silent: bool
+    approximate: bool = False
 
 
-def _sem_heredocs(comando: str) -> str:
+def _without_heredocs(command: str) -> str:
     """Tira o corpo dos heredocs: é texto, não comando."""
-    saida, fim = [], None
-    for linha in comando.split("\n"):
-        if fim is not None:
-            if linha.strip() == fim:
-                fim = None
+    output, end = [], None
+    for line in command.split("\n"):
+        if end is not None:
+            if line.strip() == end:
+                end = None
             continue
-        saida.append(linha)
-        achado = _HEREDOC.search(linha)
-        if achado:
-            fim = achado.group(2)
-    return "\n".join(saida)
+        output.append(line)
+        finding = _HEREDOC.search(line)
+        if finding:
+            end = finding.group(2)
+    return "\n".join(output)
 
 
-def _comandos_simples(comando: str) -> list[list[str]]:
+def _simple_commands(command: str) -> list[list[str]]:
     """Divide em comandos simples; levanta ValueError se não der para analisar."""
-    lexico = shlex.shlex(comando, posix=True, punctuation_chars="();<>|&\n")
-    lexico.whitespace = " \t\r"
-    lexico.whitespace_split = True
-    lexico.commenters = ""
-    pontuacao = set("();<>|&\n")
-    simples, atual = [], []
-    for token in lexico:
-        if token and set(token) <= pontuacao:
-            if atual:
-                simples.append(atual)
-            atual = []
+    lexer = shlex.shlex(command, posix=True, punctuation_chars="();<>|&\n")
+    lexer.whitespace = " \t\r"
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    punctuation = set("();<>|&\n")
+    simple, current = [], []
+    for token in lexer:
+        if token and set(token) <= punctuation:
+            if current:
+                simple.append(current)
+            current = []
         else:
-            atual.append(token)
-    if atual:
-        simples.append(atual)
-    return simples
+            current.append(token)
+    if current:
+        simple.append(current)
+    return simple
 
 
-def _inicio_do_comando(tokens: list[str]) -> int | None:
+def _command_start(tokens: list[str]) -> int | None:
     """Posição do comando de fato, depois de VAR=valor, palavra do shell e prefixo.
 
     None quando o prefixo não executa o que vem depois (`command -v`).
@@ -586,12 +586,12 @@ def _inicio_do_comando(tokens: list[str]) -> int | None:
     i = 0
     while i < len(tokens):
         token = tokens[i]
-        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", token) or token in _PALAVRAS_DO_SHELL:
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", token) or token in _SHELL_WORDS:
             i += 1
             continue
-        if token not in _PREFIXOS:
+        if token not in _PREFIXES:
             return i
-        com_valor = _PREFIXOS[token]
+        with_value = _PREFIXES[token]
         i += 1
         while i < len(tokens) and tokens[i].startswith("-") and tokens[i] != "-":
             if tokens[i] == "--":
@@ -599,24 +599,24 @@ def _inicio_do_comando(tokens: list[str]) -> int | None:
                 break
             if token == "command" and tokens[i] in ("-v", "-V"):
                 return None
-            i += 2 if tokens[i] in com_valor else 1
+            i += 2 if tokens[i] in with_value else 1
     return i
 
 
-def _e_git_commit(tokens: list[str]) -> list[str] | None:
+def _is_git_commit(tokens: list[str]) -> list[str] | None:
     """Argumentos do `git commit`, se o comando simples for um."""
-    i = _inicio_do_comando(tokens)
+    i = _command_start(tokens)
     if i is None or i >= len(tokens) or tokens[i].rsplit("/", 1)[-1] != "git":
         return None
     i += 1
     while i < len(tokens) and tokens[i].startswith("-"):     # opções globais do git
-        i += 2 if tokens[i] in _GIT_COM_VALOR else 1
+        i += 2 if tokens[i] in _GIT_OPTS_WITH_VALUE else 1
     if i < len(tokens) and tokens[i] == "commit":
         return tokens[i + 1:]
     return None
 
 
-def analisar_commit(comando: str) -> AnaliseCommit | None:
+def parse_commit(command: str) -> CommitAnalysis | None:
     """Diz se um comando de shell executa `git commit`, e com que opções.
 
     Analisa o comando (encadeamentos, aspas, heredocs); não procura texto.
@@ -625,21 +625,21 @@ def analisar_commit(comando: str) -> AnaliseCommit | None:
     que só menciona a expressão não conta. Limite conhecido: `git commit`
     dentro de `bash -c "..."` ou de `eval` não é visto.
     """
-    limpo = _sem_heredocs(comando)
+    clean = _without_heredocs(command)
     try:
-        simples = _comandos_simples(limpo)
+        simple = _simple_commands(clean)
     except ValueError:
-        n = len(_APROXIMADO.findall(limpo))
+        n = len(_APPROXIMATE.findall(clean))
         if not n:
             return None
-        return AnaliseCommit(n, "--amend" in limpo,
-                             bool(re.search(r"\s(-q|--quiet)(\s|$)", limpo)), aproximado=True)
-    quantidade, amend, silencioso = 0, False, False
-    for tokens in simples:
-        args = _e_git_commit(tokens)
+        return CommitAnalysis(n, "--amend" in clean,
+                             bool(re.search(r"\s(-q|--quiet)(\s|$)", clean)), approximate=True)
+    count, amend, silent = 0, False, False
+    for tokens in simple:
+        args = _is_git_commit(tokens)
         if args is None:
             continue
-        quantidade += 1
+        count += 1
         i = 0
         while i < len(args):
             a = args[i]
@@ -648,632 +648,632 @@ def analisar_commit(comando: str) -> AnaliseCommit | None:
             if a == "--amend":
                 amend = True
             elif a == "--quiet" or re.fullmatch(r"-[A-Za-z]*q[A-Za-z]*", a):
-                silencioso = True
-            curta = re.fullmatch(r"-[A-Za-z]+", a)
-            if a in _COMMIT_COM_VALOR or (curta and a[-1] in "mFCct"):
+                silent = True
+            short_opt = re.fullmatch(r"-[A-Za-z]+", a)
+            if a in _COMMIT_OPTS_WITH_VALUE or (short_opt and a[-1] in "mFCct"):
                 i += 1                           # o próximo token é o valor da opção
             i += 1
-    return AnaliseCommit(quantidade, amend, silencioso) if quantidade else None
+    return CommitAnalysis(count, amend, silent) if count else None
 
 
-_NOME_DO_COMANDO = re.compile(r"<command-name>\s*/?([^<\s]+)\s*</command-name>")
+_COMMAND_NAME = re.compile(r"<command-name>\s*/?([^<\s]+)\s*</command-name>")
 
 
-class _Arquivo:
+class _File:
     """Lê um .jsonl (principal ou de subagente) e acumula o que achou."""
 
-    def __init__(self, caminho: Path, ate: datetime | None, desconhecidos: Desconhecidos,
-                 subagente_id: str | None = None):
-        self.caminho, self.ate, self.desc = Path(caminho), ate, desconhecidos
-        self.subagente_id = subagente_id
-        self.linha = 0
-        self.linhas = self.cortadas = 0
-        self.sessao_id: str | None = None
-        self.inicio: datetime | None = None
-        self.fim: datetime | None = None
-        self.versoes: Counter = Counter()
-        self.versao_recente: tuple[datetime, str] | None = None
+    def __init__(self, path: Path, cutoff: datetime | None, unknowns: Unknowns,
+                 subagent_id: str | None = None):
+        self.path, self.cutoff, self.desc = Path(path), cutoff, unknowns
+        self.subagent_id = subagent_id
+        self.line = 0
+        self.lines = self.truncated = 0
+        self.session_id: str | None = None
+        self.start: datetime | None = None
+        self.end: datetime | None = None
+        self.versions: Counter = Counter()
+        self.recent_version: tuple[datetime, str] | None = None
         self.cwds: Counter = Counter()          # dict mantém a ordem de chegada
-        self.copiada_de: str | None = None
-        self.pais: dict[str, str | None] = {}
-        self.pedido_no_uuid: dict[str, str] = {}
-        self.pedidos: dict[str, Pedido] = {}
-        self.respostas: dict[str, Resposta] = {}
-        self.primeiro_uuid: dict[str, str] = {}  # message.id -> uuid do 1º registro
-        self.reserva: dict[str, str | None] = {}  # message.id -> pedido corrente no arquivo
-        self.chamadas: dict[str, Chamada] = {}
-        self.resultados: dict[str, tuple[Resultado, str]] = {}
-        self.intervencoes: list[tuple[Intervencao, str]] = []
-        self.hooks: list[EventoHook] = []
-        self.primeiro_prompt_id: str | None = None
-        self.tipo_agente: str | None = None
-        self.disponivel = Disponivel()
-        self.contexto_inicial: int | None = None
-        self.comandos: list[str] = []
-        self.comandos_locais = 0
+        self.copied_from: str | None = None
+        self.parents: dict[str, str | None] = {}
+        self.prompt_by_uuid: dict[str, str] = {}
+        self.prompts: dict[str, Prompt] = {}
+        self.responses: dict[str, Response] = {}
+        self.first_uuid: dict[str, str] = {}  # message.id -> uuid do 1º registro
+        self.reserved: dict[str, str | None] = {}  # message.id -> pedido corrente no arquivo
+        self.calls: dict[str, ToolCall] = {}
+        self.results: dict[str, tuple[ToolResult, str]] = {}
+        self.interventions: list[tuple[Intervention, str]] = []
+        self.hooks: list[HookEvent] = []
+        self.first_prompt_id: str | None = None
+        self.agent_type: str | None = None
+        self.available = Available()
+        self.initial_context: int | None = None
+        self.commands: list[str] = []
+        self.local_commands = 0
         # Primeiro pedido (só no arquivo principal): o que chega antes da
         # primeira resposta do modelo.
-        self.antes_da_resposta = subagente_id is None
-        self.forma_inicial: dict | None = None
-        self.anexos_iniciais: Counter = Counter()
-        self.pedido_inicial: int | None = None
-        self._pedido_corrente: str | None = None
-        self._ler()
+        self.before_response = subagent_id is None
+        self.initial_shape: dict | None = None
+        self.initial_attachments: Counter = Counter()
+        self.initial_prompt: int | None = None
+        self._current_prompt: str | None = None
+        self._read()
 
     # -- validação ---------------------------------------------------------
 
-    def _erro(self, mensagem: str) -> ErroDeFormato:
-        return ErroDeFormato(self.caminho, self.linha, mensagem)
+    def _error(self, message: str) -> FormatError:
+        return FormatError(self.path, self.line, message)
 
-    def _exigir(self, obj: object, nome: str, tipos: type | tuple, onde: str):
-        if not isinstance(obj, dict) or nome not in obj:
-            raise self._erro(f"campo obrigatório ausente: {onde}{nome}")
-        valor = obj[nome]
-        if isinstance(valor, bool) and tipos in (int, (int,)) or not isinstance(valor, tipos):
-            raise self._erro(f"campo {onde}{nome} com tipo inesperado: "
-                             f"{type(valor).__name__}")
-        return valor
+    def _require(self, obj: object, name: str, kinds: type | tuple, where: str):
+        if not isinstance(obj, dict) or name not in obj:
+            raise self._error(f"campo obrigatório ausente: {where}{name}")
+        value = obj[name]
+        if isinstance(value, bool) and kinds in (int, (int,)) or not isinstance(value, kinds):
+            raise self._error(f"campo {where}{name} com tipo inesperado: "
+                             f"{type(value).__name__}")
+        return value
 
-    def _conferir_campos(self, tipo: str, reg: dict) -> None:
-        for campo in reg.keys() - CAMPOS_CONHECIDOS[tipo]:
-            self.desc.campos[f"{tipo}.{campo}"] += 1
+    def _check_fields(self, kind: str, reg: dict) -> None:
+        for field_name in reg.keys() - KNOWN_FIELDS[kind]:
+            self.desc.fields[f"{kind}.{field_name}"] += 1
 
     # -- laço principal ----------------------------------------------------
 
-    def _ler(self) -> None:
-        with open(self.caminho, encoding="utf-8", errors="replace") as f:
-            linhas = f.read().split("\n")
-        ultima = max((i for i, l in enumerate(linhas) if l.strip()), default=-1)
-        for i, bruta in enumerate(linhas):
-            self.linha = i + 1
-            if not bruta.strip():
+    def _read(self) -> None:
+        with open(self.path, encoding="utf-8", errors="replace") as f:
+            lines = f.read().split("\n")
+        last = max((i for i, l in enumerate(lines) if l.strip()), default=-1)
+        for i, raw in enumerate(lines):
+            self.line = i + 1
+            if not raw.strip():
                 continue
             try:
-                reg = json.loads(bruta)
+                reg = json.loads(raw)
             except json.JSONDecodeError as e:
-                if i == ultima:        # escrita em andamento: tolerada e contada
-                    self.cortadas += 1
+                if i == last:        # escrita em andamento: tolerada e contada
+                    self.truncated += 1
                     continue
-                raise self._erro(f"linha não é JSON válido ({e.msg})") from None
+                raise self._error(f"linha não é JSON válido ({e.msg})") from None
             if not isinstance(reg, dict):
-                raise self._erro("linha JSON não é um objeto")
-            self.linhas += 1
-            self._registro(reg)
+                raise self._error("linha JSON não é um objeto")
+            self.lines += 1
+            self._record(reg)
 
-    def _registro(self, reg: dict) -> None:
-        tipo = self._exigir(reg, "type", str, "")
-        if tipo not in CAMPOS_CONHECIDOS:
-            self.desc.tipos[tipo] += 1
+    def _record(self, reg: dict) -> None:
+        kind = self._require(reg, "type", str, "")
+        if kind not in KNOWN_FIELDS:
+            self.desc.kinds[kind] += 1
             return
-        self._conferir_campos(tipo, reg)
-        if tipo == "api-request-shape":
-            self._forma_da_requisicao(reg)
-        if tipo not in _CONVERSA:
+        self._check_fields(kind, reg)
+        if kind == "api-request-shape":
+            self._request_shape(reg)
+        if kind not in _CONVERSATION:
             return
-        uuid = self._exigir(reg, "uuid", str, f"{tipo}.")
-        texto = self._exigir(reg, "timestamp", str, f"{tipo}.")
+        uuid = self._require(reg, "uuid", str, f"{kind}.")
+        text = self._require(reg, "timestamp", str, f"{kind}.")
         try:
-            ts = instante(texto)
+            ts = instant(text)
         except ValueError:
-            raise self._erro(f"campo {tipo}.timestamp não é um horário ISO 8601") from None
-        sessao = self._exigir(reg, "sessionId", str, f"{tipo}.")
-        if self.ate is not None and ts > self.ate:
+            raise self._error(f"campo {kind}.timestamp não é um horário ISO 8601") from None
+        session = self._require(reg, "sessionId", str, f"{kind}.")
+        if self.cutoff is not None and ts > self.cutoff:
             return
-        if self.sessao_id is None:
-            self.sessao_id = sessao
-        self.inicio = ts if self.inicio is None or ts < self.inicio else self.inicio
-        self.fim = ts if self.fim is None or ts > self.fim else self.fim
-        versao = reg.get("version")
-        if isinstance(versao, str):
-            self.versoes[versao] += 1
-            if self.versao_recente is None or ts >= self.versao_recente[0]:
-                self.versao_recente = (ts, versao)
+        if self.session_id is None:
+            self.session_id = session
+        self.start = ts if self.start is None or ts < self.start else self.start
+        self.end = ts if self.end is None or ts > self.end else self.end
+        version = reg.get("version")
+        if isinstance(version, str):
+            self.versions[version] += 1
+            if self.recent_version is None or ts >= self.recent_version[0]:
+                self.recent_version = (ts, version)
         if isinstance(reg.get("cwd"), str):
             self.cwds[reg["cwd"]] += 1
-        pai = reg.get("parentUuid")
-        if pai is None and isinstance(reg.get("logicalParentUuid"), str):
-            pai = reg["logicalParentUuid"]     # atravessa a compactação
-        self.pais[uuid] = pai if isinstance(pai, str) else None
-        getattr(self, f"_{tipo}")(reg, uuid, ts)
+        parent_commit = reg.get("parentUuid")
+        if parent_commit is None and isinstance(reg.get("logicalParentUuid"), str):
+            parent_commit = reg["logicalParentUuid"]     # atravessa a compactação
+        self.parents[uuid] = parent_commit if isinstance(parent_commit, str) else None
+        getattr(self, f"_{kind}")(reg, uuid, ts)
 
-    def _nomes(self, lista: object) -> set[str]:
+    def _names(self, lst: object) -> set[str]:
         """Nomes de uma lista de textos ou de objetos com `name`."""
-        if not isinstance(lista, list):
+        if not isinstance(lst, list):
             return set()
-        nomes = set()
-        for item in lista:
+        names = set()
+        for item in lst:
             if isinstance(item, dict):
                 item = item.get("name")
             if isinstance(item, str) and item:
-                nomes.add(item)
-        return nomes
+                names.add(item)
+        return names
 
-    def _forma_da_requisicao(self, reg: dict) -> None:
+    def _request_shape(self, reg: dict) -> None:
         """Ferramentas não adiadas, da parte fixa da requisição."""
-        texto = reg.get("timestamp")
-        if self.ate is not None and isinstance(texto, str):
+        text = reg.get("timestamp")
+        if self.cutoff is not None and isinstance(text, str):
             try:
-                if instante(texto) > self.ate:
+                if instant(text) > self.cutoff:
                     return
             except ValueError:
                 pass
-        forma = reg.get("shape")
-        if isinstance(forma, dict):
-            self.disponivel.ferramentas |= self._nomes(forma.get("tools"))
-            if (self.antes_da_resposta and self.forma_inicial is None
+        form = reg.get("shape")
+        if isinstance(form, dict):
+            self.available.tools |= self._names(form.get("tools"))
+            if (self.before_response and self.initial_shape is None
                     and reg.get("agentId") is None):
-                self.forma_inicial = forma
+                self.initial_shape = form
 
-    def partes_iniciais(self) -> PartesIniciais:
-        sistema = ferramentas = ferramentas_mcp = None
-        if self.forma_inicial is not None:
-            bruto = self.forma_inicial.get("system")
-            if isinstance(bruto, str):
-                sistema = len(bruto)
-            elif isinstance(bruto, list):
-                sistema = sum(len(b["text"]) for b in bruto
+    def initial_parts(self) -> InitialParts:
+        system = tools = mcp_tools = None
+        if self.initial_shape is not None:
+            raw = self.initial_shape.get("system")
+            if isinstance(raw, str):
+                system = len(raw)
+            elif isinstance(raw, list):
+                system = sum(len(b["text"]) for b in raw
                               if isinstance(b, dict) and isinstance(b.get("text"), str))
             else:
-                sistema = 0
-            ferramentas = ferramentas_mcp = 0
-            lista = self.forma_inicial.get("tools")
-            for f in lista if isinstance(lista, list) else []:
-                tamanho = len(json.dumps(f, ensure_ascii=False))
-                nome = f.get("name") if isinstance(f, dict) else None
-                if isinstance(nome, str) and servidor_mcp(nome):
-                    ferramentas_mcp += tamanho
+                system = 0
+            tools = mcp_tools = 0
+            lst = self.initial_shape.get("tools")
+            for f in lst if isinstance(lst, list) else []:
+                size = len(json.dumps(f, ensure_ascii=False))
+                name = f.get("name") if isinstance(f, dict) else None
+                if isinstance(name, str) and mcp_server(name):
+                    mcp_tools += size
                 else:
-                    ferramentas += tamanho
-        return PartesIniciais(sistema, ferramentas, ferramentas_mcp,
-                              dict(self.anexos_iniciais), self.pedido_inicial)
+                    tools += size
+        return InitialParts(system, tools, mcp_tools,
+                              dict(self.initial_attachments), self.initial_prompt)
 
     # -- user --------------------------------------------------------------
 
     def _user(self, reg: dict, uuid: str, ts: datetime) -> None:
-        mensagem = self._exigir(reg, "message", dict, "user.")
-        conteudo = self._exigir(mensagem, "content", (str, list), "user.message.")
+        message = self._require(reg, "message", dict, "user.")
+        content = self._require(message, "content", (str, list), "user.message.")
         prompt_id = reg.get("promptId")
-        if self.primeiro_prompt_id is None and isinstance(prompt_id, str):
-            self.primeiro_prompt_id = prompt_id
-        origem = reg.get("origin")
-        humano = isinstance(origem, dict) and origem.get("kind") == "human"
-        if humano and "toolUseResult" not in reg and not reg.get("isMeta"):
-            chave = prompt_id if isinstance(prompt_id, str) else f"sem-prompt-id:{uuid}"
+        if self.first_prompt_id is None and isinstance(prompt_id, str):
+            self.first_prompt_id = prompt_id
+        origin = reg.get("origin")
+        human = isinstance(origin, dict) and origin.get("kind") == "human"
+        if human and "toolUseResult" not in reg and not reg.get("isMeta"):
+            key = prompt_id if isinstance(prompt_id, str) else f"sem-prompt-id:{uuid}"
             if not isinstance(prompt_id, str):
-                self.desc.campos["user.promptId ausente em pedido humano"] += 1
-            tamanho = len(conteudo) if isinstance(conteudo, str) else sum(
-                len(b.get("text", "")) for b in conteudo if isinstance(b, dict))
-            modo = reg.get("permissionMode") if isinstance(reg.get("permissionMode"), str) else None
-            if chave in self.pedidos:          # fork: promptId reescrito nos copiados
-                p = self.pedidos[chave]
-                p.registros += 1
-                p.timestamp, p.tamanho, p.fonte = ts, tamanho, reg.get("promptSource")
-                p.modo_permissao = modo
+                self.desc.fields["user.promptId ausente em pedido humano"] += 1
+            size = len(content) if isinstance(content, str) else sum(
+                len(b.get("text", "")) for b in content if isinstance(b, dict))
+            mode = reg.get("permissionMode") if isinstance(reg.get("permissionMode"), str) else None
+            if key in self.prompts:          # fork: promptId reescrito nos copiados
+                p = self.prompts[key]
+                p.records += 1
+                p.timestamp, p.size, p.source = ts, size, reg.get("promptSource")
+                p.permission_mode = mode
             else:
-                self.pedidos[chave] = Pedido(chave, ts, tamanho, reg.get("promptSource"), modo)
-            if self.antes_da_resposta and self.pedido_inicial is None:
-                self.pedido_inicial = tamanho
-            self.pedido_no_uuid[uuid] = chave
-            self._pedido_corrente = chave
+                self.prompts[key] = Prompt(key, ts, size, reg.get("promptSource"), mode)
+            if self.before_response and self.initial_prompt is None:
+                self.initial_prompt = size
+            self.prompt_by_uuid[uuid] = key
+            self._current_prompt = key
         if "toolUseResult" not in reg and not reg.get("isMeta"):
-            self._comando(conteudo)
+            self._command(content)
         if "interruptedMessageId" in reg:
-            self.intervencoes.append((Intervencao("interrupcao", ts), uuid))
+            self.interventions.append((Intervention("interrupcao", ts), uuid))
         if reg.get("toolDenialKind") == "user-rejected":
-            self.intervencoes.append((Intervencao(
-                "rejeicao", ts, com_comentario=bool(reg.get("userFeedback"))), uuid))
-        if isinstance(conteudo, list):
-            for bloco in conteudo:
-                if not isinstance(bloco, dict):
+            self.interventions.append((Intervention(
+                "rejeicao", ts, with_comment=bool(reg.get("userFeedback"))), uuid))
+        if isinstance(content, list):
+            for block in content:
+                if not isinstance(block, dict):
                     continue
-                tipo_bloco = bloco.get("type")
-                if tipo_bloco not in BLOCOS_CONHECIDOS["user"]:
-                    self.desc.tipos[f"user.content/{tipo_bloco}"] += 1
-                if tipo_bloco == "tool_result":
-                    self._resultado(reg, bloco, uuid, ts)
+                block_type = block.get("type")
+                if block_type not in KNOWN_BLOCKS["user"]:
+                    self.desc.kinds[f"user.content/{block_type}"] += 1
+                if block_type == "tool_result":
+                    self._tool_result(reg, block, uuid, ts)
 
-    def _comando(self, conteudo: str | list) -> None:
+    def _command(self, content: str | list) -> None:
         """/comando digitado: texto que começa por `<command-` e traz o nome.
 
         Vale para skills e para comandos embutidos; quem separa é o cruzamento
         com a lista de skills anunciadas (lote 005).
         """
-        if isinstance(conteudo, list):
-            conteudo = next((b.get("text") for b in conteudo
+        if isinstance(content, list):
+            content = next((b.get("text") for b in content
                              if isinstance(b, dict) and b.get("type") == "text"), None)
-        if not isinstance(conteudo, str) or not conteudo.lstrip().startswith("<command-"):
+        if not isinstance(content, str) or not content.lstrip().startswith("<command-"):
             return
-        achado = _NOME_DO_COMANDO.search(conteudo)
-        if achado:
-            self.comandos.append(achado.group(1))
+        finding = _COMMAND_NAME.search(content)
+        if finding:
+            self.commands.append(finding.group(1))
 
-    def _resultado(self, reg: dict, bloco: dict, uuid: str, ts: datetime) -> None:
-        tool_id = self._exigir(bloco, "tool_use_id", str, "user.message.content[].")
-        decisao = reg.get("permissionDecision")
-        decisao = decisao if isinstance(decisao, dict) else None
-        resultado = Resultado(ts, bool(bloco.get("is_error")), reg.get("toolUseResult"),
-                              decisao, reg.get("toolDenialKind"))
-        self.resultados[tool_id] = (resultado, uuid)
-        if decisao:
-            self._decisao_de_hook(decisao, tool_id, ts)
+    def _tool_result(self, reg: dict, block: dict, uuid: str, ts: datetime) -> None:
+        tool_id = self._require(block, "tool_use_id", str, "user.message.content[].")
+        decision = reg.get("permissionDecision")
+        decision = decision if isinstance(decision, dict) else None
+        result = ToolResult(ts, bool(block.get("is_error")), reg.get("toolUseResult"),
+                              decision, reg.get("toolDenialKind"))
+        self.results[tool_id] = (result, uuid)
+        if decision:
+            self._hook_decision(decision, tool_id, ts)
 
-    def _decisao_de_hook(self, decisao: dict, tool_id: str, ts: datetime) -> None:
+    def _hook_decision(self, decision: dict, tool_id: str, ts: datetime) -> None:
         """Decisão de permissão em que um hook participou.
 
         O hook aparece de dois jeitos: como autor da decisão (source "hook")
         ou só no reasonCode ("hook:<evento>"), quando pediu confirmação e
         quem decidiu foi o usuário.
         """
-        codigo = decisao.get("reasonCode")
-        codigo = codigo if isinstance(codigo, str) and codigo.startswith("hook:") else ""
-        do_hook = decisao.get("source") == "hook"
-        if not do_hook and not codigo:
+        code = decision.get("reasonCode")
+        code = code if isinstance(code, str) and code.startswith("hook:") else ""
+        of_hook = decision.get("source") == "hook"
+        if not of_hook and not code:
             return
-        rejeitou = decisao.get("decision") == "reject"
-        if do_hook:
-            tipo = "bloqueio" if rejeitou else "decisao"
+        rejected = decision.get("decision") == "reject"
+        if of_hook:
+            kind = "bloqueio" if rejected else "decisao"
         else:
-            tipo = "confirmacao"
-        self.hooks.append(EventoHook(
-            tipo, ts, evento=codigo.removeprefix("hook:") or None, tool_use_id=tool_id,
-            bloqueou=rejeitou, subagente_id=self.subagente_id))
+            kind = "confirmacao"
+        self.hooks.append(HookEvent(
+            kind, ts, event=code.removeprefix("hook:") or None, tool_use_id=tool_id,
+            blocked=rejected, subagent_id=self.subagent_id))
 
     # -- assistant ---------------------------------------------------------
 
     def _assistant(self, reg: dict, uuid: str, ts: datetime) -> None:
-        mensagem = self._exigir(reg, "message", dict, "assistant.")
-        mid = self._exigir(mensagem, "id", str, "assistant.message.")
-        blocos = self._exigir(mensagem, "content", list, "assistant.message.")
+        message = self._require(reg, "message", dict, "assistant.")
+        mid = self._require(message, "id", str, "assistant.message.")
+        blocks = self._require(message, "content", list, "assistant.message.")
         # Resposta gerada localmente não passou pela API: pode vir sem usage, e
         # isso vale zero. Em resposta de modelo, usage ausente é erro.
-        sintetica = mensagem.get("model") == "<synthetic>"
-        if sintetica and mensagem.get("usage") is None:
+        synthetic = message.get("model") == "<synthetic>"
+        if synthetic and message.get("usage") is None:
             tokens = Tokens()
         else:
-            uso = self._exigir(mensagem, "usage", dict, "assistant.message.")
-            onde = "assistant.message.usage."
+            use = self._require(message, "usage", dict, "assistant.message.")
+            where = "assistant.message.usage."
             tokens = Tokens(
-                self._exigir(uso, "input_tokens", int, onde),
-                self._exigir(uso, "output_tokens", int, onde),
-                self._inteiro_opcional(uso, "cache_creation_input_tokens", onde),
-                self._inteiro_opcional(uso, "cache_read_input_tokens", onde))
-        origem = reg.get("requestSessionId")
-        copiada = isinstance(origem, str) and origem != reg["sessionId"]
-        if copiada and self.copiada_de is None:
-            self.copiada_de = origem
+                self._require(use, "input_tokens", int, where),
+                self._require(use, "output_tokens", int, where),
+                self._optional_int(use, "cache_creation_input_tokens", where),
+                self._optional_int(use, "cache_read_input_tokens", where))
+        origin = reg.get("requestSessionId")
+        copied = isinstance(origin, str) and origin != reg["sessionId"]
+        if copied and self.copied_from is None:
+            self.copied_from = origin
         if isinstance(reg.get("attributionAgent"), str):
-            self.tipo_agente = reg["attributionAgent"]
-        resposta = self.respostas.get(mid)
-        if resposta is None:
-            resposta = self.respostas[mid] = Resposta(
-                mid, mensagem.get("model"), ts, tokens, mensagem.get("stop_reason"),
-                copiada=copiada, sintetica=sintetica, skill=reg.get("attributionSkill"))
-            self.primeiro_uuid[mid] = uuid
-            self.reserva[mid] = self._pedido_corrente
-            if self.contexto_inicial is None and not sintetica and not copiada:
-                self.contexto_inicial = (tokens.entrada + tokens.cache_criacao
-                                         + tokens.cache_leitura)
-            if not sintetica and not copiada:
-                self.antes_da_resposta = False
-        elif tokens.saida > resposta.tokens.saida:
+            self.agent_type = reg["attributionAgent"]
+        response = self.responses.get(mid)
+        if response is None:
+            response = self.responses[mid] = Response(
+                mid, message.get("model"), ts, tokens, message.get("stop_reason"),
+                copied=copied, synthetic=synthetic, skill=reg.get("attributionSkill"))
+            self.first_uuid[mid] = uuid
+            self.reserved[mid] = self._current_prompt
+            if self.initial_context is None and not synthetic and not copied:
+                self.initial_context = (tokens.input + tokens.cache_creation
+                                         + tokens.cache_read)
+            if not synthetic and not copied:
+                self.before_response = False
+        elif tokens.output > response.tokens.output:
             # Em subagentes o usage dos primeiros blocos é parcial; vale o final.
-            resposta.tokens = tokens
-        resposta.registros += 1
-        for bloco in blocos:
-            if not isinstance(bloco, dict):
+            response.tokens = tokens
+        response.records += 1
+        for block in blocks:
+            if not isinstance(block, dict):
                 continue
-            tipo_bloco = bloco.get("type")
-            resposta.blocos.append(str(tipo_bloco))
-            if tipo_bloco not in BLOCOS_CONHECIDOS["assistant"]:
-                self.desc.tipos[f"assistant.content/{tipo_bloco}"] += 1
-            if tipo_bloco == "tool_use":
-                onde_bloco = "assistant.message.content[]."
-                tool_id = self._exigir(bloco, "id", str, onde_bloco)
-                self.chamadas[tool_id] = Chamada(
-                    tool_id, self._exigir(bloco, "name", str, onde_bloco),
-                    self._exigir(bloco, "input", dict, onde_bloco), ts,
+            block_type = block.get("type")
+            response.blocks.append(str(block_type))
+            if block_type not in KNOWN_BLOCKS["assistant"]:
+                self.desc.kinds[f"assistant.content/{block_type}"] += 1
+            if block_type == "tool_use":
+                block_where = "assistant.message.content[]."
+                tool_id = self._require(block, "id", str, block_where)
+                self.calls[tool_id] = ToolCall(
+                    tool_id, self._require(block, "name", str, block_where),
+                    self._require(block, "input", dict, block_where), ts,
                     reg.get("cwd"), mid)
 
-    def _inteiro_opcional(self, uso: dict, nome: str, onde: str) -> int:
-        if uso.get(nome) is None:
+    def _optional_int(self, use: dict, name: str, where: str) -> int:
+        if use.get(name) is None:
             return 0
-        return self._exigir(uso, nome, int, onde)
+        return self._require(use, name, int, where)
 
     # -- attachment e system -------------------------------------------------
 
     def _attachment(self, reg: dict, uuid: str, ts: datetime) -> None:
-        anexo = self._exigir(reg, "attachment", dict, "attachment.")
-        tipo = self._exigir(anexo, "type", str, "attachment.attachment.")
-        if tipo not in ANEXOS_CONHECIDOS:
-            self.desc.tipos[f"attachment/{tipo}"] += 1
-        if self.antes_da_resposta and tipo not in _ANEXO_FORA:
-            self.anexos_iniciais[tipo] += tamanho_do_anexo(anexo)
-        if tipo.startswith("hook_"):
-            codigo = anexo.get("exitCode")
-            self.hooks.append(EventoHook(
-                _HOOKS.get(tipo, tipo), ts, evento=anexo.get("hookEvent"),
-                nome=anexo.get("hookName"),
-                codigo_saida=codigo if isinstance(codigo, int) else None,
-                tool_use_id=anexo.get("toolUseID"), subagente_id=self.subagente_id))
-        elif tipo == "skill_listing":
-            self.disponivel.skills |= self._nomes(anexo.get("names"))
-        elif tipo == "agent_listing_delta":
-            embutidos = self._nomes(anexo.get("builtInTypes"))
-            self.disponivel.tipos_subagente |= self._nomes(anexo.get("addedTypes")) | embutidos
-            self.disponivel.tipos_embutidos |= embutidos
-        elif tipo == "deferred_tools_delta":
-            self.disponivel.ferramentas |= self._nomes(anexo.get("addedNames"))
-        elif tipo == "deferred_tools_record":
-            self.disponivel.ferramentas |= self._nomes(anexo.get("entries"))
-        elif tipo == "queued_command":
-            origem = anexo.get("origin")
-            if anexo.get("humanTurn") or (isinstance(origem, dict)
-                                          and origem.get("kind") == "human"):
-                self.intervencoes.append((Intervencao("mensagem_no_meio", ts), uuid))
+        attachment = self._require(reg, "attachment", dict, "attachment.")
+        kind = self._require(attachment, "type", str, "attachment.attachment.")
+        if kind not in KNOWN_ATTACHMENTS:
+            self.desc.kinds[f"attachment/{kind}"] += 1
+        if self.before_response and kind not in _ATTACHMENT_EXCLUDED:
+            self.initial_attachments[kind] += attachment_size(attachment)
+        if kind.startswith("hook_"):
+            code = attachment.get("exitCode")
+            self.hooks.append(HookEvent(
+                _HOOKS.get(kind, kind), ts, event=attachment.get("hookEvent"),
+                name=attachment.get("hookName"),
+                exit_code=code if isinstance(code, int) else None,
+                tool_use_id=attachment.get("toolUseID"), subagent_id=self.subagent_id))
+        elif kind == "skill_listing":
+            self.available.skills |= self._names(attachment.get("names"))
+        elif kind == "agent_listing_delta":
+            builtin_types = self._names(attachment.get("builtInTypes"))
+            self.available.subagent_types |= self._names(attachment.get("addedTypes")) | builtin_types
+            self.available.builtin_types |= builtin_types
+        elif kind == "deferred_tools_delta":
+            self.available.tools |= self._names(attachment.get("addedNames"))
+        elif kind == "deferred_tools_record":
+            self.available.tools |= self._names(attachment.get("entries"))
+        elif kind == "queued_command":
+            origin = attachment.get("origin")
+            if attachment.get("humanTurn") or (isinstance(origin, dict)
+                                          and origin.get("kind") == "human"):
+                self.interventions.append((Intervention("mensagem_no_meio", ts), uuid))
 
     def _system(self, reg: dict, uuid: str, ts: datetime) -> None:
-        subtipo = reg.get("subtype")
-        if subtipo not in SUBTIPOS_DE_SISTEMA:
-            self.desc.tipos[f"system/{subtipo}"] += 1
-        if subtipo == "local_command":
-            self.comandos_locais += 1
-        if subtipo == "stop_hook_summary":
-            self.hooks.append(EventoHook(
-                "parada", ts, evento="Stop", tool_use_id=reg.get("toolUseID"),
-                bloqueou=bool(reg.get("preventedContinuation")),
-                subagente_id=self.subagente_id))
+        subtype = reg.get("subtype")
+        if subtype not in SYSTEM_SUBTYPES:
+            self.desc.kinds[f"system/{subtype}"] += 1
+        if subtype == "local_command":
+            self.local_commands += 1
+        if subtype == "stop_hook_summary":
+            self.hooks.append(HookEvent(
+                "parada", ts, event="Stop", tool_use_id=reg.get("toolUseID"),
+                blocked=bool(reg.get("preventedContinuation")),
+                subagent_id=self.subagent_id))
 
     # -- depois da leitura ---------------------------------------------------
 
-    def pedido_de(self, uuid: str | None) -> str | None:
+    def prompt_of(self, uuid: str | None) -> str | None:
         """Pedido humano mais próximo subindo a cadeia de parentUuid."""
-        caminho, achado = [], None
-        while uuid is not None and uuid not in caminho:
-            if uuid in self.pedido_no_uuid:
-                achado = self.pedido_no_uuid[uuid]
+        path, finding = [], None
+        while uuid is not None and uuid not in path:
+            if uuid in self.prompt_by_uuid:
+                finding = self.prompt_by_uuid[uuid]
                 break
-            caminho.append(uuid)
-            uuid = self.pais.get(uuid)
-        for u in caminho:                      # memoriza o trecho percorrido
-            if achado is not None:
-                self.pedido_no_uuid[u] = achado
-        return achado
+            path.append(uuid)
+            uuid = self.parents.get(uuid)
+        for u in path:                      # memoriza o trecho percorrido
+            if finding is not None:
+                self.prompt_by_uuid[u] = finding
+        return finding
 
-    def fechar(self) -> None:
+    def close(self) -> None:
         """Liga resultados às chamadas e respostas aos pedidos."""
-        for tool_id, (resultado, _) in self.resultados.items():
-            if tool_id in self.chamadas:
-                self.chamadas[tool_id].resultado = resultado
-        for mid, resposta in self.respostas.items():
-            resposta.pedido_id = self.pedido_de(self.primeiro_uuid[mid]) or self.reserva[mid]
-        for chamada in self.chamadas.values():
-            chamada.pedido_id = self.respostas[chamada.message_id].pedido_id
-            chamada.commit = _commit_da(chamada)
-        for intervencao, uuid in self.intervencoes:
-            intervencao.pedido_id = self.pedido_de(uuid)
+        for tool_id, (result, _) in self.results.items():
+            if tool_id in self.calls:
+                self.calls[tool_id].result = result
+        for mid, response in self.responses.items():
+            response.prompt_id = self.prompt_of(self.first_uuid[mid]) or self.reserved[mid]
+        for call in self.calls.values():
+            call.prompt_id = self.responses[call.message_id].prompt_id
+            call.commit = _commit_of(call)
+        for intervention, uuid in self.interventions:
+            intervention.prompt_id = self.prompt_of(uuid)
 
 
-def _commit_da(chamada: Chamada) -> Commit | None:
-    comando = chamada.entrada.get("command")
-    if chamada.nome != "Bash" or not isinstance(comando, str):
+def _commit_of(call: ToolCall) -> Commit | None:
+    command = call.input.get("command")
+    if call.name != "Bash" or not isinstance(command, str):
         return None
-    analise = analisar_commit(comando)
-    if analise is None:
+    analysis = parse_commit(command)
+    if analysis is None:
         return None
-    sha, tipo = None, None
-    estruturado = chamada.resultado.estruturado if chamada.resultado else None
-    if isinstance(estruturado, dict) and isinstance(estruturado.get("gitOperation"), dict):
-        registrado = estruturado["gitOperation"].get("commit")
-        if isinstance(registrado, dict):
-            sha = registrado.get("sha") if isinstance(registrado.get("sha"), str) else None
-            tipo = registrado.get("kind")
-    return Commit(sha, analise.amend, analise.silencioso, analise.quantidade,
-                  analise.aproximado, tipo if isinstance(tipo, str) else None)
+    sha, kind = None, None
+    structured = call.result.structured if call.result else None
+    if isinstance(structured, dict) and isinstance(structured.get("gitOperation"), dict):
+        recorded = structured["gitOperation"].get("commit")
+        if isinstance(recorded, dict):
+            sha = recorded.get("sha") if isinstance(recorded.get("sha"), str) else None
+            kind = recorded.get("kind")
+    return Commit(sha, analysis.amend, analysis.silent, analysis.count,
+                  analysis.approximate, kind if isinstance(kind, str) else None)
 
 
-def _ler_meta(caminho: Path) -> dict:
+def _read_meta(path: Path) -> dict:
     """Metadados do subagente (agent-<id>.meta.json), se existirem."""
-    meta = caminho.parent / (caminho.stem + ".meta.json")
+    meta = path.parent / (path.stem + ".meta.json")
     try:
-        dados = json.loads(meta.read_text(encoding="utf-8"))
+        data = json.loads(meta.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
-    return dados if isinstance(dados, dict) else {}
+    return data if isinstance(data, dict) else {}
 
 
-def ler_sessao(principal: Path, subagentes: Iterable[Path] | None = None, *,
-               raiz_git: Callable[[Path], Path | None] = raiz_git_de,
-               ate: str | datetime | None = None) -> Sessao:
+def read_session(main_file: Path, subagents: Iterable[Path] | None = None, *,
+               git_root: Callable[[Path], Path | None] = git_root_of,
+               cutoff: str | datetime | None = None) -> Session:
     """Lê uma sessão (arquivo principal e subagentes) para o modelo interno.
 
     `ate` descarta registros de conversa posteriores a esse instante. Erro no
     arquivo principal levanta ErroDeFormato; erro em arquivo de subagente
     tira só aquele subagente e fica registrado em `Sessao.falhas`.
     """
-    ate = None if ate is None else instante(ate)
-    principal = Path(principal)
-    subagentes = _subagentes_de(principal) if subagentes is None else list(subagentes)
-    desc = Desconhecidos()
-    a = _Arquivo(principal, ate, desc)
-    a.fechar()
-    s = Sessao(id=a.sessao_id or principal.stem, caminho=principal,
-               pasta_projeto=principal.parent.name, inicio=a.inicio, fim=a.fim,
-               versoes=sorted(a.versoes), versao=a.versao_recente[1] if a.versao_recente else None,
-               cwds=list(a.cwds), copiada_de=a.copiada_de,
-               pedidos=list(a.pedidos.values()), respostas=list(a.respostas.values()),
-               chamadas=list(a.chamadas.values()),
-               intervencoes=[i for i, _ in a.intervencoes], hooks=a.hooks,
-               desconhecidos=desc, linhas=a.linhas, linhas_cortadas=a.cortadas,
-               disponivel=a.disponivel,
-               contexto_inicial=None if a.copiada_de else a.contexto_inicial,
-               comandos=a.comandos, comandos_locais=a.comandos_locais)
-    if s.contexto_inicial is not None:
-        s.partes_iniciais = a.partes_iniciais()
-    s.respostas_sem_pedido = sum(1 for r in s.respostas if r.pedido_id is None and not r.copiada)
+    cutoff = None if cutoff is None else instant(cutoff)
+    main_file = Path(main_file)
+    subagents = _subagents_of(main_file) if subagents is None else list(subagents)
+    desc = Unknowns()
+    a = _File(main_file, cutoff, desc)
+    a.close()
+    s = Session(id=a.session_id or main_file.stem, path=main_file,
+               project_dir=main_file.parent.name, start=a.start, end=a.end,
+               versions=sorted(a.versions), version=a.recent_version[1] if a.recent_version else None,
+               cwds=list(a.cwds), copied_from=a.copied_from,
+               prompts=list(a.prompts.values()), responses=list(a.responses.values()),
+               calls=list(a.calls.values()),
+               interventions=[i for i, _ in a.interventions], hooks=a.hooks,
+               unknowns=desc, lines=a.lines, truncated_lines=a.truncated,
+               available=a.available,
+               initial_context=None if a.copied_from else a.initial_context,
+               commands=a.commands, local_commands=a.local_commands)
+    if s.initial_context is not None:
+        s.initial_parts = a.initial_parts()
+    s.responses_without_prompt = sum(1 for r in s.responses if r.prompt_id is None and not r.copied)
 
     cache: dict[str, Path | None] = {}
     for cwd, n in a.cwds.items():
         if cwd not in cache:
-            cache[cwd] = raiz_git(Path(cwd))
+            cache[cwd] = git_root(Path(cwd))
         if cache[cwd] is not None:
-            s.repositorios[cache[cwd]] += n
-    if s.repositorios:
-        s.repositorio = s.repositorios.most_common(1)[0][0]
+            s.repositories[cache[cwd]] += n
+    if s.repositories:
+        s.repository = s.repositories.most_common(1)[0][0]
 
-    for caminho in subagentes:
-        agente_id = caminho.stem.removeprefix("agent-")
-        desc_sub = Desconhecidos()
+    for path in subagents:
+        agent_id = path.stem.removeprefix("agent-")
+        sub_desc = Unknowns()
         try:
-            b = _Arquivo(caminho, ate, desc_sub, agente_id)
-        except ErroDeFormato as erro:
-            s.falhas.append(Falha(erro.arquivo, erro.linha, erro.mensagem))
+            b = _File(path, cutoff, sub_desc, agent_id)
+        except FormatError as error:
+            s.failures.append(ReadFailure(error.file, error.line, error.message))
             continue
-        except OSError as erro:
-            s.falhas.append(Falha(caminho, 0, f"não foi possível ler: {erro.strerror}"))
+        except OSError as error:
+            s.failures.append(ReadFailure(path, 0, f"não foi possível ler: {error.strerror}"))
             continue
-        desc.somar(desc_sub)
-        if not b.linhas or b.inicio is None:
+        desc.add_up(sub_desc)
+        if not b.lines or b.start is None:
             continue
-        b.fechar()
-        meta = _ler_meta(caminho)
-        s.linhas += b.linhas
-        s.linhas_cortadas += b.cortadas
+        b.close()
+        meta = _read_meta(path)
+        s.lines += b.lines
+        s.truncated_lines += b.truncated
         s.hooks.extend(b.hooks)
-        s.subagentes.append(Subagente(
-            id=agente_id, caminho=caminho,
-            tipo=meta.get("agentType") or b.tipo_agente,
-            tool_use_id=meta.get("toolUseId"), profundidade=meta.get("spawnDepth"),
-            pedido_id=b.primeiro_prompt_id if b.primeiro_prompt_id in a.pedidos else None,
-            respostas=list(b.respostas.values()), chamadas=list(b.chamadas.values())))
+        s.subagents.append(Subagent(
+            id=agent_id, path=path,
+            kind=meta.get("agentType") or b.agent_type,
+            tool_use_id=meta.get("toolUseId"), depth=meta.get("spawnDepth"),
+            prompt_id=b.first_prompt_id if b.first_prompt_id in a.prompts else None,
+            responses=list(b.responses.values()), calls=list(b.calls.values())))
 
     # O pedido de um subagente é o da chamada que o acionou; subagentes
     # aninhados resolvem pela chamada feita dentro de outro subagente.
-    dono = {c.id: c.pedido_id for c in s.chamadas}
-    mudou = True
-    while mudou:
-        mudou = False
-        for sub in s.subagentes:
-            if sub.tool_use_id in dono and dono[sub.tool_use_id] is not None:
-                sub.pedido_id = dono[sub.tool_use_id]
-            for c in sub.chamadas:
-                if dono.get(c.id) != sub.pedido_id:
-                    dono[c.id] = sub.pedido_id
-                    mudou = True
-    por_id = {p.id: p for p in s.pedidos}
-    for r in s.respostas:
-        if not r.copiada and r.pedido_id in por_id:
-            por_id[r.pedido_id].tokens = por_id[r.pedido_id].tokens + r.tokens
-    for sub in s.subagentes:
-        for item in (*sub.respostas, *sub.chamadas):
-            item.pedido_id = sub.pedido_id
-        if sub.pedido_id in por_id:
-            p = por_id[sub.pedido_id]
-            p.tokens_subagentes = p.tokens_subagentes + sub.tokens
+    owner = {c.id: c.prompt_id for c in s.calls}
+    changed = True
+    while changed:
+        changed = False
+        for sub in s.subagents:
+            if sub.tool_use_id in owner and owner[sub.tool_use_id] is not None:
+                sub.prompt_id = owner[sub.tool_use_id]
+            for c in sub.calls:
+                if owner.get(c.id) != sub.prompt_id:
+                    owner[c.id] = sub.prompt_id
+                    changed = True
+    by_id = {p.id: p for p in s.prompts}
+    for r in s.responses:
+        if not r.copied and r.prompt_id in by_id:
+            by_id[r.prompt_id].tokens = by_id[r.prompt_id].tokens + r.tokens
+    for sub in s.subagents:
+        for item in (*sub.responses, *sub.calls):
+            item.prompt_id = sub.prompt_id
+        if sub.prompt_id in by_id:
+            p = by_id[sub.prompt_id]
+            p.subagent_tokens = p.subagent_tokens + sub.tokens
     return s
 
 
-def ler_tudo(config: Path | None = None, *, ate: str | datetime | None = None,
-             raiz_git: Callable[[Path], Path | None] = raiz_git_de) -> Leitura:
+def read_all(config: Path | None = None, *, cutoff: str | datetime | None = None,
+             git_root: Callable[[Path], Path | None] = git_root_of) -> ReadResult:
     """Lê todas as sessões do diretório de configuração.
 
     Erro em um arquivo não impede a leitura dos outros (E12): a sessão com
     arquivo principal ilegível fica de fora e entra em `falhas`.
     """
-    config = diretorio_config() if config is None else Path(config)
-    ate = None if ate is None else instante(ate)
-    leitura = Leitura()
-    for arquivos in localizar_sessoes(config):
+    config = config_dir() if config is None else Path(config)
+    cutoff = None if cutoff is None else instant(cutoff)
+    reading = ReadResult()
+    for files in find_sessions(config):
         try:
-            s = ler_sessao(arquivos.principal, arquivos.subagentes, raiz_git=raiz_git, ate=ate)
-        except ErroDeFormato as erro:
-            leitura.falhas.append(Falha(erro.arquivo, erro.linha, erro.mensagem))
+            s = read_session(files.main_file, files.subagents, git_root=git_root, cutoff=cutoff)
+        except FormatError as error:
+            reading.failures.append(ReadFailure(error.file, error.line, error.message))
             continue
-        except OSError as erro:
-            leitura.falhas.append(Falha(arquivos.principal, 0,
-                                        f"não foi possível ler: {erro.strerror}"))
+        except OSError as error:
+            reading.failures.append(ReadFailure(files.main_file, 0,
+                                        f"não foi possível ler: {error.strerror}"))
             continue
-        leitura.falhas.extend(s.falhas)
-        if s.inicio is not None:      # sem registro de conversa no intervalo: fora
-            leitura.sessoes.append(s)
-    return leitura
+        reading.failures.extend(s.failures)
+        if s.start is not None:      # sem registro de conversa no intervalo: fora
+            reading.sessions.append(s)
+    return reading
 
 
 # --------------------------------------------------------------------------
 # Agregados de conferência e comando mínimo
 # --------------------------------------------------------------------------
 
-def agregados(sessoes: Iterable[Sessao]) -> dict:
+def aggregates(sessions: Iterable[Session]) -> dict:
     """Totais para conferir o leitor contra os documentos de investigação."""
-    sessoes = list(sessoes)
-    desc = Desconhecidos()
-    vistos: Counter = Counter()
-    for s in sessoes:
-        desc.somar(s.desconhecidos)
-        vistos.update(r.message_id for r in s.respostas if not r.copiada)
-        for sub in s.subagentes:
-            vistos.update(r.message_id for r in sub.respostas)
-    principal = _soma(s.tokens_principal for s in sessoes)
-    subs = _soma(s.tokens_subagentes for s in sessoes)
-    todas = [c for s in sessoes for c in s.chamadas]
+    sessions = list(sessions)
+    desc = Unknowns()
+    seen: Counter = Counter()
+    for s in sessions:
+        desc.add_up(s.unknowns)
+        seen.update(r.message_id for r in s.responses if not r.copied)
+        for sub in s.subagents:
+            seen.update(r.message_id for r in sub.responses)
+    main_file = _sum(s.main_tokens for s in sessions)
+    subs = _sum(s.subagent_tokens for s in sessions)
+    every = [c for s in sessions for c in s.calls]
     return {
-        "sessoes": len(sessoes),
-        "subagentes": sum(len(s.subagentes) for s in sessoes),
-        "pastas_projeto": len({s.pasta_projeto for s in sessoes}),
-        "repositorios": len({s.repositorio for s in sessoes if s.repositorio}),
-        "sessoes_sem_repositorio": sum(1 for s in sessoes if s.repositorio is None),
-        "sessoes_de_fork": sum(1 for s in sessoes if s.copiada_de),
-        "versoes": len({v for s in sessoes for v in s.versoes}),
-        "pedidos_humanos": sum(len(s.pedidos) for s in sessoes),
-        "respostas": sum(1 for s in sessoes for r in s.respostas if not r.copiada),
-        "respostas_sem_pedido": sum(s.respostas_sem_pedido for s in sessoes),
-        "respostas_repetidas_entre_sessoes": sum(1 for n in vistos.values() if n > 1),
-        "chamadas_ferramenta": len(todas),
-        "resultados_ferramenta": sum(1 for c in todas if c.resultado),
-        "chamadas_skill": sum(1 for c in todas if c.nome == "Skill"),
-        "chamadas_subagente": sum(1 for c in todas if c.nome == "Agent"),
-        "tokens_principal": principal.total,
+        "sessoes": len(sessions),
+        "subagentes": sum(len(s.subagents) for s in sessions),
+        "pastas_projeto": len({s.project_dir for s in sessions}),
+        "repositorios": len({s.repository for s in sessions if s.repository}),
+        "sessoes_sem_repositorio": sum(1 for s in sessions if s.repository is None),
+        "sessoes_de_fork": sum(1 for s in sessions if s.copied_from),
+        "versoes": len({v for s in sessions for v in s.versions}),
+        "pedidos_humanos": sum(len(s.prompts) for s in sessions),
+        "respostas": sum(1 for s in sessions for r in s.responses if not r.copied),
+        "respostas_sem_pedido": sum(s.responses_without_prompt for s in sessions),
+        "respostas_repetidas_entre_sessoes": sum(1 for n in seen.values() if n > 1),
+        "chamadas_ferramenta": len(every),
+        "resultados_ferramenta": sum(1 for c in every if c.result),
+        "chamadas_skill": sum(1 for c in every if c.name == "Skill"),
+        "chamadas_subagente": sum(1 for c in every if c.name == "Agent"),
+        "tokens_principal": main_file.total,
         "tokens_subagentes": subs.total,
-        "tokens_total": principal.total + subs.total,
-        "tokens_saida_principal": principal.saida,
-        "intervencoes": dict(Counter(i.tipo for s in sessoes for i in s.intervencoes)),
-        "hooks": dict(Counter(h.tipo for s in sessoes for h in s.hooks)),
-        "linhas_cortadas": sum(s.linhas_cortadas for s in sessoes),
-        "tipos_desconhecidos": dict(desc.tipos),
-        "campos_desconhecidos": dict(desc.campos),
+        "tokens_total": main_file.total + subs.total,
+        "tokens_saida_principal": main_file.output,
+        "intervencoes": dict(Counter(i.kind for s in sessions for i in s.interventions)),
+        "hooks": dict(Counter(h.kind for s in sessions for h in s.hooks)),
+        "linhas_cortadas": sum(s.truncated_lines for s in sessions),
+        "tipos_desconhecidos": dict(desc.kinds),
+        "campos_desconhecidos": dict(desc.fields),
     }
 
 
 def main(argv: list[str] | None = None) -> int:
-    analisador = argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         prog="python -m dark.reader",
         description="Lê as transcrições e imprime os agregados de conferência.")
-    analisador.add_argument("--config", type=Path, default=None,
+    parser.add_argument("--config", type=Path, default=None,
                             help="diretório de configuração (padrão: CLAUDE_CONFIG_DIR ou ~/.claude)")
-    analisador.add_argument("--ate", default=None,
+    parser.add_argument("--ate", dest="cutoff", metavar="ATE", default=None,
                             help="ignora registros depois deste instante (ISO 8601 UTC)")
-    analisador.add_argument("--excluir-pasta", action="append", default=[],
+    parser.add_argument("--excluir-pasta", dest="exclude_dir", metavar="EXCLUIR_PASTA", action="append", default=[],
                             help="ignora pastas de projeto cujo nome contém o texto")
-    args = analisador.parse_args(argv)
+    args = parser.parse_args(argv)
     try:
-        leitura = ler_tudo(args.config, ate=args.ate)
+        reading = read_all(args.config, cutoff=args.cutoff)
     except ValueError:
-        print(f"--ate não é um horário ISO 8601: {args.ate}", file=sys.stderr)
+        print(f"--ate não é um horário ISO 8601: {args.cutoff}", file=sys.stderr)
         return 2
-    def fora(texto: str) -> bool:
-        return any(x in texto for x in args.excluir_pasta)
+    def excluded(text: str) -> bool:
+        return any(x in text for x in args.exclude_dir)
 
-    sessoes = [s for s in leitura.sessoes if not fora(s.pasta_projeto)]
-    falhas = [f for f in leitura.falhas if not fora(str(f.arquivo))]
-    if not sessoes and not falhas:
+    sessions = [s for s in reading.sessions if not excluded(s.project_dir)]
+    failures = [f for f in reading.failures if not excluded(str(f.file))]
+    if not sessions and not failures:
         # Sem histórico não é erro (lote 005).
         print("nenhuma sessão encontrada", file=sys.stderr)
         return 0
-    for nome, valor in agregados(sessoes).items():
-        print(f"{nome}: {json.dumps(valor, ensure_ascii=False)}")
-    print(f"falhas: {len(falhas)}")
-    for falha in falhas:
-        print(f"  {falha}")
-    return 1 if falhas and not sessoes else 0
+    for name, value in aggregates(sessions).items():
+        print(f"{name}: {json.dumps(value, ensure_ascii=False)}")
+    print(f"falhas: {len(failures)}")
+    for failure in failures:
+        print(f"  {failure}")
+    return 1 if failures and not sessions else 0
 
 
 if __name__ == "__main__":

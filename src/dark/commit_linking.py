@@ -26,153 +26,153 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from dark import git_history
-from dark.reader import Chamada, Sessao
+from dark.reader import ToolCall, Session
 
-FORMAS = ("hash", "janela", "ambigua", "sem_ligacao")
+FORMS = ("hash", "janela", "ambigua", "sem_ligacao")
 
-_MOTIVO = {
-    git_history.Situacao.INEXISTENTE: "repositório ausente",
-    git_history.Situacao.NAO_GIT: "repositório ausente",
-    git_history.Situacao.SEM_COMMITS: "repositório sem commits",
-    git_history.Situacao.GIT_AUSENTE: "git ausente",
+_REASON = {
+    git_history.Status.MISSING: "repositório ausente",
+    git_history.Status.NOT_GIT: "repositório ausente",
+    git_history.Status.NO_COMMITS: "repositório sem commits",
+    git_history.Status.GIT_MISSING: "git ausente",
 }
 
 
 @dataclass(frozen=True)
-class Ligacao:
-    sessao: str
-    chamada: str
-    forma: str                         # um de FORMAS
+class CommitLink:
+    session: str
+    call: str
+    form: str                         # um de FORMAS
     commits: tuple[str, ...]           # hashes completos (ou o registrado, se não resolveu)
-    repositorio: Path | None
-    motivo: str | None                 # por que ficou sem ligação
-    amend_comando: bool                # pela análise do comando
-    kind_registrado: str | None        # gitOperation.commit.kind, só para registro
-    amend_git: bool | None             # o histórico diz que o commit substituiu outro
+    repository: Path | None
+    reason: str | None                 # por que ficou sem ligação
+    amend_by_command: bool                # pela análise do comando
+    recorded_kind: str | None        # gitOperation.commit.kind, só para registro
+    amend_by_git: bool | None             # o histórico diz que o commit substituiu outro
 
     @property
     def amend(self) -> bool:
-        return self.amend_git if self.amend_git is not None else self.amend_comando
+        return self.amend_by_git if self.amend_by_git is not None else self.amend_by_command
 
 
 @dataclass
-class LigacaoCommits:
-    ligacoes: list[Ligacao] = field(default_factory=list)
-    revertidos: set[str] = field(default_factory=set)     # commits ligados revertidos depois
-    substituidos: set[str] = field(default_factory=set)   # commits ligados refeitos por amend
-    repositorios: int = 0                                 # repositórios consultados
+class CommitLinks:
+    links_: list[CommitLink] = field(default_factory=list)
+    reverted: set[str] = field(default_factory=set)     # commits ligados revertidos depois
+    replaced_commits: set[str] = field(default_factory=set)   # commits ligados refeitos por amend
+    repositories: int = 0                                 # repositórios consultados
 
-    def por_forma(self) -> Counter:
-        return Counter(x.forma for x in self.ligacoes)
+    def by_form(self) -> Counter:
+        return Counter(x.form for x in self.links_)
 
-    def sem_ligacao_por_motivo(self) -> Counter:
-        return Counter(x.motivo for x in self.ligacoes if x.forma == "sem_ligacao")
+    def unlinked_by_reason(self) -> Counter:
+        return Counter(x.reason for x in self.links_ if x.form == "sem_ligacao")
 
     @property
-    def commits_ligados(self) -> set[str]:
-        return {h for x in self.ligacoes if x.forma in ("hash", "janela") for h in x.commits}
+    def linked_commits(self) -> set[str]:
+        return {h for x in self.links_ if x.form in ("hash", "janela") for h in x.commits}
 
     @property
     def amends(self) -> int:
-        return sum(x.amend for x in self.ligacoes)
+        return sum(x.amend for x in self.links_)
 
     @property
-    def amends_comando(self) -> int:
-        return sum(x.amend_comando for x in self.ligacoes)
+    def amends_by_command(self) -> int:
+        return sum(x.amend_by_command for x in self.links_)
 
     @property
     def amends_kind(self) -> int:
-        return sum(x.kind_registrado == "amended" for x in self.ligacoes)
+        return sum(x.recorded_kind == "amended" for x in self.links_)
 
     @property
-    def amends_confirmados(self) -> int:
-        return sum(x.amend_comando and x.amend_git is True for x in self.ligacoes)
+    def amends_confirmed(self) -> int:
+        return sum(x.amend_by_command and x.amend_by_git is True for x in self.links_)
 
     @property
-    def amends_nao_confirmados(self) -> int:
-        return sum(x.amend_comando and x.amend_git is False for x in self.ligacoes)
+    def amends_unconfirmed(self) -> int:
+        return sum(x.amend_by_command and x.amend_by_git is False for x in self.links_)
 
     @property
-    def amends_so_pelo_git(self) -> int:
-        return sum(not x.amend_comando and x.amend_git is True for x in self.ligacoes)
+    def amends_only_by_git(self) -> int:
+        return sum(not x.amend_by_command and x.amend_by_git is True for x in self.links_)
 
 
-def _chamadas_de_commit(s: Sessao) -> Iterable[Chamada]:
-    for c in [*s.chamadas, *(c for sub in s.subagentes for c in sub.chamadas)]:
+def _commit_calls(s: Session) -> Iterable[ToolCall]:
+    for c in [*s.calls, *(c for sub in s.subagents for c in sub.calls)]:
         if c.commit is not None:
             yield c
 
 
-def ligar(sessoes: Iterable[Sessao], *,
-          abrir: Callable[..., git_history.Repositorio] | None = None) -> LigacaoCommits:
-    abrir = abrir or git_history.abrir
-    por_cwd: dict[str, git_history.Repositorio] = {}
-    por_raiz: dict[Path, git_history.Repositorio] = {}
+def link_commits(sessions: Iterable[Session], *,
+          open_repository: Callable[..., git_history.Repository] | None = None) -> CommitLinks:
+    open_repository = open_repository or git_history.open_repository
+    by_cwd: dict[str, git_history.Repository] = {}
+    by_root: dict[Path, git_history.Repository] = {}
 
-    def repositorio(s: Sessao, c: Chamada) -> git_history.Repositorio:
+    def repository(s: Session, c: ToolCall) -> git_history.Repository:
         cwd = c.cwd
         if cwd is None or not Path(cwd).exists():
-            cwd = str(s.repositorio) if s.repositorio is not None else cwd
-        chave = cwd or ""
-        if chave not in por_cwd:
-            r = abrir(Path(chave)) if chave else git_history.Repositorio(
-                git_history.Situacao.INEXISTENTE, Path())
+            cwd = str(s.repository) if s.repository is not None else cwd
+        key = cwd or ""
+        if key not in by_cwd:
+            r = open_repository(Path(key)) if key else git_history.Repository(
+                git_history.Status.MISSING, Path())
             # Worktrees do mesmo repositório veem os mesmos commits: um índice só.
-            chave_repo = r.comum or r.raiz
-            if chave_repo is not None:
-                r = por_raiz.setdefault(chave_repo, r)
-            por_cwd[chave] = r
-        return por_cwd[chave]
+            repo_key = r.common_dir or r.root
+            if repo_key is not None:
+                r = by_root.setdefault(repo_key, r)
+            by_cwd[key] = r
+        return by_cwd[key]
 
-    resultado = LigacaoCommits()
-    ligados: dict[tuple[Path, str], git_history.Repositorio] = {}
-    for s in sessoes:
-        for c in _chamadas_de_commit(s):
-            repo = repositorio(s, c)
-            ok = repo.situacao is git_history.Situacao.OK
-            base = dict(sessao=s.id, chamada=c.id, repositorio=repo.raiz,
-                        amend_comando=c.commit.amend, kind_registrado=c.commit.kind_registrado)
+    result = CommitLinks()
+    linked: dict[tuple[Path, str], git_history.Repository] = {}
+    for s in sessions:
+        for c in _commit_calls(s):
+            repo = repository(s, c)
+            ok = repo.status is git_history.Status.OK
+            base = dict(session=s.id, call=c.id, repository=repo.root,
+                        amend_by_command=c.commit.amend, recorded_kind=c.commit.recorded_kind)
             if c.commit.hash:
-                commits, amend_git = (c.commit.hash,), None
+                commits, amend_by_git = (c.commit.hash,), None
                 if ok:
-                    sub = git_history.substituidos(repo, c.commit.hash)
-                    if sub.situacao is git_history.Situacao.OK:
-                        commits, amend_git = (sub.hash,), sub.substitui
-                        ligados[(repo.raiz, sub.hash)] = repo
-                resultado.ligacoes.append(Ligacao(forma="hash", commits=commits, motivo=None,
-                                                  amend_git=amend_git, **base))
+                    sub = git_history.replaced_commits(repo, c.commit.hash)
+                    if sub.status is git_history.Status.OK:
+                        commits, amend_by_git = (sub.hash,), sub.replaces
+                        linked[(repo.root, sub.hash)] = repo
+                result.links_.append(CommitLink(form="hash", commits=commits, reason=None,
+                                                  amend_by_git=amend_by_git, **base))
                 continue
             if not ok:
-                motivo = _MOTIVO.get(repo.situacao, "erro do git")
-            elif c.resultado is None:
-                motivo = "sem resultado"
+                reason = _REASON.get(repo.status, "erro do git")
+            elif c.result is None:
+                reason = "sem resultado"
             else:
-                inicio, fim = sorted((c.timestamp, c.resultado.timestamp))
-                janela = git_history.commits_na_janela(repo, inicio, fim)
-                achados = tuple(x.hash for x in janela.commits)
-                if janela.situacao is not git_history.Situacao.OK:
-                    motivo = "erro do git"
-                elif not achados:
-                    motivo = "nenhum commit na janela"
-                elif len(achados) > c.commit.quantidade:
-                    resultado.ligacoes.append(Ligacao(forma="ambigua", commits=achados,
-                                                      motivo=None, amend_git=None, **base))
+                start, end = sorted((c.timestamp, c.result.timestamp))
+                window = git_history.commits_in_window(repo, start, end)
+                findings = tuple(x.hash for x in window.commits)
+                if window.status is not git_history.Status.OK:
+                    reason = "erro do git"
+                elif not findings:
+                    reason = "nenhum commit na janela"
+                elif len(findings) > c.commit.count:
+                    result.links_.append(CommitLink(form="ambigua", commits=findings,
+                                                      reason=None, amend_by_git=None, **base))
                     continue
                 else:
-                    amend_git = any(git_history.substituidos(repo, h).substitui for h in achados)
-                    for h in achados:
-                        ligados[(repo.raiz, h)] = repo
-                    resultado.ligacoes.append(Ligacao(forma="janela", commits=achados,
-                                                      motivo=None, amend_git=amend_git, **base))
+                    amend_by_git = any(git_history.replaced_commits(repo, h).replaces for h in findings)
+                    for h in findings:
+                        linked[(repo.root, h)] = repo
+                    result.links_.append(CommitLink(form="janela", commits=findings,
+                                                      reason=None, amend_by_git=amend_by_git, **base))
                     continue
-            resultado.ligacoes.append(Ligacao(forma="sem_ligacao", commits=(), motivo=motivo,
-                                              amend_git=None, **base))
+            result.links_.append(CommitLink(form="sem_ligacao", commits=(), reason=reason,
+                                              amend_by_git=None, **base))
 
-    for (_, h), repo in ligados.items():
-        if git_history.amend(repo, h).substituido:
-            resultado.substituidos.add(h)
-        if git_history.reversoes(repo, h).revertido:
-            resultado.revertidos.add(h)
-    resultado.repositorios = len({id(r) for r in por_cwd.values()
-                                  if r.situacao is git_history.Situacao.OK})
-    return resultado
+    for (_, h), repo in linked.items():
+        if git_history.amend(repo, h).replaced:
+            result.replaced_commits.add(h)
+        if git_history.reverts(repo, h).reverted_by:
+            result.reverted.add(h)
+    result.repositories = len({id(r) for r in by_cwd.values()
+                                  if r.status is git_history.Status.OK})
+    return result

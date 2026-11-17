@@ -11,20 +11,20 @@ import pytest
 
 from dark import context_usage
 
-AMOSTRAS = Path(__file__).parent / "fixtures" / "contexto"
+SAMPLES = Path(__file__).parent / "fixtures" / "contexto"
 
 
-def ler(nome: str) -> str:
-    return (AMOSTRAS / nome).read_text(encoding="utf-8")
+def read(name: str) -> str:
+    return (SAMPLES / name).read_text(encoding="utf-8")
 
 
-def analisar(nome: str) -> context_usage.Reparticao:
-    return context_usage.analisar(ler(nome))
+def parse(name: str) -> context_usage.Breakdown:
+    return context_usage.parse(read(name))
 
 
 # --- números ---------------------------------------------------------------
 
-@pytest.mark.parametrize("texto, esperado", [
+@pytest.mark.parametrize("text, expected", [
     ("319", 319),
     ("10", 10),
     ("1,234", 1234),
@@ -41,56 +41,56 @@ def analisar(nome: str) -> context_usage.Reparticao:
     ("1.18m", 1_180_000),
     (" 59 ", 59),
 ])
-def test_numero_com_separador_e_sufixo(texto, esperado):
-    assert context_usage.numero(texto) == esperado
+def test_numero_com_separador_e_sufixo(text, expected):
+    assert context_usage.number(text) == expected
 
 
-@pytest.mark.parametrize("texto", ["", "muitos", "1.2.3", "k", "12x", "-5"])
-def test_numero_invalido_devolve_none(texto):
-    assert context_usage.numero(texto) is None
+@pytest.mark.parametrize("text", ["", "muitos", "1.2.3", "k", "12x", "-5"])
+def test_numero_invalido_devolve_none(text):
+    assert context_usage.number(text) is None
 
 
 # --- saída completa ----------------------------------------------------------
 
 def test_completa_cabecalho():
-    r = analisar("completa.md")
-    assert r.modelo == "modelo-exemplo"
+    r = parse("completa.md")
+    assert r.model == "modelo-exemplo"
     assert r.total == 10900
-    assert r.janela == 200_000
+    assert r.window == 200_000
 
 
 def test_completa_categorias_e_tipos():
-    r = analisar("completa.md")
-    por_nome = {c.nome: c for c in r.categorias}
-    assert list(por_nome) == [
+    r = parse("completa.md")
+    by_name = {c.name: c for c in r.categories}
+    assert list(by_name) == [
         "System prompt", "System tools", "MCP tools (deferred)",
         "System tools (deferred)", "Custom agents", "Memory files", "Skills",
         "Messages", "Free space", "Autocompact buffer",
     ]
-    assert por_nome["System prompt"].tokens == 2500
-    assert por_nome["System prompt"].tipo == "usado"
-    assert por_nome["MCP tools (deferred)"].tipo == "adiado"
-    assert por_nome["System tools (deferred)"].tipo == "adiado"
-    assert por_nome["Free space"].tipo == "livre"
-    assert por_nome["Autocompact buffer"].tipo == "reserva"
-    assert all(c.conhecida for c in r.categorias)
+    assert by_name["System prompt"].tokens == 2500
+    assert by_name["System prompt"].kind == "usado"
+    assert by_name["MCP tools (deferred)"].kind == "adiado"
+    assert by_name["System tools (deferred)"].kind == "adiado"
+    assert by_name["Free space"].kind == "livre"
+    assert by_name["Autocompact buffer"].kind == "reserva"
+    assert all(c.known for c in r.categories)
 
 
 def test_completa_soma_das_categorias_contra_total():
-    r = analisar("completa.md")
+    r = parse("completa.md")
     # 2500 + 5700 + 40 + 319 + 2300 + 10: só as que contam no total
-    assert r.soma_categorias == 10869
-    assert r.total - r.soma_categorias == 31          # arredondamento do texto
+    assert r.categories_sum == 10869
+    assert r.total - r.categories_sum == 31          # arredondamento do texto
 
 
 def test_completa_ferramentas_adiadas_fora_do_total():
-    r = analisar("completa.md")
-    assert r.adiadas == 16300 + 120
+    r = parse("completa.md")
+    assert r.deferred == 16300 + 120
 
 
 def test_completa_skills_com_origem():
-    r = analisar("completa.md")
-    assert [(s.nome, s.origem, s.tokens) for s in r.skills] == [
+    r = parse("completa.md")
+    assert [(s.name, s.source, s.tokens) for s in r.skills] == [
         ("exemplo-skill", "User", 220),
         ("outra-skill", "Project", 1200),
         ("ferramenta:exemplo-plugin", "Plugin (exemplo-plugin)", 90),
@@ -100,124 +100,124 @@ def test_completa_skills_com_origem():
 
 
 def test_completa_mcp_agentes_e_memoria():
-    r = analisar("completa.md")
-    assert [(f.nome, f.origem, f.tokens) for f in r.ferramentas_mcp] == [
+    r = parse("completa.md")
+    assert [(f.name, f.source, f.tokens) for f in r.mcp_tools] == [
         ("mcp__servidor-a__ferramenta_um", "servidor-a", 59),
         ("mcp__servidor-b__ferramenta_dois", "servidor-b", 61),
     ]
-    assert [(a.nome, a.origem, a.tokens) for a in r.agentes] == [
+    assert [(a.name, a.source, a.tokens) for a in r.agents] == [
         ("agente-exemplo", "Project", 20),
         ("outro-agente", "User", 20),
     ]
-    assert [(m.nome, m.origem, m.tokens) for m in r.memoria] == [
+    assert [(m.name, m.source, m.tokens) for m in r.memory] == [
         ("/repo/exemplo/CLAUDE.md", "Project", 300),
         ("/home/exemplo/.claude/CLAUDE.md", "User", 19),
     ]
 
 
 def test_completa_nada_fica_sem_reconhecer():
-    assert analisar("completa.md").nao_reconhecido == []
+    assert parse("completa.md").unrecognized == []
 
 
 # --- variações ---------------------------------------------------------------
 
 def test_sem_skills():
-    r = analisar("sem-skills.md")
-    assert r.skills == [] and r.ferramentas_mcp == [] and r.agentes == []
-    assert r.total == 8200 and r.soma_categorias == 8210
-    assert r.adiadas == 16300
-    assert r.nao_reconhecido == []
+    r = parse("sem-skills.md")
+    assert r.skills == [] and r.mcp_tools == [] and r.agents == []
+    assert r.total == 8200 and r.categories_sum == 8210
+    assert r.deferred == 16300
+    assert r.unrecognized == []
 
 
 def test_numeros_com_separador_e_sufixo_na_saida():
-    r = analisar("numeros.md")
-    assert r.total == 1_200_000 and r.janela == 2_000_000
-    por_nome = {c.nome: c.tokens for c in r.categorias}
-    assert por_nome["System prompt"] == 1234
-    assert por_nome["Messages"] == 1_180_000
-    assert por_nome["Free space"] == 767_000
-    assert por_nome["Autocompact buffer"] == 33_000
+    r = parse("numeros.md")
+    assert r.total == 1_200_000 and r.window == 2_000_000
+    by_name = {c.name: c.tokens for c in r.categories}
+    assert by_name["System prompt"] == 1234
+    assert by_name["Messages"] == 1_180_000
+    assert by_name["Free space"] == 767_000
+    assert by_name["Autocompact buffer"] == 33_000
     assert [s.tokens for s in r.skills] == [1500, 500]
-    assert r.adiadas == 0
-    assert r.nao_reconhecido == []
+    assert r.deferred == 0
+    assert r.unrecognized == []
 
 
 def test_secao_e_linhas_desconhecidas_sao_guardadas_e_nao_derrubam():
-    r = analisar("secao-desconhecida.md")
+    r = parse("secao-desconhecida.md")
     assert r.total == 8300
     # categoria nova entra (conta no total) mas é marcada e relatada
-    nova = [c for c in r.categorias if c.nome == "Output styles"]
-    assert len(nova) == 1 and not nova[0].conhecida and nova[0].tipo == "usado"
-    assert r.soma_categorias == 8300
-    textos = "\n".join(r.nao_reconhecido)
-    assert "Output styles" in textos                 # categoria desconhecida
-    assert "**Cache:**" in textos                    # linha de cabeçalho nova
-    assert "### Hooks" in textos                     # seção nova
-    assert "hook-exemplo" in textos                  # linhas da seção nova
-    assert "muitos" in textos                        # número ilegível
-    assert "Linha solta no fim." in textos
+    new_category = [c for c in r.categories if c.name == "Output styles"]
+    assert len(new_category) == 1 and not new_category[0].known and new_category[0].kind == "usado"
+    assert r.categories_sum == 8300
+    texts = "\n".join(r.unrecognized)
+    assert "Output styles" in texts                 # categoria desconhecida
+    assert "**Cache:**" in texts                    # linha de cabeçalho nova
+    assert "### Hooks" in texts                     # seção nova
+    assert "hook-exemplo" in texts                  # linhas da seção nova
+    assert "muitos" in texts                        # número ilegível
+    assert "Linha solta no fim." in texts
     assert r.skills == []                            # a linha ilegível não vira skill
 
 
 def test_saida_vazia_e_erro():
-    with pytest.raises(context_usage.SaidaInvalida):
-        analisar("vazia.md")
+    with pytest.raises(context_usage.InvalidOutput):
+        parse("vazia.md")
 
 
 def test_saida_sem_categoria_e_erro():
-    with pytest.raises(context_usage.SaidaInvalida):
-        analisar("sem-categorias.md")
+    with pytest.raises(context_usage.InvalidOutput):
+        parse("sem-categorias.md")
 
 
 def test_analisar_nao_depende_de_fim_de_linha():
-    texto = ler("completa.md").replace("\n", "\r\n")
-    assert context_usage.analisar(texto) == analisar("completa.md")
+    text = read("completa.md").replace("\n", "\r\n")
+    assert context_usage.parse(text) == parse("completa.md")
 
 
 # --- parte não atribuída -----------------------------------------------------
 
 def test_nao_atribuido_contra_usage():
-    r = analisar("completa.md")
-    na = context_usage.nao_atribuido(r, 16350)
-    assert na.medido == 16350 and na.informado == 10900
-    assert na.tokens == 5450
-    assert na.percentual == pytest.approx(33.333, abs=0.001)
+    r = parse("completa.md")
+    unattr = context_usage.unattributed(r, 16350)
+    assert unattr.measured == 16350 and unattr.given == 10900
+    assert unattr.tokens == 5450
+    assert unattr.percent == pytest.approx(33.333, abs=0.001)
 
 
 def test_nao_atribuido_negativo_quando_usage_e_menor():
-    na = context_usage.nao_atribuido(analisar("completa.md"), 10000)
-    assert na.tokens == -900
-    assert na.percentual == pytest.approx(-9.0)
+    unattr = context_usage.unattributed(parse("completa.md"), 10000)
+    assert unattr.tokens == -900
+    assert unattr.percent == pytest.approx(-9.0)
 
 
 def test_nao_atribuido_rejeita_usage_invalido():
     with pytest.raises(ValueError):
-        context_usage.nao_atribuido(analisar("completa.md"), 0)
+        context_usage.unattributed(parse("completa.md"), 0)
 
 
 # --- execução ----------------------------------------------------------------
 
 def test_executar_usa_executor_injetado(tmp_path):
-    chamadas = []
+    calls = []
 
-    def executor(argumentos, diretorio):
-        chamadas.append((argumentos, diretorio))
-        return ler("completa.md")
+    def executor(arguments, directory):
+        calls.append((arguments, directory))
+        return read("completa.md")
 
-    texto = context_usage.executar(tmp_path, executor=executor)
-    assert texto == ler("completa.md")
-    [(argumentos, diretorio)] = chamadas
-    assert diretorio == tmp_path
-    assert argumentos[:3] == ["claude", "-p", "/context"]
+    text = context_usage.execute(tmp_path, executor=executor)
+    assert text == read("completa.md")
+    [(arguments, directory)] = calls
+    assert directory == tmp_path
+    assert arguments[:3] == ["claude", "-p", "/context"]
     # não deixa transcrição no diretório do usuário
-    assert "--no-session-persistence" in argumentos
+    assert "--no-session-persistence" in arguments
 
 
 def test_executar_rejeita_diretorio_inexistente(tmp_path):
     with pytest.raises(FileNotFoundError):
-        context_usage.executar(tmp_path / "nao-existe", executor=lambda a, d: "")
+        context_usage.execute(tmp_path / "nao-existe", executor=lambda a, d: "")
 
 
 def test_medir_junta_execucao_e_analise(tmp_path):
-    r = context_usage.medir(tmp_path, executor=lambda a, d: ler("sem-skills.md"))
+    r = context_usage.measure(tmp_path, executor=lambda a, d: read("sem-skills.md"))
     assert r.total == 8200
