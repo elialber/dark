@@ -1,0 +1,68 @@
+id = "goal-005-leitor"
+origem = "manual"
+commit_base = "31c261a55f56ba0b9558240425b2af443fa6e3e2"
+commit_solucao = "f4e8ca9e80b77f036bd7672873418dfb7cbd956a"
+pedido = """
+Escreva o leitor de transcrições do Claude Code em src/dark/leitor.py.
+
+Os testes já estão em tests/test_leitor.py, com arquivos sintéticos em
+tests/fixtures/ (gerados por tests/fixtures/gerar.py). Eles definem a
+interface esperada; faça-os passar sem enfraquecê-los. O formato das
+transcrições e as regras citadas abaixo (E1, E3, E4) estão descritos em
+docs/formato-transcricoes.md e docs/decisoes.md.
+
+O leitor converte as transcrições para um modelo interno, segundo a
+emenda E1 revista:
+
+- Localizar sessões: diretório de configuração (respeitando
+  CLAUDE_CONFIG_DIR), arquivos principais e de subagente.
+- Modelo interno com: sessão, pedido (promptId humano), resposta
+  (agrupada por message.id), chamada de ferramenta com seu resultado,
+  subagente, e os eventos de intervenção e de hook.
+- Tokens pela regra E4: um usage por message.id, com subagentes. Quando
+  a mesma resposta aparece em vários registros com usage diferente (nos
+  arquivos de subagente o output_tokens cresce de um registro para o
+  outro), vale o do último registro.
+- Repositório da sessão pela regra E3.
+- Versão do Claude Code por sessão e relatório de tipos e campos
+  desconhecidos.
+
+Requisitos: Python 3.12 ou mais recente, só biblioteca padrão no leitor.
+Um comando mínimo (python -m dark.leitor) que imprima os agregados de
+conferência é aceito. Fora desta entrega: indicadores, armazenamento,
+ligação com commits.
+"""
+notas = """
+Goal 005 (pair/goals/005-leitor-transcricoes.md). Minerado como par
+commits_seguidos: os testes entraram em 31c261a e o leitor em f4e8ca9.
+A base já tem os testes visíveis, como no fluxo do repositório (testes
+antes do código). O aceite traz os testes de f4e8ca9, que acrescentou um
+teste (usage parcial em subagente) e mudou um arquivo sintético; por isso
+o pedido diz qual usage vale.
+Os critérios 2 e 3 do goal (conferir com os dados reais da máquina) não
+cabem num aceite automático e ficaram de fora do pedido.
+O comando depende de um python com pytest. Aqui a base já tem o
+pyproject com pythonpath = ["src"], que põe o src da cópia na frente; numa
+base sem isso, um pacote dark instalado em modo editável a partir de outro
+checkout é importado no lugar do código da cópia (visto no goal 012).
+"""
+
+[aceite]
+comando = "python -m pytest -q -p no:cacheprovider tests/test_leitor.py"
+arquivos = [
+  "tests/fixtures/config/projects/-repo-alfa/aaaaaaaa-0000-4000-8000-000000000001.jsonl",
+  "tests/fixtures/config/projects/-repo-alfa/aaaaaaaa-0000-4000-8000-000000000001/subagents/agent-agt0000000000001.jsonl",
+  "tests/fixtures/config/projects/-repo-alfa/aaaaaaaa-0000-4000-8000-000000000001/subagents/agent-agt0000000000001.meta.json",
+  "tests/fixtures/config/projects/-repo-beta/aaaaaaaa-0000-4000-8000-000000000003.jsonl",
+  "tests/fixtures/config/projects/-repo-beta/aaaaaaaa-0000-4000-8000-000000000004.jsonl",
+  "tests/fixtures/gerar.py",
+  "tests/fixtures/invalidos/lixo-no-meio.jsonl",
+  "tests/fixtures/invalidos/sem-message-id.jsonl",
+  "tests/fixtures/invalidos/sem-type.jsonl",
+  "tests/fixtures/invalidos/sem-uuid.jsonl",
+  "tests/fixtures/invalidos/ultima-linha-cortada.jsonl",
+  "tests/fixtures/invalidos/usage-tipo-errado.jsonl",
+  "tests/test_leitor.py",
+]
+arquivos_de = "f4e8ca9e80b77f036bd7672873418dfb7cbd956a"
+tempo_limite = 120
