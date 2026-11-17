@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "servidor-projeto": {
+      "command": "servidor-exemplo",
+      "args": ["--modo", "teste"],
+      "env": {"CHAVE_PROJETO": "valor-secreto-mcp-projeto"}
+    },
+    "servidor-remoto": {
+      "type": "http",
+      "url": "https://exemplo.invalid/mcp",
+      "headers": {"Authorization": "Bearer valor-secreto-cabecalho-mcp"}
+    }
+  }
+}

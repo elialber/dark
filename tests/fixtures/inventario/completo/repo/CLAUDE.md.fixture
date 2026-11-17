@@ -1,0 +1,19 @@
+# Projeto de exemplo
+
+Instruções inventadas para teste.
+
+- Rode os testes antes de cada commit.
+  **Motivo:** um commit quebrado já atrasou uma entrega.
+- Use nomes em português.
+- Não apague arquivos de dados, porque eles não têm cópia.
+* Prefira funções puras.
+
+1. Escreva o diário ao final.
+2. Mantenha o README curto para que caiba numa tela.
+
+Veja @docs/importado.md e também `@docs/nao-importado.md`.
+
+```
+- item dentro de bloco de código não conta
+@docs/tambem-nao.md
+```

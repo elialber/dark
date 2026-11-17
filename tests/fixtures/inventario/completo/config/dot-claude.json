@@ -1,0 +1,16 @@
+{
+  "oauthAccount": {"emailAddress": "pessoa@exemplo.invalid"},
+  "mcpServers": {
+    "servidor-usuario": {"type": "sse", "url": "https://exemplo.invalid/sse", "headers": {"X-Chave": "valor-secreto-usuario"}}
+  },
+  "projects": {
+    "{REPO}": {
+      "mcpServers": {
+        "servidor-local": {"type": "stdio", "command": "local-exemplo", "env": {"CHAVE_LOCAL": "valor-secreto-local"}}
+      }
+    },
+    "/outro/projeto": {
+      "mcpServers": {"servidor-de-outro-projeto": {"command": "x"}}
+    }
+  }
+}
