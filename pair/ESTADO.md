@@ -35,16 +35,20 @@ Fase 2 concluída; Fase 3 (evals) iniciada pelo goal 012
 | [010 — Repartição do contexto](goals/010-contexto.md) | Aceito no [lote 006](entrada/lote-006.md) e incorporado à `main` |
 | [011 — Histórico git](goals/011-historico-git.md) | Aceito no [lote 006](entrada/lote-006.md) e incorporado à `main` |
 | [012 — Casos de eval](goals/012-casos-de-eval.md) | Aceito no [lote 006](entrada/lote-006.md) e incorporado à `main` |
+| [013 — Auditoria integrada](goals/013-auditoria-integrada.md) | Concluído, aguarda revisão ([diário](diario/013.md)); critérios 4 e 5 (uso real) pulados pelo usuário |
 
 ## Decisões pendentes
 
-Nenhuma. As decisões dos goals 008 a 012 foram confirmadas no
-[lote 006](entrada/lote-006.md) e estão em
-[docs/decisoes.md](../docs/decisoes.md).
+Para o revisor confirmar: as decisões tomadas no goal 013, listadas no fim
+do [diário 013](diario/013.md).
 
 As branches `goal-009` a `goal-012` foram incorporadas por merge, sem
 squash. As branches remotas continuam lá; o revisor decide se apaga.
 
 ## Próximo passo
 
-Goal 013, auditoria integrada.
+Revisão do goal 013. Os critérios 4 e 5 (relatório do repositório real e
+número de itens em que o usuário pretende agir) não foram feitos: o
+usuário escolheu pulá-los nesta sessão. Proposta do diário 013 para o
+passo seguinte: guardar ligação e agregados na coleta (E2, E10) e
+comparar com a semana anterior.
