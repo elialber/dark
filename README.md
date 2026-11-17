@@ -23,6 +23,8 @@ O estado do projeto, os goals e o diário estão em [pair/ESTADO.md](pair/ESTADO
 
 ## Desenvolvimento
 
+O código, os testes e as mensagens de commit são em inglês; a interface (relatório, mensagens, ajuda, nomes de comandos e opções) e a documentação são em português (E18). O [glossário](docs/glossario.md) traz as traduções e o mapa dos nomes antigos, usados nos diários até o goal 013.
+
 Requer Python 3.12 ou mais recente e git 2.36 ou mais recente.
 
 ```bash
@@ -31,29 +33,29 @@ python -m venv .venv
 .venv/bin/pytest
 ```
 
-O leitor (`src/dark/leitor.py`) tem um comando mínimo de conferência, que só lê:
+O leitor (`src/dark/reader.py`) tem um comando mínimo de conferência, que só lê:
 
 ```bash
-.venv/bin/python -m dark.leitor            # usa CLAUDE_CONFIG_DIR ou ~/.claude
-.venv/bin/python -m dark.leitor --config tests/fixtures/config
+.venv/bin/python -m dark.reader            # usa CLAUDE_CONFIG_DIR ou ~/.claude
+.venv/bin/python -m dark.reader --config tests/fixtures/config
 ```
 
-Os indicadores (`src/dark/indicadores.py`) são funções puras sobre o que o leitor devolve. O comando de conferência imprime só contagens; com `--nomes`, imprime também nomes de skills e ferramentas, e essa saída não deve ser publicada.
+Os indicadores (`src/dark/indicators.py`) são funções puras sobre o que o leitor devolve. O comando de conferência imprime só contagens; com `--nomes`, imprime também nomes de skills e ferramentas, e essa saída não deve ser publicada.
 
 ```bash
-.venv/bin/python -m dark.indicadores --config tests/fixtures/config
+.venv/bin/python -m dark.indicators --config tests/fixtures/config
 ```
 
-O inventário (`src/dark/inventario.py`) lista o harness instalado (instruções, skills, subagentes, hooks, servidores MCP e permissões) por escopo, só lendo arquivos. Sem `--nomes`, imprime só a tabela de contagens; com `--nomes`, imprime nomes e falhas, e essa saída não deve ser publicada.
+O inventário (`src/dark/inventory.py`) lista o harness instalado (instruções, skills, subagentes, hooks, servidores MCP e permissões) por escopo, só lendo arquivos. Sem `--nomes`, imprime só a tabela de contagens; com `--nomes`, imprime nomes e falhas, e essa saída não deve ser publicada.
 
 ```bash
-.venv/bin/python -m dark.inventario <repo> [--config DIR] [--gerenciado DIR] [--nomes]
+.venv/bin/python -m dark.inventory <repo> [--config DIR] [--gerenciado DIR] [--nomes]
 ```
 
-A repartição do contexto (`src/dark/contexto.py`) roda `claude -p /context --no-session-persistence` no repositório e analisa a saída. Serve de conferência do peso de skills, memória e subagentes; não entra no relatório (E11, terceira versão).
+A repartição do contexto (`src/dark/context_usage.py`) roda `claude -p /context --no-session-persistence` no repositório e analisa a saída. Serve de conferência do peso de skills, memória e subagentes; não entra no relatório (E11, terceira versão).
 
 ```bash
-.venv/bin/python -m dark.contexto [repo] [--arquivo F] [--usage N] [--nomes]
+.venv/bin/python -m dark.context_usage [repo] [--arquivo F] [--usage N] [--nomes]
 ```
 
 Os casos de eval (`src/dark/evals/`, formato em [evals/README.md](evals/README.md)) têm mineração e validação:
