@@ -742,3 +742,33 @@ def test_apply_and_revert_restores_tree(tmp_path, name, modules):
         out = revert(tmp_path, m)
         assert out.ok and not out.notes, (out.steps, out.notes)
     assert snapshot(tmp_path) == before
+
+
+# ------------------------------------------- the same thing, two modules
+
+
+SHARED_CASES = {
+    "same_line": (AppendLine(".gitignore", "cache/"), AppendLine(".gitignore", "cache/")),
+    "same_dir": (CreateDir("tools"), CreateDir("tools")),
+    "dir_made_by_file": (CreateFile("tools/a.txt", "a"), CreateDir("tools")),
+    "same_json": (JsonEntry("s.json", ("hooks", "Stop"), value=HOOK),
+                  JsonEntry("s.json", ("hooks", "Stop"), value=HOOK)),
+    "same_file": (CreateFile("f.txt", "f\n"), CreateFile("f.txt", "f\n")),
+}
+
+
+@pytest.mark.parametrize("case", list(SHARED_CASES))
+@pytest.mark.parametrize("first", ["mod-a", "mod-b"])
+def test_shared_need_survives_other_module_revert(tmp_path, case, first):
+    before = snapshot(tmp_path)
+    op_a, op_b = SHARED_CASES[case]
+    pa, pb = plan(op_a, module="mod-a"), plan(op_b, module="mod-b")
+    assert apply(tmp_path, pa).applied
+    out_b = apply(tmp_path, pb)
+    assert statuses(out_b) == ["already_present"]
+    assert set(statuses(apply(tmp_path, pb))) == {"already_applied"}
+    assert revert(tmp_path, first).ok
+    survivor = pb if first == "mod-a" else pa
+    assert set(statuses(inspect(tmp_path, survivor))) == {"already_applied"}
+    revert(tmp_path, "mod-b" if first == "mod-a" else "mod-a")
+    assert snapshot(tmp_path) == before
