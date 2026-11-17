@@ -390,10 +390,20 @@ def _tables(con: sqlite3.Connection) -> int:
 
 
 def _header(con: sqlite3.Connection) -> tuple[int, int, bool]:
-    """(application id, schema version, empty file)."""
-    app = con.execute("PRAGMA application_id").fetchone()[0]
-    version = con.execute("PRAGMA user_version").fetchone()[0]
-    return app, version, app == 0 and version == 0 and _tables(con) == 0
+    """(application id, schema version, empty file), read in one snapshot.
+
+    Without the transaction, another process could create the schema between
+    the reads: id 0 and tables present looked like a foreign file (seen on
+    Windows, goal 019).
+    """
+    con.execute("BEGIN")
+    try:
+        app = con.execute("PRAGMA application_id").fetchone()[0]
+        version = con.execute("PRAGMA user_version").fetchone()[0]
+        tables = _tables(con)
+    finally:
+        con.execute("COMMIT")
+    return app, version, app == 0 and version == 0 and tables == 0
 
 
 def _create(con: sqlite3.Connection) -> bool:
