@@ -203,7 +203,7 @@ def test_periodo_por_inicio_da_sessao(sessoes):
 
 SECOES = ["# Auditoria do harness", "## O que chama atenção", "## Peso fixo",
           "## Peso morto", "## Custo", "## Intervenções", "## Hooks", "## Commits",
-          "## Ainda não disponível"]
+          "## Apêndice"]
 
 
 @pytest.fixture(scope="module")
@@ -232,7 +232,10 @@ def test_cabecalho(texto):
     assert "Sessões: 5" in cab and "Pedidos: 7" in cab
     assert "2.1.300" in cab and "2.1.326" in cab
     assert "30 dias" in cab
-    assert "tipo-novo" in cab                    # formato desconhecido, se houver
+    # Formato desconhecido: no cabeçalho, só a contagem; o detalhe, no apêndice
+    # (goal 013).
+    assert "Formato desconhecido" in cab and "tipo-novo" not in cab
+    assert "tipo-novo" in texto.split("## Apêndice")[1]
 
 
 def test_o_que_chama_atencao_aponta_para_a_secao(texto):
@@ -257,9 +260,8 @@ def test_commits_silenciosos_dizem_o_efeito_e_a_regra(texto):
     assert "-q" in bloco and "sem `-q`" in bloco
 
 
-def test_ainda_nao_disponivel_tem_tres_linhas(texto):
-    bloco = texto.split("## Ainda não disponível")[1]
-    assert len([l for l in bloco.splitlines() if l.startswith("- ")]) == 3
+def test_secao_ainda_nao_disponivel_saiu(texto):
+    assert "Ainda não disponível" not in texto          # goal 013
 
 
 def test_relatorio_nao_traz_texto_de_pedido(texto):
@@ -427,8 +429,9 @@ def test_todos_inclui_sessoes_de_qualquer_repositorio(capsys):
     assert "Sessões: 5" in saida and "todos os repositórios" in saida
 
 
-def test_caminho_ou_todos_e_obrigatorio(capsys):
-    assert cli.main(["auditar", "--config", str(CONFIG)]) == 2
+def test_caminho_e_todos_nao_vao_juntos(capsys):
+    # Sem nenhum dos dois, audita o diretório atual (goal 013).
+    assert cli.main(["auditar", "/tmp", "--todos", "--config", str(CONFIG)]) == 2
 
 
 def test_dias_e_ate(capsys):
