@@ -28,6 +28,7 @@ Fase 2: auditoria e placar
 | [003 — Auditoria manual](goals/003-auditoria-manual.md) | Cancelado no [lote 004](entrada/lote-004.md); substituído pela auditoria por comando (goal 008, no próximo lote) |
 | [004 — Experimentos controlados](goals/004-experimentos-controlados.md) | Aceito pelo revisor no [lote 004](entrada/lote-004.md) |
 | [005 — Leitor de transcrições](goals/005-leitor-transcricoes.md) | Aceito pelo revisor no [lote 004](entrada/lote-004.md), com as correções do goal 006 |
+| [006 — Correções do leitor](goals/006-correcoes-leitor.md) | Concluído, aguarda revisão ([relatório](diario/006.md)) |
 
 ## Decisões pendentes
 
@@ -36,4 +37,4 @@ Nenhuma. As constatações dos goals 004 e 005 viraram decisões no lote 004
 
 ## Próximo passo
 
-Goal 006, depois goal 007, e parada para revisão.
+Goal 007, e parada para revisão.

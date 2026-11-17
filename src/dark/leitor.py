@@ -20,6 +20,7 @@ import sys
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 
 # --------------------------------------------------------------------------
@@ -172,7 +173,7 @@ def _soma(itens: Iterable[Tokens]) -> Tokens:
 @dataclass
 class Resultado:
     """Resultado de uma chamada de ferramenta."""
-    timestamp: str
+    timestamp: datetime
     erro: bool
     estruturado: object            # toolUseResult: objeto, lista ou string
     decisao: dict | None           # permissionDecision
@@ -185,7 +186,7 @@ class Chamada:
     id: str
     nome: str
     entrada: dict
-    timestamp: str
+    timestamp: datetime
     cwd: str | None
     message_id: str
     pedido_id: str | None = None
@@ -197,13 +198,14 @@ class Resposta:
     """Uma resposta da API: os registros assistant de mesmo message.id."""
     message_id: str
     modelo: str | None
-    timestamp: str                 # do primeiro registro
+    timestamp: datetime            # do primeiro registro
     tokens: Tokens                 # contado uma vez (E4)
     stop_reason: str | None
     blocos: list[str] = field(default_factory=list)
     registros: int = 0
     pedido_id: str | None = None
     copiada: bool = False          # histórico copiado por fork
+    sintetica: bool = False        # gerada localmente (model "<synthetic>")
     skill: str | None = None       # attributionSkill
 
 
@@ -211,7 +213,7 @@ class Resposta:
 class Pedido:
     """Um promptId de origem humana (E9)."""
     id: str
-    timestamp: str
+    timestamp: datetime
     tamanho: int                   # caracteres do texto; o texto não é guardado
     fonte: str | None              # promptSource
     registros: int = 1             # mais de um só em arquivo de fork
@@ -222,20 +224,27 @@ class Pedido:
 @dataclass
 class Intervencao:
     tipo: str                      # interrupcao | rejeicao | mensagem_no_meio
-    timestamp: str
+    timestamp: datetime
     pedido_id: str | None = None
     com_comentario: bool | None = None   # só em rejeicao
 
 
 @dataclass
 class EventoHook:
-    tipo: str                      # sucesso | erro_sem_bloqueio | cancelado | bloqueio | parada | hook_*
-    timestamp: str
+    """Desfecho visível de um hook (E6, versão final).
+
+    tipo: sucesso (com saída) | erro_sem_bloqueio | cancelado (tempo esgotado)
+    | bloqueio | confirmacao (o hook pediu confirmação ao usuário)
+    | decisao (o hook liberou) | parada | hook_* (anexo ainda não conhecido).
+    """
+    tipo: str
+    timestamp: datetime
     evento: str | None = None      # PreToolUse, SessionStart...
     nome: str | None = None
     codigo_saida: int | None = None
     tool_use_id: str | None = None
     bloqueou: bool = False
+    subagente_id: str | None = None   # de qual subagente veio, se veio de um
 
 
 @dataclass
@@ -246,6 +255,17 @@ class Desconhecidos:
     def somar(self, outro: Desconhecidos) -> None:
         self.tipos.update(outro.tipos)
         self.campos.update(outro.campos)
+
+
+@dataclass(frozen=True)
+class Falha:
+    """Arquivo que não pôde ser lido (E12). Linha 0: falha ao abrir."""
+    arquivo: Path
+    linha: int
+    mensagem: str
+
+    def __str__(self) -> str:
+        return f"{self.arquivo.name}, linha {self.linha}: {self.mensagem}"
 
 
 @dataclass
@@ -269,8 +289,8 @@ class Sessao:
     id: str
     caminho: Path
     pasta_projeto: str
-    inicio: str | None = None
-    fim: str | None = None
+    inicio: datetime | None = None
+    fim: datetime | None = None
     versoes: list[str] = field(default_factory=list)
     versao: str | None = None            # a do registro mais recente
     cwds: list[str] = field(default_factory=list)
@@ -287,6 +307,7 @@ class Sessao:
     linhas: int = 0
     linhas_cortadas: int = 0
     respostas_sem_pedido: int = 0
+    falhas: list[Falha] = field(default_factory=list)   # subagentes ilegíveis
 
     @property
     def tokens_principal(self) -> Tokens:
@@ -305,6 +326,13 @@ class Sessao:
 
     def chamada(self, tool_use_id: str) -> Chamada:
         return next(c for c in self.chamadas if c.id == tool_use_id)
+
+
+@dataclass
+class Leitura:
+    """Resultado de ler_tudo: o que foi lido e o que falhou (E12)."""
+    sessoes: list[Sessao] = field(default_factory=list)
+    falhas: list[Falha] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -370,18 +398,32 @@ def raiz_git_de(caminho: Path) -> Path | None:
 # Ler
 # --------------------------------------------------------------------------
 
+def instante(valor: str | datetime) -> datetime:
+    """Converte um horário ISO 8601 em instante UTC.
+
+    Aceita com ou sem milissegundos e com "Z" ou deslocamento. Horário sem
+    fuso é tomado como UTC. Levanta ValueError se não for um horário.
+    """
+    dt = valor if isinstance(valor, datetime) else datetime.fromisoformat(valor)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 class _Arquivo:
     """Lê um .jsonl (principal ou de subagente) e acumula o que achou."""
 
-    def __init__(self, caminho: Path, ate: str | None, desconhecidos: Desconhecidos):
+    def __init__(self, caminho: Path, ate: datetime | None, desconhecidos: Desconhecidos,
+                 subagente_id: str | None = None):
         self.caminho, self.ate, self.desc = Path(caminho), ate, desconhecidos
+        self.subagente_id = subagente_id
         self.linha = 0
         self.linhas = self.cortadas = 0
         self.sessao_id: str | None = None
-        self.inicio: str | None = None
-        self.fim: str | None = None
+        self.inicio: datetime | None = None
+        self.fim: datetime | None = None
         self.versoes: Counter = Counter()
-        self.versao_recente: tuple[str, str] | None = None
+        self.versao_recente: tuple[datetime, str] | None = None
         self.cwds: Counter = Counter()          # dict mantém a ordem de chegada
         self.copiada_de: str | None = None
         self.pais: dict[str, str | None] = {}
@@ -448,7 +490,11 @@ class _Arquivo:
         if tipo not in _CONVERSA:
             return
         uuid = self._exigir(reg, "uuid", str, f"{tipo}.")
-        ts = self._exigir(reg, "timestamp", str, f"{tipo}.")
+        texto = self._exigir(reg, "timestamp", str, f"{tipo}.")
+        try:
+            ts = instante(texto)
+        except ValueError:
+            raise self._erro(f"campo {tipo}.timestamp não é um horário ISO 8601") from None
         sessao = self._exigir(reg, "sessionId", str, f"{tipo}.")
         if self.ate is not None and ts > self.ate:
             return
@@ -471,7 +517,7 @@ class _Arquivo:
 
     # -- user --------------------------------------------------------------
 
-    def _user(self, reg: dict, uuid: str, ts: str) -> None:
+    def _user(self, reg: dict, uuid: str, ts: datetime) -> None:
         mensagem = self._exigir(reg, "message", dict, "user.")
         conteudo = self._exigir(mensagem, "content", (str, list), "user.message.")
         prompt_id = reg.get("promptId")
@@ -508,33 +554,56 @@ class _Arquivo:
                 if tipo_bloco == "tool_result":
                     self._resultado(reg, bloco, uuid, ts)
 
-    def _resultado(self, reg: dict, bloco: dict, uuid: str, ts: str) -> None:
+    def _resultado(self, reg: dict, bloco: dict, uuid: str, ts: datetime) -> None:
         tool_id = self._exigir(bloco, "tool_use_id", str, "user.message.content[].")
         decisao = reg.get("permissionDecision")
         decisao = decisao if isinstance(decisao, dict) else None
         resultado = Resultado(ts, bool(bloco.get("is_error")), reg.get("toolUseResult"),
                               decisao, reg.get("toolDenialKind"))
         self.resultados[tool_id] = (resultado, uuid)
-        if decisao and decisao.get("source") == "hook":
-            codigo = str(decisao.get("reasonCode") or "")
-            self.hooks.append(EventoHook(
-                "bloqueio" if decisao.get("decision") == "reject" else "decisao", ts,
-                evento=codigo.removeprefix("hook:") or None, tool_use_id=tool_id,
-                bloqueou=decisao.get("decision") == "reject"))
+        if decisao:
+            self._decisao_de_hook(decisao, tool_id, ts)
+
+    def _decisao_de_hook(self, decisao: dict, tool_id: str, ts: datetime) -> None:
+        """Decisão de permissão em que um hook participou.
+
+        O hook aparece de dois jeitos: como autor da decisão (source "hook")
+        ou só no reasonCode ("hook:<evento>"), quando pediu confirmação e
+        quem decidiu foi o usuário.
+        """
+        codigo = decisao.get("reasonCode")
+        codigo = codigo if isinstance(codigo, str) and codigo.startswith("hook:") else ""
+        do_hook = decisao.get("source") == "hook"
+        if not do_hook and not codigo:
+            return
+        rejeitou = decisao.get("decision") == "reject"
+        if do_hook:
+            tipo = "bloqueio" if rejeitou else "decisao"
+        else:
+            tipo = "confirmacao"
+        self.hooks.append(EventoHook(
+            tipo, ts, evento=codigo.removeprefix("hook:") or None, tool_use_id=tool_id,
+            bloqueou=rejeitou, subagente_id=self.subagente_id))
 
     # -- assistant ---------------------------------------------------------
 
-    def _assistant(self, reg: dict, uuid: str, ts: str) -> None:
+    def _assistant(self, reg: dict, uuid: str, ts: datetime) -> None:
         mensagem = self._exigir(reg, "message", dict, "assistant.")
         mid = self._exigir(mensagem, "id", str, "assistant.message.")
         blocos = self._exigir(mensagem, "content", list, "assistant.message.")
-        uso = self._exigir(mensagem, "usage", dict, "assistant.message.")
-        onde = "assistant.message.usage."
-        tokens = Tokens(
-            self._exigir(uso, "input_tokens", int, onde),
-            self._exigir(uso, "output_tokens", int, onde),
-            self._inteiro_opcional(uso, "cache_creation_input_tokens", onde),
-            self._inteiro_opcional(uso, "cache_read_input_tokens", onde))
+        # Resposta gerada localmente não passou pela API: pode vir sem usage, e
+        # isso vale zero. Em resposta de modelo, usage ausente é erro.
+        sintetica = mensagem.get("model") == "<synthetic>"
+        if sintetica and mensagem.get("usage") is None:
+            tokens = Tokens()
+        else:
+            uso = self._exigir(mensagem, "usage", dict, "assistant.message.")
+            onde = "assistant.message.usage."
+            tokens = Tokens(
+                self._exigir(uso, "input_tokens", int, onde),
+                self._exigir(uso, "output_tokens", int, onde),
+                self._inteiro_opcional(uso, "cache_creation_input_tokens", onde),
+                self._inteiro_opcional(uso, "cache_read_input_tokens", onde))
         origem = reg.get("requestSessionId")
         copiada = isinstance(origem, str) and origem != reg["sessionId"]
         if copiada and self.copiada_de is None:
@@ -545,7 +614,7 @@ class _Arquivo:
         if resposta is None:
             resposta = self.respostas[mid] = Resposta(
                 mid, mensagem.get("model"), ts, tokens, mensagem.get("stop_reason"),
-                copiada=copiada, skill=reg.get("attributionSkill"))
+                copiada=copiada, sintetica=sintetica, skill=reg.get("attributionSkill"))
             self.primeiro_uuid[mid] = uuid
             self.reserva[mid] = self._pedido_corrente
         elif tokens.saida > resposta.tokens.saida:
@@ -574,7 +643,7 @@ class _Arquivo:
 
     # -- attachment e system -------------------------------------------------
 
-    def _attachment(self, reg: dict, uuid: str, ts: str) -> None:
+    def _attachment(self, reg: dict, uuid: str, ts: datetime) -> None:
         anexo = self._exigir(reg, "attachment", dict, "attachment.")
         tipo = self._exigir(anexo, "type", str, "attachment.attachment.")
         if tipo not in ANEXOS_CONHECIDOS:
@@ -585,21 +654,22 @@ class _Arquivo:
                 _HOOKS.get(tipo, tipo), ts, evento=anexo.get("hookEvent"),
                 nome=anexo.get("hookName"),
                 codigo_saida=codigo if isinstance(codigo, int) else None,
-                tool_use_id=anexo.get("toolUseID")))
+                tool_use_id=anexo.get("toolUseID"), subagente_id=self.subagente_id))
         elif tipo == "queued_command":
             origem = anexo.get("origin")
             if anexo.get("humanTurn") or (isinstance(origem, dict)
                                           and origem.get("kind") == "human"):
                 self.intervencoes.append((Intervencao("mensagem_no_meio", ts), uuid))
 
-    def _system(self, reg: dict, uuid: str, ts: str) -> None:
+    def _system(self, reg: dict, uuid: str, ts: datetime) -> None:
         subtipo = reg.get("subtype")
         if subtipo not in SUBTIPOS_DE_SISTEMA:
             self.desc.tipos[f"system/{subtipo}"] += 1
         if subtipo == "stop_hook_summary":
             self.hooks.append(EventoHook(
                 "parada", ts, evento="Stop", tool_use_id=reg.get("toolUseID"),
-                bloqueou=bool(reg.get("preventedContinuation"))))
+                bloqueou=bool(reg.get("preventedContinuation")),
+                subagente_id=self.subagente_id))
 
     # -- depois da leitura ---------------------------------------------------
 
@@ -642,12 +712,14 @@ def _ler_meta(caminho: Path) -> dict:
 
 def ler_sessao(principal: Path, subagentes: Iterable[Path] | None = None, *,
                raiz_git: Callable[[Path], Path | None] = raiz_git_de,
-               ate: str | None = None) -> Sessao:
+               ate: str | datetime | None = None) -> Sessao:
     """Lê uma sessão (arquivo principal e subagentes) para o modelo interno.
 
-    `ate` descarta registros de conversa com timestamp posterior (ISO 8601 UTC,
-    como nos arquivos).
+    `ate` descarta registros de conversa posteriores a esse instante. Erro no
+    arquivo principal levanta ErroDeFormato; erro em arquivo de subagente
+    tira só aquele subagente e fica registrado em `Sessao.falhas`.
     """
+    ate = None if ate is None else instante(ate)
     principal = Path(principal)
     subagentes = _subagentes_de(principal) if subagentes is None else list(subagentes)
     desc = Desconhecidos()
@@ -673,7 +745,17 @@ def ler_sessao(principal: Path, subagentes: Iterable[Path] | None = None, *,
         s.repositorio = s.repositorios.most_common(1)[0][0]
 
     for caminho in subagentes:
-        b = _Arquivo(caminho, ate, desc)
+        agente_id = caminho.stem.removeprefix("agent-")
+        desc_sub = Desconhecidos()
+        try:
+            b = _Arquivo(caminho, ate, desc_sub, agente_id)
+        except ErroDeFormato as erro:
+            s.falhas.append(Falha(erro.arquivo, erro.linha, erro.mensagem))
+            continue
+        except OSError as erro:
+            s.falhas.append(Falha(caminho, 0, f"não foi possível ler: {erro.strerror}"))
+            continue
+        desc.somar(desc_sub)
         if not b.linhas or b.inicio is None:
             continue
         b.fechar()
@@ -682,7 +764,7 @@ def ler_sessao(principal: Path, subagentes: Iterable[Path] | None = None, *,
         s.linhas_cortadas += b.cortadas
         s.hooks.extend(b.hooks)
         s.subagentes.append(Subagente(
-            id=caminho.stem.removeprefix("agent-"), caminho=caminho,
+            id=agente_id, caminho=caminho,
             tipo=meta.get("agentType") or b.tipo_agente,
             tool_use_id=meta.get("toolUseId"), profundidade=meta.get("spawnDepth"),
             pedido_id=b.primeiro_prompt_id if b.primeiro_prompt_id in a.pedidos else None,
@@ -714,16 +796,30 @@ def ler_sessao(principal: Path, subagentes: Iterable[Path] | None = None, *,
     return s
 
 
-def ler_tudo(config: Path | None = None, *, ate: str | None = None,
-             raiz_git: Callable[[Path], Path | None] = raiz_git_de) -> list[Sessao]:
-    """Lê todas as sessões do diretório de configuração."""
+def ler_tudo(config: Path | None = None, *, ate: str | datetime | None = None,
+             raiz_git: Callable[[Path], Path | None] = raiz_git_de) -> Leitura:
+    """Lê todas as sessões do diretório de configuração.
+
+    Erro em um arquivo não impede a leitura dos outros (E12): a sessão com
+    arquivo principal ilegível fica de fora e entra em `falhas`.
+    """
     config = diretorio_config() if config is None else Path(config)
-    sessoes = []
+    ate = None if ate is None else instante(ate)
+    leitura = Leitura()
     for arquivos in localizar_sessoes(config):
-        s = ler_sessao(arquivos.principal, arquivos.subagentes, raiz_git=raiz_git, ate=ate)
+        try:
+            s = ler_sessao(arquivos.principal, arquivos.subagentes, raiz_git=raiz_git, ate=ate)
+        except ErroDeFormato as erro:
+            leitura.falhas.append(Falha(erro.arquivo, erro.linha, erro.mensagem))
+            continue
+        except OSError as erro:
+            leitura.falhas.append(Falha(arquivos.principal, 0,
+                                        f"não foi possível ler: {erro.strerror}"))
+            continue
+        leitura.falhas.extend(s.falhas)
         if s.inicio is not None:      # sem registro de conversa no intervalo: fora
-            sessoes.append(s)
-    return sessoes
+            leitura.sessoes.append(s)
+    return leitura
 
 
 # --------------------------------------------------------------------------
@@ -783,14 +879,21 @@ def main(argv: list[str] | None = None) -> int:
                             help="ignora pastas de projeto cujo nome contém o texto")
     args = analisador.parse_args(argv)
     try:
-        sessoes = [s for s in ler_tudo(args.config, ate=args.ate)
-                   if not any(x in s.pasta_projeto for x in args.excluir_pasta)]
-    except ErroDeFormato as erro:
-        print(f"erro de formato: {erro}", file=sys.stderr)
-        return 1
+        leitura = ler_tudo(args.config, ate=args.ate)
+    except ValueError:
+        print(f"--ate não é um horário ISO 8601: {args.ate}", file=sys.stderr)
+        return 2
+    def fora(texto: str) -> bool:
+        return any(x in texto for x in args.excluir_pasta)
+
+    sessoes = [s for s in leitura.sessoes if not fora(s.pasta_projeto)]
+    falhas = [f for f in leitura.falhas if not fora(str(f.arquivo))]
     for nome, valor in agregados(sessoes).items():
         print(f"{nome}: {json.dumps(valor, ensure_ascii=False)}")
-    return 0
+    print(f"falhas: {len(falhas)}")
+    for falha in falhas:
+        print(f"  {falha}")
+    return 0 if sessoes else 1
 
 
 if __name__ == "__main__":
