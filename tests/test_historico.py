@@ -270,7 +270,7 @@ def test_situacao_rebase_detecta_copia_na_padrao(tmp_path):
     h = repo.commit(T0 + timedelta(minutes=1), {"b.txt": "1"})
     repo.git("checkout", "-q", "main")
     repo.commit(T0 + timedelta(minutes=2), {"c.txt": "1"})
-    repo.git("cherry-pick", "-q", h, quando=T0 + timedelta(minutes=3))
+    repo.git("cherry-pick", h, quando=T0 + timedelta(minutes=3))
     r = abrir(repo)
     s = historico.situacao_commit(r, h)
     assert s.na_padrao is False and s.copia_na_padrao is True
@@ -442,6 +442,20 @@ def test_retoque_ignora_merge_e_reversao(tmp_path):
     rt = historico.retoques(r, h, dias=7)
     assert rt.retoques == []
     assert rt.reversoes_excluidas == 1
+
+
+def test_retoque_ignora_arquivos_pedidos(tmp_path):
+    repo = novo(tmp_path)
+    repo.commit(T0, {"a.txt": "1", "pair/ESTADO.md": "1", "pair/diario/001.md": "1"})
+    h = repo.commit(T0 + timedelta(days=1),
+                    {"a.txt": "2", "pair/ESTADO.md": "2", "pair/diario/001.md": "2"})
+    repo.commit(T0 + timedelta(days=2), {"pair/ESTADO.md": "3", "pair/diario/001.md": "3"})
+    r = abrir(repo)
+    assert len(historico.retoques(r, h, dias=7).retoques) == 1
+    rt = historico.retoques(r, h, dias=7, ignorar=["pair/ESTADO.md", "pair/diario/*"])
+    assert rt.arquivos == ["a.txt"]
+    assert rt.ignorados == ["pair/ESTADO.md", "pair/diario/001.md"]
+    assert rt.retoques == []
 
 
 def test_retoque_prazo_aberto(tmp_path):
