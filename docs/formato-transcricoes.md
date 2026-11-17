@@ -81,9 +81,18 @@ Marcação de confiança usada no texto:
 
 - Documentado: `cleanupPeriodDays`, padrão 30 dias; a limpeza remove também
   os subagentes da sessão.
-- Observado: a configuração não está definida, `~/.claude/.last-cleanup`
-  marca 2026-11-16, e ainda assim existe um arquivo cuja última modificação
-  é de 2026-10-15 (32 dias antes da limpeza). Ver seção 5.
+- Observado: a configuração não está definida e nenhum arquivo de sessão
+  principal tem data de modificação com mais de 30 dias. O critério
+  parece ser a data de modificação do arquivo principal, não a data da
+  conversa: a sessão mais antiga tem registros de 33 dias atrás e
+  modificação de 29 dias atrás, e seus subagentes (33 dias) continuam lá.
+  **[M]**
+
+> **Correção de 2026-11-17 (goal 002).** A primeira versão deste documento
+> registrava aqui uma divergência com a documentação ("arquivo de 32 dias
+> sobreviveu à limpeza"). Estava errada: a data usada era a de um arquivo
+> de subagente, não a do arquivo principal da sessão. Medido pelo arquivo
+> principal, o observado concorda com o padrão documentado.
 
 ---
 
@@ -655,7 +664,8 @@ subagente, não na sessão principal. **[M]**
 8. **Regra de nomes de pasta longos ou com caracteres especiais.** A
    documentação fala em truncar em 200 caracteres e acrescentar um hash;
    não há caso na amostra e o algoritmo do hash não é documentado.
-9. **Regra de retenção efetiva.** Ver a divergência na seção 5.
+9. **Regra de retenção efetiva.** Respondida no goal 002: 30 dias pela
+   data de modificação do arquivo principal (ver seção 1.3).
 10. **Reconstrução da requisição a partir de `api-request`.** `base`
     resolve para outro `api-request` em 4.170 de 4.170 casos, mas só 523 de
     4.211 registros têm todos os hashes de `tail` presentes como
@@ -690,7 +700,7 @@ Fontes consultadas: `code.claude.com/docs/en/` — `sessions`,
 | `transcript_path` nos hooks | Descrito como "Path to conversation JSON", com exemplo terminando em `.jsonl` | O arquivo é JSONL, não um JSON único | **Documentação inconsistente consigo mesma; vale JSONL** |
 | Identificador de sessão | Fala em `sessionId` (disco) e `session_id` (hooks, SDK) | Os dois campos coexistem no mesmo registro e divergem após `/clear` | **Divergência não descrita na documentação** |
 | Subagentes | `subagents/agent-{agentId}.jsonl`, "same format as the session transcript" | Igual; além disso há `agent-<id>.meta.json` e os campos `agentId`, `attributionAgent`, `isSidechain: true` | Concorda; `.meta.json` e `isSidechain` não documentados |
-| Retenção | `cleanupPeriodDays` padrão 30 dias | Sem configuração local; limpeza registrada em 2026-11-16; arquivo modificado pela última vez em 2026-10-15 continua lá | **Divergência aparente** (32 dias); causa não determinada |
+| Retenção | `cleanupPeriodDays` padrão 30 dias | Sem configuração local; nenhum arquivo principal com modificação há mais de 30 dias | Concorda (corrigido em 2026-11-17; ver seção 1.3) |
 | Skills | O `SKILL.md` renderizado entra "as a single message" | Registro `user` `isMeta` com `sourceToolUseID`; `<command-name>` e `attributionSkill` não são documentados | Concorda no que cobre |
 | Mensagens do SDK | `AssistantMessage` um por bloco de conteúdo; `usage` cobre só o laço principal | Um registro `assistant` por bloco; uso dos subagentes fica nos arquivos deles | Concorda |
 | Compactação | Stream emite `SystemMessage` `compact_boundary`; registro em disco não documentado | `system` com `subtype: "compact_boundary"` e `compactMetadata` | Concorda no nome; forma em disco não documentada |
@@ -724,8 +734,9 @@ antes de construir algo sobre o formato.
    registro correspondente?
 6. **`api-request`:** onde fica o restante do conteúdo das requisições? Só
    523 de 4.211 registros têm todos os blocos no mesmo arquivo.
-7. **Retenção:** qual é a regra efetiva, dado que um arquivo com mais de 30
-   dias sobreviveu à limpeza?
+7. ~~**Retenção:** qual é a regra efetiva, dado que um arquivo com mais de
+   30 dias sobreviveu à limpeza?~~ Respondida no goal 002: a premissa
+   estava errada (ver seção 1.3).
 8. **Ramo ativo:** como escolher o ramo vivo quando a árvore de
    `parentUuid` se ramifica? A hipótese é `last-prompt.leafUuid`; não foi
    medida.

@@ -27,6 +27,7 @@ Fase 1: piloto manual
 | Goal | Situação |
 |---|---|
 | [001 — Formato das transcrições](goals/001-formato-transcricoes.md) | Aceito pelo revisor no [lote 002](entrada/lote-002.md) |
+| [002 — Viabilidade dos indicadores](goals/002-viabilidade-indicadores.md) | Concluído, aguarda revisão ([relatório](diario/002.md) · [documento](../docs/viabilidade-indicadores.md)) |
 
 ## Decisões pendentes
 
@@ -35,4 +36,4 @@ Nenhuma. A linguagem da CLI foi fechada: Python 3.12 ou mais recente
 
 ## Próximo passo
 
-Goal 002
+Goal 003
