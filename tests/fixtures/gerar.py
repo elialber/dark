@@ -50,9 +50,9 @@ class Arquivo:
         self.ultimo = uuid
         return uuid
 
-    def pedido(self, ts, prompt_id, texto, **campos):
+    def pedido(self, ts, prompt_id, texto, modo="default", **campos):
         return self.conversa("user", ts, promptId=prompt_id, origin={"kind": "human"},
-                             promptSource="typed", permissionMode="default",
+                             promptSource="typed", permissionMode=modo,
                              message={"role": "user", "content": texto}, **campos)
 
     def resposta(self, ts, mid, blocos, uso, stop="tool_use", usos=None, **campos):
@@ -282,14 +282,15 @@ def sessao_de_indicadores():
                {"name": "Bash"}, {"name": "Read"}, {"name": "Skill"}, {"name": "Agent"}]})
     d = "2026-01-03T09:00:00.000Z"
     a.anexo(d, "skill_listing", isInitial=True, skillCount=3, content="...",
-            names=["exemplo-skill", "plugin:outra-skill", "nunca-usada"])
+            names=["exemplo-skill", "plugin:outra-skill", "nunca-usada", "por-comando"])
     a.anexo(d, "agent_listing_delta", addedTypes=["exemplo-revisor", "exemplo-ocioso"],
             builtInTypes=["Explore"], removedTypes=[])
     a.anexo(d, "deferred_tools_delta", removedNames=[], readdedNames=[], addedNames=[
         "mcp__servidor-a__buscar", "mcp__servidor-b__listar", "WebFetch"])
     a.anexo(d, "deferred_tools_record", entries=[{"name": "mcp__servidor-a__criar"}])
 
-    a.pedido("2026-01-03T09:00:01.000Z", "PI1", "Faça os commits.")
+    a.pedido("2026-01-03T09:00:01.000Z", "PI1", "Faça os commits.",
+             modo="bypassPermissions")
     passos = [
         ("msg_M30", uso(100, 5, 2000, 30000),
          chamada("toolu_T30", "Skill", skill="plugin:outra-skill"),
@@ -312,11 +313,24 @@ def sessao_de_indicadores():
     ]
     for i, (mid, u, bloco, estruturado) in enumerate(passos):
         m = a.resposta(f"2026-01-03T09:00:{10 + 2 * i}.000Z", mid, [bloco], u)
+        # Texto de comando dentro de resultado de ferramenta não é comando.
+        conteudo = ("<command-name>/nunca-usada</command-name>"
+                    if bloco["id"] == "toolu_T31" else "ok")
         a.resultado(f"2026-01-03T09:00:{11 + 2 * i}.000Z", bloco["id"], m[0], "PI1",
-                    estruturado=estruturado)
-    a.pedido("2026-01-03T09:10:00.000Z", "PI2", "Resuma.")
+                    conteudo, estruturado=estruturado)
+    # Skill acionada por /comando: pedido humano com o texto do comando.
+    a.pedido("2026-01-03T09:10:00.000Z", "PI2",
+             "<command-message>por-comando</command-message>\n"
+             "<command-name>/por-comando</command-name>\n"
+             "<command-args>alvo</command-args>")
     a.resposta("2026-01-03T09:10:02.000Z", "msg_M36", [texto("Resumo.")], uso(2, 2),
                stop="end_turn", attributionSkill="exemplo-skill")
+    # Comando embutido: registro user sem origin; não está na lista de skills.
+    a.conversa("user", "2026-01-03T09:11:00.000Z", message={
+        "role": "user",
+        "content": "<command-name>/clear</command-name>\n"
+                   "<command-message>clear</command-message>\n"
+                   "<command-args></command-args>"})
     a.gravar(AQUI / "config/projects/-repo-alfa" / f"{S6}.jsonl")
 
 

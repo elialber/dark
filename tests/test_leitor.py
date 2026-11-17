@@ -340,12 +340,21 @@ def test_comando_imprime_sessoes_e_falhas_e_termina_bem(capsys):
     assert "cccccccc-0000-4000-8000-000000000002.jsonl, linha 2" in saida
 
 
-def test_comando_termina_com_erro_se_nenhuma_sessao_for_lida(tmp_path, capsys):
+def test_comando_termina_com_erro_se_so_houver_falhas(tmp_path, capsys):
     pasta = tmp_path / "projects" / "-so-invalida"
     pasta.mkdir(parents=True)
     shutil.copy(INVALIDOS / "sem-uuid.jsonl", pasta / "x.jsonl")
     assert leitor.main(["--config", str(tmp_path)]) == 1
     assert "falhas: 1" in capsys.readouterr().out
+
+
+def test_diretorio_sem_sessoes_nao_e_erro(tmp_path, capsys):
+    # Decisão alterada no lote 005: sem sessões e sem falhas, termina bem.
+    (tmp_path / "projects").mkdir()
+    assert leitor.main(["--config", str(tmp_path)]) == 0
+    saida = capsys.readouterr()
+    assert "nenhuma sessão encontrada" in (saida.out + saida.err)
+    assert leitor.main(["--config", str(tmp_path / "nao-existe")]) == 0
 
 
 # --- armadilha: tipo e campo desconhecidos -----------------------------------
@@ -431,7 +440,7 @@ def test_comando_imprime_os_agregados(capsys):
 
 def test_o_que_estava_disponivel_na_sessao(sessoes):
     d = sessoes[S6].disponivel
-    assert d.skills == {"exemplo-skill", "plugin:outra-skill", "nunca-usada"}
+    assert d.skills == {"exemplo-skill", "plugin:outra-skill", "nunca-usada", "por-comando"}
     assert d.tipos_subagente == {"exemplo-revisor", "exemplo-ocioso", "Explore"}
     assert d.ferramentas == {
         "Bash", "Read", "Skill", "Agent", "WebFetch", "mcp__servidor-a__buscar",
@@ -484,6 +493,25 @@ def test_chamadas_de_commit_trazem_hash_e_amend(sessoes):
     ("grep -r 'git commit' docs", None),
     ("ls", None),
     ("", None),
+    # goal 008: palavra-chave do shell e prefixo de comando antes do git
+    ("if true; then git commit -m x; fi", (1, False, False)),
+    ("for f in a; do git commit -m x; done", (1, False, False)),
+    ("if false; then :; else git commit -q -m x; fi", (1, False, True)),
+    ("{ git commit -m x; }", (1, False, False)),
+    ("! git commit -m x", (1, False, False)),
+    ("sudo git commit -m x", (1, False, False)),
+    ("sudo -u alguem git commit -m x", (1, False, False)),
+    ("env GIT_AUTHOR_NAME=x git commit -m x", (1, False, False)),
+    ("env -i PATH=/bin git commit --amend -m x", (1, True, False)),
+    ("command git commit -m x", (1, False, False)),
+    ("time git commit -m x", (1, False, False)),
+    ("time -p git commit -m x", (1, False, False)),
+    ("if git commit -m x; then echo ok; fi", (1, False, False)),
+    ("while git commit -m x; do :; done", (1, False, False)),
+    ("sudo env X=1 time git commit -m x", (1, False, False)),
+    ("command -v git", None),                                               # não executa
+    ("echo then git commit", None),
+    ("sudo echo git commit", None),
 ])
 def test_deteccao_de_git_commit_pelo_comando_analisado(comando, esperado):
     achado = leitor.analisar_commit(comando)
@@ -499,3 +527,29 @@ def test_comando_que_nao_da_para_analisar_cai_na_leitura_aproximada():
     assert achado is not None and achado.aproximado is True
     assert leitor.analisar_commit("git commit -m 'x'").aproximado is False
     assert leitor.analisar_commit("echo 'git commit sem fechar") is None
+
+
+# --- goal 008: modo de permissão e /comando ------------------------------------
+
+def test_pedido_guarda_o_modo_de_permissao(sessoes):
+    assert [(p.id, p.modo_permissao) for p in sessoes[S6].pedidos] == [
+        ("PI1", "bypassPermissions"), ("PI2", "default")]
+    assert {p.modo_permissao for p in sessoes[S1].pedidos} == {"default"}
+
+
+def test_pedido_sem_modo_de_permissao_fica_sem_modo(tmp_path):
+    linhas = (CONFIG / "projects" / "-repo-gama" / f"{S5}.jsonl").read_text().splitlines()
+    regs = [json.loads(l) for l in linhas]
+    for r in regs:
+        r.pop("permissionMode", None)
+    arquivo = tmp_path / "x.jsonl"
+    arquivo.write_text("\n".join(json.dumps(r) for r in regs) + "\n")
+    (p,) = leitor.ler_sessao(arquivo, []).pedidos
+    assert p.modo_permissao is None
+
+
+def test_comandos_digitados_pelo_usuario(sessoes):
+    # /por-comando (pedido humano) e /clear (embutido, sem origin) entram;
+    # texto de comando dentro de resultado de ferramenta não entra.
+    assert sessoes[S6].comandos == ["por-comando", "clear"]
+    assert sessoes[S1].comandos == []

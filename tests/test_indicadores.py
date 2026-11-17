@@ -43,8 +43,9 @@ def test_peso_fixo_por_sessao_e_resumo(sessoes):
 
 def test_peso_morto_de_skills(sessoes):
     pm = indicadores.peso_morto(sessoes).skills
-    assert pm.disponiveis == {"exemplo-skill", "outra-skill", "nunca-usada"}
-    assert pm.usados == {"exemplo-skill", "outra-skill"}   # por chamada e por atribuição
+    assert pm.disponiveis == {"exemplo-skill", "outra-skill", "nunca-usada", "por-comando"}
+    # por chamada, por atribuição e por /comando
+    assert pm.usados == {"exemplo-skill", "outra-skill", "por-comando"}
     assert pm.nunca_usados == {"nunca-usada"}
     assert pm.usados_fora_da_lista == set()
 
@@ -68,9 +69,9 @@ def test_peso_morto_de_ferramentas_e_servidores(sessoes):
 def test_peso_morto_por_sessao_conta_disponiveis_e_usados(sessoes):
     pm = indicadores.peso_morto(sessoes)
     s6 = pm.skills.por_sessao[S6]
-    assert (s6.disponiveis, s6.usados) == (3, 2)
+    assert (s6.disponiveis, s6.usados) == (4, 3)
     assert pm.skills.por_sessao[S1].disponiveis == 0
-    assert pm.skills.resumo_disponiveis.maximo == 3
+    assert pm.skills.resumo_disponiveis.maximo == 4
     assert pm.ferramentas.por_sessao[S1].usados == 5      # inclui a do subagente (Read)
     assert pm.skills.sessoes_sem_lista == 4
 
@@ -154,3 +155,39 @@ def test_comando_de_conferencia_imprime_contagens_sem_nomes(capsys):
     assert "nunca-usada" not in saida            # nomes só com --nomes
     assert indicadores.main(["--config", str(CONFIG), "--nomes"]) == 0
     assert "nunca-usada" in capsys.readouterr().out
+
+
+# --- goal 008 ------------------------------------------------------------------
+
+def test_skill_por_comando_so_conta_se_estiver_na_lista_da_sessao(sessoes):
+    pm = indicadores.peso_morto(sessoes).skills
+    assert "clear" not in pm.usados               # comando embutido: fora da lista
+    assert "nunca-usada" in pm.nunca_usados       # texto em resultado não é comando
+    assert pm.usados_fora_da_lista == set()
+
+
+def test_skill_por_comando_nao_conta_em_sessao_que_nao_a_anuncia(sessoes):
+    # A mesma skill digitada como comando numa sessão sem lista não é uso.
+    s6 = next(s for s in sessoes if s.id == S6)
+    copia = leitor.Sessao(id="x", caminho=s6.caminho, pasta_projeto="p",
+                          comandos=["por-comando"])
+    assert indicadores.peso_morto([copia]).skills.usados == set()
+
+
+def test_intervencoes_contam_pedidos_por_modo_de_permissao(sessoes):
+    it = indicadores.intervencoes(sessoes)
+    assert it.por_modo == {"default": 6, "bypassPermissions": 1}
+    assert it.por_sessao[S6].por_modo == {"bypassPermissions": 1, "default": 1}
+
+
+def test_modo_ausente_aparece_como_desconhecido():
+    s = leitor.Sessao(id="x", caminho=Path("x"), pasta_projeto="p")
+    s.pedidos = [leitor.Pedido("P", None, 0, None)]
+    assert indicadores.intervencoes([s]).por_modo == {"?": 1}
+
+
+def test_comando_de_conferencia_sem_sessoes_termina_bem(tmp_path, capsys):
+    (tmp_path / "projects").mkdir()
+    assert indicadores.main(["--config", str(tmp_path)]) == 0
+    saida = capsys.readouterr()
+    assert "nenhuma sessão encontrada" in (saida.out + saida.err)
