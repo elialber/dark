@@ -29,7 +29,7 @@ class Acceptance:
     files_from: str | None = None
     timeout_s: int = DEFAULT_TIMEOUT
 
-    def files_source(self, case: "Caso") -> str | None:
+    def files_source(self, case: "Case") -> str | None:
         return self.files_from or case.solution_commit
 
 
@@ -46,9 +46,9 @@ class Case:
 
 # --- leitura -----------------------------------------------------------------
 
-_FIELDS = {"id", "origem", "commit_base", "pedido", "aceite", "commit_solucao", "notas"}
-_REQUIRED = ("id", "origem", "commit_base", "pedido", "aceite")
-_ACCEPTANCE_FIELDS = {"comando", "arquivos", "arquivos_de", "tempo_limite"}
+_FIELDS = {"id", "source", "base_commit", "prompt", "acceptance", "solution_commit", "notes"}
+_REQUIRED = ("id", "source", "base_commit", "prompt", "acceptance")
+_ACCEPTANCE_FIELDS = {"command", "files", "files_from", "timeout"}
 
 
 def _text(d: dict, key: str, where: str, empty_ok: bool = False) -> str:
@@ -71,49 +71,49 @@ def from_dict(d: dict) -> Case:
     id_ = _text(d, "id", "")
     if not _ID.match(id_):
         raise CaseFormatError(f"id: só letras, dígitos, '.', '_' e '-': {id_!r}")
-    source = _text(d, "origem", "")
+    source = _text(d, "source", "")
     if source not in PROVENANCES:
-        raise CaseFormatError(f"origem: {source!r} não é {' nem '.join(PROVENANCES)}")
+        raise CaseFormatError(f"source: {source!r} não é {' nem '.join(PROVENANCES)}")
 
-    a = d["aceite"]
+    a = d["acceptance"]
     if not isinstance(a, dict):
-        raise CaseFormatError("aceite: esperada uma tabela [aceite]")
+        raise CaseFormatError("acceptance: esperada uma tabela [acceptance]")
     unknowns = set(a) - _ACCEPTANCE_FIELDS
     if unknowns:
-        raise CaseFormatError(f"aceite: campo desconhecido: {', '.join(sorted(unknowns))}")
-    if "comando" not in a:
-        raise CaseFormatError("campo obrigatório ausente: aceite.comando")
-    command = a["comando"]
+        raise CaseFormatError(f"acceptance: campo desconhecido: {', '.join(sorted(unknowns))}")
+    if "command" not in a:
+        raise CaseFormatError("campo obrigatório ausente: acceptance.command")
+    command = a["command"]
     if isinstance(command, list):
         if not all(isinstance(x, str) for x in command):
-            raise CaseFormatError("aceite.comando: lista só de textos")
+            raise CaseFormatError("acceptance.command: lista só de textos")
     elif not isinstance(command, str):
-        raise CaseFormatError("aceite.comando: texto ou lista de textos")
-    files = a.get("arquivos", [])
+        raise CaseFormatError("acceptance.command: texto ou lista de textos")
+    files = a.get("files", [])
     if not isinstance(files, list) or not all(isinstance(x, str) for x in files):
-        raise CaseFormatError("aceite.arquivos: lista de caminhos")
+        raise CaseFormatError("acceptance.files: lista de caminhos")
     for path in files:
         if path.startswith("/") or ".." in Path(path).parts:
-            raise CaseFormatError(f"aceite.arquivos: caminho fora do repositório: {path}")
-    time_ = a.get("tempo_limite", DEFAULT_TIMEOUT)
+            raise CaseFormatError(f"acceptance.files: caminho fora do repositório: {path}")
+    time_ = a.get("timeout", DEFAULT_TIMEOUT)
     if not isinstance(time_, int) or isinstance(time_, bool) or time_ <= 0:
-        raise CaseFormatError("aceite.tempo_limite: inteiro positivo, em segundos")
-    from_commit = a.get("arquivos_de") or None
+        raise CaseFormatError("acceptance.timeout: inteiro positivo, em segundos")
+    from_commit = a.get("files_from") or None
 
-    solution = d.get("commit_solucao") or None
+    solution = d.get("solution_commit") or None
     if files and not (from_commit or solution):
-        raise CaseFormatError("aceite.arquivos sem commit de origem: "
-                          "informe aceite.arquivos_de ou commit_solucao")
+        raise CaseFormatError("acceptance.files sem commit de origem: "
+                          "informe acceptance.files_from ou solution_commit")
 
     return Case(
         id=id_,
         source=source,
-        base_commit=_text(d, "commit_base", ""),
-        prompt=_text(d, "pedido", "", empty_ok=True),
+        base_commit=_text(d, "base_commit", ""),
+        prompt=_text(d, "prompt", "", empty_ok=True),
         acceptance=Acceptance(command=command, files=list(files), files_from=from_commit,
                       timeout_s=time_),
         solution_commit=solution,
-        notes=_text(d, "notas", "", empty_ok=True) if "notas" in d else "",
+        notes=_text(d, "notes", "", empty_ok=True) if "notes" in d else "",
     )
 
 
@@ -172,20 +172,20 @@ def _list(xs: list[str]) -> str:
 def to_toml(c: Case) -> str:
     lines = [
         f"id = {_str(c.id)}",
-        f"origem = {_str(c.source)}",
-        f"commit_base = {_str(c.base_commit)}",
+        f"source = {_str(c.source)}",
+        f"base_commit = {_str(c.base_commit)}",
     ]
     if c.solution_commit:
-        lines.append(f"commit_solucao = {_str(c.solution_commit)}")
-    lines.append(f"pedido = {_long_str(c.prompt)}")
-    lines.append(f"notas = {_long_str(c.notes)}")
+        lines.append(f"solution_commit = {_str(c.solution_commit)}")
+    lines.append(f"prompt = {_long_str(c.prompt)}")
+    lines.append(f"notes = {_long_str(c.notes)}")
     lines.append("")
-    lines.append("[aceite]")
+    lines.append("[acceptance]")
     a = c.acceptance
     cmd = _str(a.command) if isinstance(a.command, str) else _list(a.command)
-    lines.append(f"comando = {cmd}")
-    lines.append(f"arquivos = {_list(a.files)}")
+    lines.append(f"command = {cmd}")
+    lines.append(f"files = {_list(a.files)}")
     if a.files_from:
-        lines.append(f"arquivos_de = {_str(a.files_from)}")
-    lines.append(f"tempo_limite = {a.timeout_s}")
+        lines.append(f"files_from = {_str(a.files_from)}")
+    lines.append(f"timeout = {a.timeout_s}")
     return "\n".join(lines) + "\n"

@@ -123,7 +123,7 @@ def validate(case: Case, repo: Path, *, workdir: Path | None = None,
 
     if case.acceptance.files and not from_commit:
         return _end(res, start, Reason.SETUP_ERROR,
-                    "aceite.arquivos sem commit de origem")
+                    "acceptance.files sem commit de origem")
 
     steps = [("base", case.base_commit)]
     if case.solution_commit:
@@ -158,7 +158,7 @@ def validate(case: Case, repo: Path, *, workdir: Path | None = None,
                             f"{label}: {output.strip()[-300:]}")
             if label == "base" and code == 0:
                 return _end(res, start, Reason.DOES_NOT_FAIL_ON_BASE,
-                            "o aceite já passa no commit_base")
+                            "o aceite já passa no base_commit")
             if label == "solucao" and code != 0:
                 return _end(res, start, Reason.DOES_NOT_PASS_ON_SOLUTION,
                             f"código {code} no commit_solucao")

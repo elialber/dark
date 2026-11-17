@@ -94,7 +94,7 @@ def test_arquivos_de_assume_a_solucao_quando_omitido():
     assert c.acceptance.files_source(c) == "b" * 40
 
 
-@pytest.mark.parametrize("removed", ["id", "origem", "commit_base", "pedido", "aceite"])
+@pytest.mark.parametrize("removed", ["id", "source", "base_commit", "prompt", "acceptance"])
 def test_campo_obrigatorio_ausente(removed):
     data = tomllib.loads(m_case.to_toml(_example_case()))
     del data[removed]
@@ -104,8 +104,8 @@ def test_campo_obrigatorio_ausente(removed):
 
 def test_origem_invalida_e_campo_desconhecido():
     data = tomllib.loads(m_case.to_toml(_example_case()))
-    with pytest.raises(CaseFormatError, match="origem"):
-        m_case.from_dict({**data, "origem": "inventado"})
+    with pytest.raises(CaseFormatError, match="source"):
+        m_case.from_dict({**data, "source": "inventado"})
     with pytest.raises(CaseFormatError, match="desconhecido"):
         m_case.from_dict({**data, "extra": 1})
 
@@ -125,7 +125,7 @@ def test_exemplo_do_readme_e_um_caso_valido():
 
 
 def test_casos_gravados_no_repositorio_tem_formato_valido():
-    files = sorted((ROOT / "evals" / "casos").glob("*.toml"))
+    files = sorted((ROOT / "evals" / "cases").glob("*.toml"))
     assert files
     for fpath in files:
         c = m_case.load(fpath)

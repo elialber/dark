@@ -60,7 +60,7 @@ Os casos de eval (`src/dark/evals/`, formato em [evals/README.md](evals/README.m
 
 ```bash
 .venv/bin/python -m dark.evals minerar --repo . --ref origin/main
-.venv/bin/python -m dark.evals validar --repo . evals/casos/goal-005-leitor.toml
+.venv/bin/python -m dark.evals validar --repo . evals/cases/goal-005-leitor.toml
 ```
 
 > **Atenção.** Validar um caso executa o comando de aceite, isto é, código do repositório avaliado, em cada commit indicado. Use só em repositórios seus. O venv de desenvolvimento tem o `dark` instalado em modo editável e pode vazar para a cópia validada em commits sem `pyproject.toml` (ver `evals/README.md`).
