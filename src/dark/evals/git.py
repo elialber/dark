@@ -19,7 +19,9 @@ class GitError(RuntimeError):
 
 def default_executor(argv: Sequence[str], cwd: Path) -> str:
     try:
-        r = subprocess.run(list(argv), cwd=cwd, capture_output=True, text=True)
+        # git writes UTF-8; the locale's encoding (cp1252 on Windows) would garble it.
+        r = subprocess.run(list(argv), cwd=cwd, capture_output=True, text=True,
+                           encoding="utf-8", errors="surrogateescape")
     except OSError as e:
         raise GitError(f"{' '.join(argv)}: {e}") from e
     if r.returncode != 0:

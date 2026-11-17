@@ -12,6 +12,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from dark import console
+
 from . import case as m_case
 from . import mining, validation
 
@@ -21,6 +23,7 @@ KIND_LABELS = {"same_commit": "mesmo_commit", "consecutive_commits": "commits_se
 
 
 def main(argv: list[str] | None = None) -> int:
+    console.utf8_output()
     ap = argparse.ArgumentParser(prog="python -m dark.evals")
     sub = ap.add_subparsers(dest="action", required=True)
 

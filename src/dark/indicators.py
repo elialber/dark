@@ -17,7 +17,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from dark import reader
+from dark import console, reader
 from dark.reader import Session
 
 
@@ -507,6 +507,7 @@ def _summary_line(r: Summary) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    console.utf8_output()
     parser = argparse.ArgumentParser(
         prog="python -m dark.indicators",
         description="Imprime os indicadores, só em contagens, para conferência.")

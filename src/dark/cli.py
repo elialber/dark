@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 from functools import cache
 from pathlib import Path
 
-from dark import audit, inventory, reader, commit_linking, report
+from dark import audit, console, inventory, reader, commit_linking, report
 
 _GIT_READ_ONLY = {"GIT_OPTIONAL_LOCKS": "0"}
 
@@ -29,6 +29,7 @@ _GIT_READ_ONLY = {"GIT_OPTIONAL_LOCKS": "0"}
 def _git(*args: str) -> subprocess.CompletedProcess | None:
     try:
         return subprocess.run(["git", *args], capture_output=True, text=True,
+                              encoding="utf-8", errors="replace",
                               env={**os.environ, **_GIT_READ_ONLY})
     except OSError:
         return None
@@ -177,6 +178,7 @@ def _audit(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    console.utf8_output()
     parser = argparse.ArgumentParser(
         prog="dark", description="Mede o harness do Claude Code de um repositório.")
     commands = parser.add_subparsers(dest="command", required=True)

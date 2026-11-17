@@ -15,6 +15,8 @@ import json
 import sys
 from pathlib import Path
 
+from dark import console
+
 from .engine import MANIFEST_NAME, ManifestError, Outcome, RevertOutcome, apply, inspect, revert
 from .operations import Plan
 
@@ -89,6 +91,7 @@ def _load_plan(path: str) -> Plan:
 
 
 def main(argv: list[str] | None = None) -> int:
+    console.utf8_output()
     parser = argparse.ArgumentParser(
         prog="python -m dark.scaffold",
         description="Aplica e reverte planos do scaffold, sem sobrescrever nada.")

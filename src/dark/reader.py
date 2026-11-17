@@ -25,6 +25,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from dark import console
+
 # --------------------------------------------------------------------------
 # What the reader knows about the format
 # --------------------------------------------------------------------------
@@ -1279,6 +1281,7 @@ HOOK_LABELS = {"success": "sucesso", "non_blocking_error": "erro_sem_bloqueio",
 
 
 def main(argv: list[str] | None = None) -> int:
+    console.utf8_output()
     parser = argparse.ArgumentParser(
         prog="python -m dark.reader",
         description="Lê as transcrições e imprime os agregados de conferência.")

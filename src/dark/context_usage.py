@@ -18,11 +18,14 @@ from __future__ import annotations
 
 import argparse
 import re
+import shutil
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from dark import console
 
 # executor(arguments, directory) -> standard output
 Executor = Callable[[Sequence[str], Path], str]
@@ -241,9 +244,14 @@ def unattributed(breakdown: Breakdown, total_usage: int) -> Unattributed:
 # --------------------------------------------------------------------------
 
 def _default_executor(arguments: Sequence[str], directory: Path) -> str:
+    arguments = list(arguments)
+    # On Windows, `claude` installed by npm is `claude.cmd`, which a call
+    # without a shell does not find by the bare name.
+    arguments[0] = shutil.which(arguments[0]) or arguments[0]
     result = subprocess.run(
-        list(arguments), cwd=directory, stdin=subprocess.DEVNULL,
-        capture_output=True, text=True, timeout=120, check=True,
+        arguments, cwd=directory, stdin=subprocess.DEVNULL,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=120, check=True,
     )
     return result.stdout
 
@@ -273,6 +281,7 @@ KIND_LABELS = {"used": "usado", "deferred": "adiado", "free": "livre", "reserved
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    console.utf8_output()
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("repository", metavar="repositorio", nargs="?", default=".")
     p.add_argument("--arquivo", dest="file", metavar="ARQUIVO", help="analisa um texto já salvo em vez de rodar o comando")

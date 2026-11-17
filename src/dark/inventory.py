@@ -33,6 +33,8 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from dark import console
+
 TYPES = ("instruction", "skill", "subagent", "hook", "mcp", "permission")
 SCOPES = ("managed", "user", "project", "plugin")
 
@@ -776,6 +778,7 @@ def tallies(inv: Inventory) -> Counter:
 
 
 def main(argv: list[str] | None = None) -> int:
+    console.utf8_output()
     parser = argparse.ArgumentParser(
         prog="python -m dark.inventory",
         description="Imprime as contagens do inventário do harness.")
