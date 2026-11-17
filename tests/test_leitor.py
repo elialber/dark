@@ -63,6 +63,15 @@ def test_usage_e_contado_uma_vez_por_message_id(s1):
     assert s1.tokens_principal.total == 138  # a soma linha a linha daria 348
 
 
+def test_usage_parcial_em_subagente_vale_o_final(s1):
+    # Em arquivos de subagente o output_tokens cresce de um registro para o
+    # outro da mesma resposta; vale o último, que é o maior.
+    (sub,) = s1.subagentes
+    sm1 = next(r for r in sub.respostas if r.message_id == "msg_SM1")
+    assert sm1.registros == 2
+    assert sm1.tokens == Tokens(entrada=20, saida=10, cache_criacao=10, cache_leitura=10)
+
+
 def test_tokens_da_sessao_somam_os_subagentes(s1):
     assert s1.tokens_subagentes.total == 60
     assert s1.tokens.total == 198

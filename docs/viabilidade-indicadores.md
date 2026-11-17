@@ -365,7 +365,14 @@ Os dois primeiros também trazem `toolUseID`, `durationMs`, `stdout` e
 | `permissionDecision` com `source == "hook"` | 10 | Todas `reject` |
 | `permissionDecision` com `reasonCode` de hook | 13 | 8 `reject`, 5 `accept` |
 
-Nenhum registro de hook aparece em arquivo de subagente.
+~~Nenhum registro de hook aparece em arquivo de subagente.~~
+
+> **Correção de 2026-11-17 (goal 005).** A frase acima estava errada, e a
+> tabela conta só os arquivos principais. A conferência do goal 002 nos
+> arquivos de subagente olhou apenas `hook_success` e `stop_hook_summary`.
+> O leitor do goal 005 achou neles mais 1 `hook_cancelled` e mais 3
+> bloqueios por `permissionDecision`. Totais com subagentes:
+> `hook_cancelled` 2, bloqueios 13. As conclusões da seção não mudam.
 
 ### O que falta
 

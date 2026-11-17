@@ -506,6 +506,15 @@ respostas). Somar registro a registro infla o total: na amostra, 9,08 mi de
 tokens de saída na soma ingênua contra 3,82 mi reais (2,4×). **Conte um
 `usage` por `message.id`.**
 
+> **Correção de 2026-11-17 (goal 005).** A afirmação acima vale para os
+> arquivos principais (4.286 de 4.286 respostas). **Em arquivos de
+> subagente não vale sempre:** em 276 de 1.804 respostas o `output_tokens`
+> cresce de um registro para o outro da mesma `message.id` (os primeiros
+> trazem valor parcial), e o último é sempre o maior. Os demais campos do
+> `usage` não mudam. A regra correta é: um `usage` por `message.id`, o do
+> registro com maior `output_tokens`. Usar o primeiro registro subestima os
+> tokens de subagente em 0,1% nesta amostra.
+
 Outras fontes:
 
 - **`cost-state`** — acumulado da sessão: `totalCostUSD`, `totalDuration`,
@@ -746,3 +755,20 @@ antes de construir algo sobre o formato.
 10. **Estabilidade entre versões:** em que versão surgiram `origin`,
     `session_id` e `attributionSkill`, e o que muda em outras plataformas e
     pontos de entrada (desktop, IDE, web, SDK)?
+
+---
+
+## 7. Correções e acréscimos posteriores
+
+O texto acima é o do goal 001, com correções marcadas no próprio lugar.
+Esta seção lista o que mudou depois e onde está a evidência.
+
+| Data | O quê | Onde |
+|---|---|---|
+| 2026-11-17 | Retenção: a divergência com a documentação não existia (seção 1.3) | [viabilidade-indicadores.md](viabilidade-indicadores.md), seção G |
+| 2026-11-17 | `usage` parcial em arquivos de subagente (seção 3.5) | goal 005, [diário 005](../pair/diario/005.md) |
+| 2026-11-17 | Retomada (`--continue`, `--resume`) acrescenta ao mesmo arquivo, sem marcador; cada execução grava um `cost-state`, acumulado | [experimentos-001.md](experimentos-001.md), experimento 4 |
+| 2026-11-17 | Fork copia o histórico com os mesmos `uuid` e `message.id`, reescreve `promptId` e marca os registros `assistant` copiados com `requestSessionId`. `uuid` não é único entre arquivos quando há fork | [experimentos-001.md](experimentos-001.md), experimento 4 |
+| 2026-11-17 | Novo tipo de `attachment`: `hook_non_blocking_error`. Hook silencioso não deixa registro | [experimentos-001.md](experimentos-001.md), experimentos 1 e 2 |
+| 2026-11-17 | `toolUseResult.gitOperation` também tem a forma `commit` (`sha`, `kind`, `branch`), quando a saída do commit não é suprimida | [experimentos-001.md](experimentos-001.md), experimento 3 |
+| 2026-11-17 | Em modo não interativo, `entrypoint` é `sdk-cli` e não há `session_id` | [experimentos-001.md](experimentos-001.md) |

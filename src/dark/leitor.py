@@ -1,0 +1,797 @@
+"""Leitor das transcrições de sessão do Claude Code.
+
+Único ponto do projeto que conhece o formato dos arquivos .jsonl. Converte
+os registros para um modelo interno próprio (decisão E1 revista):
+
+- tipo de registro ou campo desconhecido não é erro: é contado e relatado;
+- ausência ou mudança de tipo de um campo de que o leitor depende é erro
+  (ErroDeFormato), com arquivo e linha.
+
+O formato está descrito em docs/formato-transcricoes.md. Só biblioteca
+padrão.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from collections import Counter
+from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass, field
+from pathlib import Path
+
+# --------------------------------------------------------------------------
+# O que o leitor conhece do formato
+# --------------------------------------------------------------------------
+
+_ENVELOPE = {
+    "type", "uuid", "parentUuid", "timestamp", "sessionId", "session_id",
+    "isSidechain", "cwd", "gitBranch", "version", "entrypoint", "userType",
+    "slug", "agentId",
+}
+
+CAMPOS_CONHECIDOS: dict[str, set[str]] = {
+    "user": _ENVELOPE | {
+        "message", "promptId", "origin", "turnOrigin", "promptSource",
+        "permissionMode", "isMeta", "isCompactSummary", "isVisibleInTranscriptOnly",
+        "toolUseResult", "sourceToolAssistantUUID", "sourceToolUseID",
+        "permissionDecision", "toolDenialKind", "userFeedback", "mcpMeta",
+        "mcpCallNotReadOnly", "imagePasteIds", "interruptedMessageId",
+        "turnPosition", "turnCompanion", "sandboxed", "serverClassifierContext",
+        "queueOrigin", "queuePriority", "queueSkipAttachments",
+        "queueSkipSlashCommands", "queueTranscriptOnly", "toolEndsTurn",
+        "joinedNoticeLengths", "joinedNoticeOwn", "joinedNoticeRunIds",
+    },
+    "assistant": _ENVELOPE | {
+        "message", "apiBlockIndex", "requestId", "requestRef", "requestSessionId",
+        "requestedModel", "advisorModel", "effort", "perTurnEffort",
+        "thinkingDurationMs", "thinkingDisplay", "toolInputStreamMs",
+        "attributionSkill", "attributionMcpServer", "attributionMcpTool",
+        "attributionAgent", "isApiErrorMessage", "wireIngestContext",
+        "wireToolInputs", "madeBy", "promptCacheRequested", "serverClassifierRequest",
+    },
+    "attachment": _ENVELOPE | {
+        "attachment", "rendered", "renderedBesideToolResult",
+        "renderedInHumanTurn", "renderedRole",
+    },
+    "system": _ENVELOPE | {
+        "subtype", "content", "level", "isMeta", "durationMs", "messageCount",
+        "pendingBackgroundAgentCount", "compactMetadata", "logicalParentUuid",
+        "commandRun", "hookInfos", "hookCount", "hookErrors",
+        "hookAdditionalContext", "preventedContinuation", "hasOutput",
+        "stopReason", "toolUseID", "contextUsage",
+    },
+    "mode": {"type", "sessionId", "mode"},
+    "permission-mode": {"type", "sessionId", "permissionMode"},
+    "ai-title": {"type", "sessionId", "aiTitle"},
+    "agent-name": {"type", "sessionId", "agentName"},
+    "last-prompt": {"type", "sessionId", "lastPrompt", "leafUuid", "explicit"},
+    "session-owner": {"type", "sessionId", "accountUuid", "organizationUuid"},
+    "cost-state": {
+        "type", "sessionId", "hasUnknownModelCost", "modelUsage", "startTime",
+        "totalAPIDuration", "totalAPIDurationWithoutRetries", "totalCostUSD",
+        "totalDuration", "totalLinesAdded", "totalLinesRemoved", "totalToolDuration",
+    },
+    "pr-link": {"type", "sessionId", "prNumber", "prRepository", "prUrl", "timestamp"},
+    "tools-used": {"type", "sessionId", "tools"},
+    "queue-operation": {
+        "type", "sessionId", "operation", "content", "reason", "commandUuid",
+        "deliveryId", "timestamp",
+    },
+    "file-history-snapshot": {"type", "messageId", "snapshot", "isSnapshotUpdate"},
+    "file-history-delta": {
+        "type", "messageId", "snapshotMessageId", "backup", "trackingPath", "timestamp",
+    },
+    "api-request": {
+        "type", "sessionId", "agentId", "id", "base", "tail", "params", "keep",
+        "cacheControl", "querySource", "requestDigest", "shapeHash", "timestamp",
+        "version",
+    },
+    "api-request-blob": {"type", "sessionId", "agentId", "hash", "message"},
+    "api-request-shape": {
+        "type", "sessionId", "agentId", "shape", "shapeHash", "timestamp", "version",
+    },
+    "atis-latch": {"type", "sessionId", "atis"},
+    "frame-link": {
+        "type", "sessionId", "artifactCount", "frameUrl", "path", "title", "timestamp",
+    },
+    "artifact-autoreact-ledger": {"type", "sessionId", "accountUuid", "artifacts", "v"},
+    "artifact-comment-monitor": {"type", "sessionId", "artifacts", "v"},
+}
+
+_CONVERSA = ("user", "assistant", "attachment", "system")
+
+ANEXOS_CONHECIDOS = {
+    "agent_listing_delta", "auto_mode", "auto_mode_exit", "bash_output_audience_note",
+    "batching_reminder_sent", "command_permissions", "compact_file_reference",
+    "credential_org", "date", "deferred_tools_delta", "deferred_tools_record",
+    "edited_text_file", "environment", "file", "goal_status", "hook_cancelled",
+    "hook_non_blocking_error", "hook_success", "instructions", "invoked_skills",
+    "mcp_instructions_delta", "model", "nested_memory", "plan_file_reference",
+    "plan_mode", "plan_mode_exit", "plan_mode_reentry", "prompt_snapshot",
+    "queued_command", "read_truncation_notice", "remote_session_change",
+    "session_context", "silent_turn_reminder", "skill_listing", "skill_mention",
+    "task_status", "thinking_drop", "total_tokens_reminder",
+}
+
+SUBTIPOS_DE_SISTEMA = {
+    "agents_killed", "away_summary", "compact_boundary", "informational",
+    "local_command", "stop_hook_summary", "turn_duration",
+}
+
+BLOCOS_CONHECIDOS = {
+    "assistant": {"text", "thinking", "tool_use"},
+    "user": {"text", "image", "tool_result"},
+}
+
+_HOOKS = {
+    "hook_success": "sucesso",
+    "hook_non_blocking_error": "erro_sem_bloqueio",
+    "hook_cancelled": "cancelado",
+}
+
+
+# --------------------------------------------------------------------------
+# Modelo interno
+# --------------------------------------------------------------------------
+
+class ErroDeFormato(Exception):
+    """Um campo de que o leitor depende está ausente ou mudou de tipo."""
+
+    def __init__(self, arquivo: Path, linha: int, mensagem: str):
+        self.arquivo, self.linha, self.mensagem = Path(arquivo), linha, mensagem
+        super().__init__(f"{self.arquivo.name}, linha {linha}: {mensagem}")
+
+
+@dataclass(frozen=True)
+class Tokens:
+    entrada: int = 0
+    saida: int = 0
+    cache_criacao: int = 0
+    cache_leitura: int = 0
+
+    @property
+    def total(self) -> int:
+        return self.entrada + self.saida + self.cache_criacao + self.cache_leitura
+
+    def __add__(self, outro: Tokens) -> Tokens:
+        return Tokens(self.entrada + outro.entrada, self.saida + outro.saida,
+                      self.cache_criacao + outro.cache_criacao,
+                      self.cache_leitura + outro.cache_leitura)
+
+
+def _soma(itens: Iterable[Tokens]) -> Tokens:
+    total = Tokens()
+    for t in itens:
+        total = total + t
+    return total
+
+
+@dataclass
+class Resultado:
+    """Resultado de uma chamada de ferramenta."""
+    timestamp: str
+    erro: bool
+    estruturado: object            # toolUseResult: objeto, lista ou string
+    decisao: dict | None           # permissionDecision
+    negacao: str | None            # toolDenialKind
+
+
+@dataclass
+class Chamada:
+    """Chamada de ferramenta (bloco tool_use), com o resultado quando existe."""
+    id: str
+    nome: str
+    entrada: dict
+    timestamp: str
+    cwd: str | None
+    message_id: str
+    pedido_id: str | None = None
+    resultado: Resultado | None = None
+
+
+@dataclass
+class Resposta:
+    """Uma resposta da API: os registros assistant de mesmo message.id."""
+    message_id: str
+    modelo: str | None
+    timestamp: str                 # do primeiro registro
+    tokens: Tokens                 # contado uma vez (E4)
+    stop_reason: str | None
+    blocos: list[str] = field(default_factory=list)
+    registros: int = 0
+    pedido_id: str | None = None
+    copiada: bool = False          # histórico copiado por fork
+    skill: str | None = None       # attributionSkill
+
+
+@dataclass
+class Pedido:
+    """Um promptId de origem humana (E9)."""
+    id: str
+    timestamp: str
+    tamanho: int                   # caracteres do texto; o texto não é guardado
+    fonte: str | None              # promptSource
+    registros: int = 1             # mais de um só em arquivo de fork
+    tokens: Tokens = field(default_factory=Tokens)
+    tokens_subagentes: Tokens = field(default_factory=Tokens)
+
+
+@dataclass
+class Intervencao:
+    tipo: str                      # interrupcao | rejeicao | mensagem_no_meio
+    timestamp: str
+    pedido_id: str | None = None
+    com_comentario: bool | None = None   # só em rejeicao
+
+
+@dataclass
+class EventoHook:
+    tipo: str                      # sucesso | erro_sem_bloqueio | cancelado | bloqueio | parada | hook_*
+    timestamp: str
+    evento: str | None = None      # PreToolUse, SessionStart...
+    nome: str | None = None
+    codigo_saida: int | None = None
+    tool_use_id: str | None = None
+    bloqueou: bool = False
+
+
+@dataclass
+class Desconhecidos:
+    tipos: Counter = field(default_factory=Counter)
+    campos: Counter = field(default_factory=Counter)
+
+    def somar(self, outro: Desconhecidos) -> None:
+        self.tipos.update(outro.tipos)
+        self.campos.update(outro.campos)
+
+
+@dataclass
+class Subagente:
+    id: str
+    caminho: Path
+    tipo: str | None = None
+    tool_use_id: str | None = None   # chamada Agent que o acionou
+    profundidade: int | None = None
+    pedido_id: str | None = None
+    respostas: list[Resposta] = field(default_factory=list)
+    chamadas: list[Chamada] = field(default_factory=list)
+
+    @property
+    def tokens(self) -> Tokens:
+        return _soma(r.tokens for r in self.respostas if not r.copiada)
+
+
+@dataclass
+class Sessao:
+    id: str
+    caminho: Path
+    pasta_projeto: str
+    inicio: str | None = None
+    fim: str | None = None
+    versoes: list[str] = field(default_factory=list)
+    versao: str | None = None            # a do registro mais recente
+    cwds: list[str] = field(default_factory=list)
+    repositorio: Path | None = None      # raiz git mais frequente entre os cwds (E3)
+    repositorios: Counter = field(default_factory=Counter)
+    copiada_de: str | None = None        # sessão de origem, se for fork
+    pedidos: list[Pedido] = field(default_factory=list)
+    respostas: list[Resposta] = field(default_factory=list)
+    chamadas: list[Chamada] = field(default_factory=list)
+    subagentes: list[Subagente] = field(default_factory=list)
+    intervencoes: list[Intervencao] = field(default_factory=list)
+    hooks: list[EventoHook] = field(default_factory=list)
+    desconhecidos: Desconhecidos = field(default_factory=Desconhecidos)
+    linhas: int = 0
+    linhas_cortadas: int = 0
+    respostas_sem_pedido: int = 0
+
+    @property
+    def tokens_principal(self) -> Tokens:
+        return _soma(r.tokens for r in self.respostas if not r.copiada)
+
+    @property
+    def tokens_subagentes(self) -> Tokens:
+        return _soma(s.tokens for s in self.subagentes)
+
+    @property
+    def tokens(self) -> Tokens:
+        return self.tokens_principal + self.tokens_subagentes
+
+    def resposta(self, message_id: str) -> Resposta:
+        return next(r for r in self.respostas if r.message_id == message_id)
+
+    def chamada(self, tool_use_id: str) -> Chamada:
+        return next(c for c in self.chamadas if c.id == tool_use_id)
+
+
+@dataclass(frozen=True)
+class ArquivosSessao:
+    principal: Path
+    subagentes: list[Path]
+    pasta_projeto: str
+
+
+# --------------------------------------------------------------------------
+# Localizar
+# --------------------------------------------------------------------------
+
+def diretorio_config(ambiente: Mapping[str, str] | None = None) -> Path:
+    """Diretório de configuração do Claude Code, respeitando CLAUDE_CONFIG_DIR."""
+    ambiente = os.environ if ambiente is None else ambiente
+    definido = ambiente.get("CLAUDE_CONFIG_DIR")
+    return Path(definido) if definido else Path.home() / ".claude"
+
+
+def _subagentes_de(principal: Path) -> list[Path]:
+    pasta = principal.with_suffix("") / "subagents"
+    return sorted(pasta.glob("agent-*.jsonl")) if pasta.is_dir() else []
+
+
+def localizar_sessoes(config: Path) -> list[ArquivosSessao]:
+    """Arquivos principais de sessão e, para cada um, os de subagente."""
+    projetos = Path(config) / "projects"
+    if not projetos.is_dir():
+        return []
+    return [ArquivosSessao(p, _subagentes_de(p), p.parent.name)
+            for p in sorted(projetos.glob("*/*.jsonl"))]
+
+
+def raiz_git_de(caminho: Path) -> Path | None:
+    """Raiz do repositório git que contém o caminho, olhando só o disco.
+
+    Sobe a partir do primeiro ancestral que ainda existe. Em worktree, devolve
+    o repositório principal.
+    """
+    atual = Path(caminho)
+    for pasta in (atual, *atual.parents):
+        marca = pasta / ".git"
+        if marca.is_dir():
+            return pasta
+        if marca.is_file():
+            try:
+                conteudo = marca.read_text(encoding="utf-8", errors="replace").strip()
+            except OSError:
+                return pasta
+            if conteudo.startswith("gitdir:"):
+                gitdir = Path(conteudo.removeprefix("gitdir:").strip())
+                if not gitdir.is_absolute():
+                    gitdir = (pasta / gitdir).resolve()
+                partes = gitdir.parts
+                if "worktrees" in partes and ".git" in partes:
+                    return Path(*partes[:partes.index(".git")])
+            return pasta
+    return None
+
+
+# --------------------------------------------------------------------------
+# Ler
+# --------------------------------------------------------------------------
+
+class _Arquivo:
+    """Lê um .jsonl (principal ou de subagente) e acumula o que achou."""
+
+    def __init__(self, caminho: Path, ate: str | None, desconhecidos: Desconhecidos):
+        self.caminho, self.ate, self.desc = Path(caminho), ate, desconhecidos
+        self.linha = 0
+        self.linhas = self.cortadas = 0
+        self.sessao_id: str | None = None
+        self.inicio: str | None = None
+        self.fim: str | None = None
+        self.versoes: Counter = Counter()
+        self.versao_recente: tuple[str, str] | None = None
+        self.cwds: Counter = Counter()          # dict mantém a ordem de chegada
+        self.copiada_de: str | None = None
+        self.pais: dict[str, str | None] = {}
+        self.pedido_no_uuid: dict[str, str] = {}
+        self.pedidos: dict[str, Pedido] = {}
+        self.respostas: dict[str, Resposta] = {}
+        self.primeiro_uuid: dict[str, str] = {}  # message.id -> uuid do 1º registro
+        self.reserva: dict[str, str | None] = {}  # message.id -> pedido corrente no arquivo
+        self.chamadas: dict[str, Chamada] = {}
+        self.resultados: dict[str, tuple[Resultado, str]] = {}
+        self.intervencoes: list[tuple[Intervencao, str]] = []
+        self.hooks: list[EventoHook] = []
+        self.primeiro_prompt_id: str | None = None
+        self.tipo_agente: str | None = None
+        self._pedido_corrente: str | None = None
+        self._ler()
+
+    # -- validação ---------------------------------------------------------
+
+    def _erro(self, mensagem: str) -> ErroDeFormato:
+        return ErroDeFormato(self.caminho, self.linha, mensagem)
+
+    def _exigir(self, obj: object, nome: str, tipos: type | tuple, onde: str):
+        if not isinstance(obj, dict) or nome not in obj:
+            raise self._erro(f"campo obrigatório ausente: {onde}{nome}")
+        valor = obj[nome]
+        if isinstance(valor, bool) and tipos in (int, (int,)) or not isinstance(valor, tipos):
+            raise self._erro(f"campo {onde}{nome} com tipo inesperado: "
+                             f"{type(valor).__name__}")
+        return valor
+
+    def _conferir_campos(self, tipo: str, reg: dict) -> None:
+        for campo in reg.keys() - CAMPOS_CONHECIDOS[tipo]:
+            self.desc.campos[f"{tipo}.{campo}"] += 1
+
+    # -- laço principal ----------------------------------------------------
+
+    def _ler(self) -> None:
+        with open(self.caminho, encoding="utf-8", errors="replace") as f:
+            linhas = f.read().split("\n")
+        ultima = max((i for i, l in enumerate(linhas) if l.strip()), default=-1)
+        for i, bruta in enumerate(linhas):
+            self.linha = i + 1
+            if not bruta.strip():
+                continue
+            try:
+                reg = json.loads(bruta)
+            except json.JSONDecodeError as e:
+                if i == ultima:        # escrita em andamento: tolerada e contada
+                    self.cortadas += 1
+                    continue
+                raise self._erro(f"linha não é JSON válido ({e.msg})") from None
+            if not isinstance(reg, dict):
+                raise self._erro("linha JSON não é um objeto")
+            self.linhas += 1
+            self._registro(reg)
+
+    def _registro(self, reg: dict) -> None:
+        tipo = self._exigir(reg, "type", str, "")
+        if tipo not in CAMPOS_CONHECIDOS:
+            self.desc.tipos[tipo] += 1
+            return
+        self._conferir_campos(tipo, reg)
+        if tipo not in _CONVERSA:
+            return
+        uuid = self._exigir(reg, "uuid", str, f"{tipo}.")
+        ts = self._exigir(reg, "timestamp", str, f"{tipo}.")
+        sessao = self._exigir(reg, "sessionId", str, f"{tipo}.")
+        if self.ate is not None and ts > self.ate:
+            return
+        if self.sessao_id is None:
+            self.sessao_id = sessao
+        self.inicio = ts if self.inicio is None or ts < self.inicio else self.inicio
+        self.fim = ts if self.fim is None or ts > self.fim else self.fim
+        versao = reg.get("version")
+        if isinstance(versao, str):
+            self.versoes[versao] += 1
+            if self.versao_recente is None or ts >= self.versao_recente[0]:
+                self.versao_recente = (ts, versao)
+        if isinstance(reg.get("cwd"), str):
+            self.cwds[reg["cwd"]] += 1
+        pai = reg.get("parentUuid")
+        if pai is None and isinstance(reg.get("logicalParentUuid"), str):
+            pai = reg["logicalParentUuid"]     # atravessa a compactação
+        self.pais[uuid] = pai if isinstance(pai, str) else None
+        getattr(self, f"_{tipo}")(reg, uuid, ts)
+
+    # -- user --------------------------------------------------------------
+
+    def _user(self, reg: dict, uuid: str, ts: str) -> None:
+        mensagem = self._exigir(reg, "message", dict, "user.")
+        conteudo = self._exigir(mensagem, "content", (str, list), "user.message.")
+        prompt_id = reg.get("promptId")
+        if self.primeiro_prompt_id is None and isinstance(prompt_id, str):
+            self.primeiro_prompt_id = prompt_id
+        origem = reg.get("origin")
+        humano = isinstance(origem, dict) and origem.get("kind") == "human"
+        if humano and "toolUseResult" not in reg and not reg.get("isMeta"):
+            chave = prompt_id if isinstance(prompt_id, str) else f"sem-prompt-id:{uuid}"
+            if not isinstance(prompt_id, str):
+                self.desc.campos["user.promptId ausente em pedido humano"] += 1
+            tamanho = len(conteudo) if isinstance(conteudo, str) else sum(
+                len(b.get("text", "")) for b in conteudo if isinstance(b, dict))
+            if chave in self.pedidos:          # fork: promptId reescrito nos copiados
+                p = self.pedidos[chave]
+                p.registros += 1
+                p.timestamp, p.tamanho, p.fonte = ts, tamanho, reg.get("promptSource")
+            else:
+                self.pedidos[chave] = Pedido(chave, ts, tamanho, reg.get("promptSource"))
+            self.pedido_no_uuid[uuid] = chave
+            self._pedido_corrente = chave
+        if "interruptedMessageId" in reg:
+            self.intervencoes.append((Intervencao("interrupcao", ts), uuid))
+        if reg.get("toolDenialKind") == "user-rejected":
+            self.intervencoes.append((Intervencao(
+                "rejeicao", ts, com_comentario=bool(reg.get("userFeedback"))), uuid))
+        if isinstance(conteudo, list):
+            for bloco in conteudo:
+                if not isinstance(bloco, dict):
+                    continue
+                tipo_bloco = bloco.get("type")
+                if tipo_bloco not in BLOCOS_CONHECIDOS["user"]:
+                    self.desc.tipos[f"user.content/{tipo_bloco}"] += 1
+                if tipo_bloco == "tool_result":
+                    self._resultado(reg, bloco, uuid, ts)
+
+    def _resultado(self, reg: dict, bloco: dict, uuid: str, ts: str) -> None:
+        tool_id = self._exigir(bloco, "tool_use_id", str, "user.message.content[].")
+        decisao = reg.get("permissionDecision")
+        decisao = decisao if isinstance(decisao, dict) else None
+        resultado = Resultado(ts, bool(bloco.get("is_error")), reg.get("toolUseResult"),
+                              decisao, reg.get("toolDenialKind"))
+        self.resultados[tool_id] = (resultado, uuid)
+        if decisao and decisao.get("source") == "hook":
+            codigo = str(decisao.get("reasonCode") or "")
+            self.hooks.append(EventoHook(
+                "bloqueio" if decisao.get("decision") == "reject" else "decisao", ts,
+                evento=codigo.removeprefix("hook:") or None, tool_use_id=tool_id,
+                bloqueou=decisao.get("decision") == "reject"))
+
+    # -- assistant ---------------------------------------------------------
+
+    def _assistant(self, reg: dict, uuid: str, ts: str) -> None:
+        mensagem = self._exigir(reg, "message", dict, "assistant.")
+        mid = self._exigir(mensagem, "id", str, "assistant.message.")
+        blocos = self._exigir(mensagem, "content", list, "assistant.message.")
+        uso = self._exigir(mensagem, "usage", dict, "assistant.message.")
+        onde = "assistant.message.usage."
+        tokens = Tokens(
+            self._exigir(uso, "input_tokens", int, onde),
+            self._exigir(uso, "output_tokens", int, onde),
+            self._inteiro_opcional(uso, "cache_creation_input_tokens", onde),
+            self._inteiro_opcional(uso, "cache_read_input_tokens", onde))
+        origem = reg.get("requestSessionId")
+        copiada = isinstance(origem, str) and origem != reg["sessionId"]
+        if copiada and self.copiada_de is None:
+            self.copiada_de = origem
+        if isinstance(reg.get("attributionAgent"), str):
+            self.tipo_agente = reg["attributionAgent"]
+        resposta = self.respostas.get(mid)
+        if resposta is None:
+            resposta = self.respostas[mid] = Resposta(
+                mid, mensagem.get("model"), ts, tokens, mensagem.get("stop_reason"),
+                copiada=copiada, skill=reg.get("attributionSkill"))
+            self.primeiro_uuid[mid] = uuid
+            self.reserva[mid] = self._pedido_corrente
+        elif tokens.saida > resposta.tokens.saida:
+            # Em subagentes o usage dos primeiros blocos é parcial; vale o final.
+            resposta.tokens = tokens
+        resposta.registros += 1
+        for bloco in blocos:
+            if not isinstance(bloco, dict):
+                continue
+            tipo_bloco = bloco.get("type")
+            resposta.blocos.append(str(tipo_bloco))
+            if tipo_bloco not in BLOCOS_CONHECIDOS["assistant"]:
+                self.desc.tipos[f"assistant.content/{tipo_bloco}"] += 1
+            if tipo_bloco == "tool_use":
+                onde_bloco = "assistant.message.content[]."
+                tool_id = self._exigir(bloco, "id", str, onde_bloco)
+                self.chamadas[tool_id] = Chamada(
+                    tool_id, self._exigir(bloco, "name", str, onde_bloco),
+                    self._exigir(bloco, "input", dict, onde_bloco), ts,
+                    reg.get("cwd"), mid)
+
+    def _inteiro_opcional(self, uso: dict, nome: str, onde: str) -> int:
+        if uso.get(nome) is None:
+            return 0
+        return self._exigir(uso, nome, int, onde)
+
+    # -- attachment e system -------------------------------------------------
+
+    def _attachment(self, reg: dict, uuid: str, ts: str) -> None:
+        anexo = self._exigir(reg, "attachment", dict, "attachment.")
+        tipo = self._exigir(anexo, "type", str, "attachment.attachment.")
+        if tipo not in ANEXOS_CONHECIDOS:
+            self.desc.tipos[f"attachment/{tipo}"] += 1
+        if tipo.startswith("hook_"):
+            codigo = anexo.get("exitCode")
+            self.hooks.append(EventoHook(
+                _HOOKS.get(tipo, tipo), ts, evento=anexo.get("hookEvent"),
+                nome=anexo.get("hookName"),
+                codigo_saida=codigo if isinstance(codigo, int) else None,
+                tool_use_id=anexo.get("toolUseID")))
+        elif tipo == "queued_command":
+            origem = anexo.get("origin")
+            if anexo.get("humanTurn") or (isinstance(origem, dict)
+                                          and origem.get("kind") == "human"):
+                self.intervencoes.append((Intervencao("mensagem_no_meio", ts), uuid))
+
+    def _system(self, reg: dict, uuid: str, ts: str) -> None:
+        subtipo = reg.get("subtype")
+        if subtipo not in SUBTIPOS_DE_SISTEMA:
+            self.desc.tipos[f"system/{subtipo}"] += 1
+        if subtipo == "stop_hook_summary":
+            self.hooks.append(EventoHook(
+                "parada", ts, evento="Stop", tool_use_id=reg.get("toolUseID"),
+                bloqueou=bool(reg.get("preventedContinuation"))))
+
+    # -- depois da leitura ---------------------------------------------------
+
+    def pedido_de(self, uuid: str | None) -> str | None:
+        """Pedido humano mais próximo subindo a cadeia de parentUuid."""
+        caminho, achado = [], None
+        while uuid is not None and uuid not in caminho:
+            if uuid in self.pedido_no_uuid:
+                achado = self.pedido_no_uuid[uuid]
+                break
+            caminho.append(uuid)
+            uuid = self.pais.get(uuid)
+        for u in caminho:                      # memoriza o trecho percorrido
+            if achado is not None:
+                self.pedido_no_uuid[u] = achado
+        return achado
+
+    def fechar(self) -> None:
+        """Liga resultados às chamadas e respostas aos pedidos."""
+        for tool_id, (resultado, _) in self.resultados.items():
+            if tool_id in self.chamadas:
+                self.chamadas[tool_id].resultado = resultado
+        for mid, resposta in self.respostas.items():
+            resposta.pedido_id = self.pedido_de(self.primeiro_uuid[mid]) or self.reserva[mid]
+        for chamada in self.chamadas.values():
+            chamada.pedido_id = self.respostas[chamada.message_id].pedido_id
+        for intervencao, uuid in self.intervencoes:
+            intervencao.pedido_id = self.pedido_de(uuid)
+
+
+def _ler_meta(caminho: Path) -> dict:
+    """Metadados do subagente (agent-<id>.meta.json), se existirem."""
+    meta = caminho.parent / (caminho.stem + ".meta.json")
+    try:
+        dados = json.loads(meta.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return dados if isinstance(dados, dict) else {}
+
+
+def ler_sessao(principal: Path, subagentes: Iterable[Path] | None = None, *,
+               raiz_git: Callable[[Path], Path | None] = raiz_git_de,
+               ate: str | None = None) -> Sessao:
+    """Lê uma sessão (arquivo principal e subagentes) para o modelo interno.
+
+    `ate` descarta registros de conversa com timestamp posterior (ISO 8601 UTC,
+    como nos arquivos).
+    """
+    principal = Path(principal)
+    subagentes = _subagentes_de(principal) if subagentes is None else list(subagentes)
+    desc = Desconhecidos()
+    a = _Arquivo(principal, ate, desc)
+    a.fechar()
+    s = Sessao(id=a.sessao_id or principal.stem, caminho=principal,
+               pasta_projeto=principal.parent.name, inicio=a.inicio, fim=a.fim,
+               versoes=sorted(a.versoes), versao=a.versao_recente[1] if a.versao_recente else None,
+               cwds=list(a.cwds), copiada_de=a.copiada_de,
+               pedidos=list(a.pedidos.values()), respostas=list(a.respostas.values()),
+               chamadas=list(a.chamadas.values()),
+               intervencoes=[i for i, _ in a.intervencoes], hooks=a.hooks,
+               desconhecidos=desc, linhas=a.linhas, linhas_cortadas=a.cortadas)
+    s.respostas_sem_pedido = sum(1 for r in s.respostas if r.pedido_id is None and not r.copiada)
+
+    cache: dict[str, Path | None] = {}
+    for cwd, n in a.cwds.items():
+        if cwd not in cache:
+            cache[cwd] = raiz_git(Path(cwd))
+        if cache[cwd] is not None:
+            s.repositorios[cache[cwd]] += n
+    if s.repositorios:
+        s.repositorio = s.repositorios.most_common(1)[0][0]
+
+    for caminho in subagentes:
+        b = _Arquivo(caminho, ate, desc)
+        if not b.linhas or b.inicio is None:
+            continue
+        b.fechar()
+        meta = _ler_meta(caminho)
+        s.linhas += b.linhas
+        s.linhas_cortadas += b.cortadas
+        s.hooks.extend(b.hooks)
+        s.subagentes.append(Subagente(
+            id=caminho.stem.removeprefix("agent-"), caminho=caminho,
+            tipo=meta.get("agentType") or b.tipo_agente,
+            tool_use_id=meta.get("toolUseId"), profundidade=meta.get("spawnDepth"),
+            pedido_id=b.primeiro_prompt_id if b.primeiro_prompt_id in a.pedidos else None,
+            respostas=list(b.respostas.values()), chamadas=list(b.chamadas.values())))
+
+    # O pedido de um subagente é o da chamada que o acionou; subagentes
+    # aninhados resolvem pela chamada feita dentro de outro subagente.
+    dono = {c.id: c.pedido_id for c in s.chamadas}
+    mudou = True
+    while mudou:
+        mudou = False
+        for sub in s.subagentes:
+            if sub.tool_use_id in dono and dono[sub.tool_use_id] is not None:
+                sub.pedido_id = dono[sub.tool_use_id]
+            for c in sub.chamadas:
+                if dono.get(c.id) != sub.pedido_id:
+                    dono[c.id] = sub.pedido_id
+                    mudou = True
+    por_id = {p.id: p for p in s.pedidos}
+    for r in s.respostas:
+        if not r.copiada and r.pedido_id in por_id:
+            por_id[r.pedido_id].tokens = por_id[r.pedido_id].tokens + r.tokens
+    for sub in s.subagentes:
+        for item in (*sub.respostas, *sub.chamadas):
+            item.pedido_id = sub.pedido_id
+        if sub.pedido_id in por_id:
+            p = por_id[sub.pedido_id]
+            p.tokens_subagentes = p.tokens_subagentes + sub.tokens
+    return s
+
+
+def ler_tudo(config: Path | None = None, *, ate: str | None = None,
+             raiz_git: Callable[[Path], Path | None] = raiz_git_de) -> list[Sessao]:
+    """Lê todas as sessões do diretório de configuração."""
+    config = diretorio_config() if config is None else Path(config)
+    sessoes = []
+    for arquivos in localizar_sessoes(config):
+        s = ler_sessao(arquivos.principal, arquivos.subagentes, raiz_git=raiz_git, ate=ate)
+        if s.inicio is not None:      # sem registro de conversa no intervalo: fora
+            sessoes.append(s)
+    return sessoes
+
+
+# --------------------------------------------------------------------------
+# Agregados de conferência e comando mínimo
+# --------------------------------------------------------------------------
+
+def agregados(sessoes: Iterable[Sessao]) -> dict:
+    """Totais para conferir o leitor contra os documentos de investigação."""
+    sessoes = list(sessoes)
+    desc = Desconhecidos()
+    vistos: Counter = Counter()
+    for s in sessoes:
+        desc.somar(s.desconhecidos)
+        vistos.update(r.message_id for r in s.respostas if not r.copiada)
+        for sub in s.subagentes:
+            vistos.update(r.message_id for r in sub.respostas)
+    principal = _soma(s.tokens_principal for s in sessoes)
+    subs = _soma(s.tokens_subagentes for s in sessoes)
+    todas = [c for s in sessoes for c in s.chamadas]
+    return {
+        "sessoes": len(sessoes),
+        "subagentes": sum(len(s.subagentes) for s in sessoes),
+        "pastas_projeto": len({s.pasta_projeto for s in sessoes}),
+        "repositorios": len({s.repositorio for s in sessoes if s.repositorio}),
+        "sessoes_sem_repositorio": sum(1 for s in sessoes if s.repositorio is None),
+        "sessoes_de_fork": sum(1 for s in sessoes if s.copiada_de),
+        "versoes": len({v for s in sessoes for v in s.versoes}),
+        "pedidos_humanos": sum(len(s.pedidos) for s in sessoes),
+        "respostas": sum(1 for s in sessoes for r in s.respostas if not r.copiada),
+        "respostas_sem_pedido": sum(s.respostas_sem_pedido for s in sessoes),
+        "respostas_repetidas_entre_sessoes": sum(1 for n in vistos.values() if n > 1),
+        "chamadas_ferramenta": len(todas),
+        "resultados_ferramenta": sum(1 for c in todas if c.resultado),
+        "chamadas_skill": sum(1 for c in todas if c.nome == "Skill"),
+        "chamadas_subagente": sum(1 for c in todas if c.nome == "Agent"),
+        "tokens_principal": principal.total,
+        "tokens_subagentes": subs.total,
+        "tokens_total": principal.total + subs.total,
+        "tokens_saida_principal": principal.saida,
+        "intervencoes": dict(Counter(i.tipo for s in sessoes for i in s.intervencoes)),
+        "hooks": dict(Counter(h.tipo for s in sessoes for h in s.hooks)),
+        "linhas_cortadas": sum(s.linhas_cortadas for s in sessoes),
+        "tipos_desconhecidos": dict(desc.tipos),
+        "campos_desconhecidos": dict(desc.campos),
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    analisador = argparse.ArgumentParser(
+        prog="python -m dark.leitor",
+        description="Lê as transcrições e imprime os agregados de conferência.")
+    analisador.add_argument("--config", type=Path, default=None,
+                            help="diretório de configuração (padrão: CLAUDE_CONFIG_DIR ou ~/.claude)")
+    analisador.add_argument("--ate", default=None,
+                            help="ignora registros depois deste instante (ISO 8601 UTC)")
+    analisador.add_argument("--excluir-pasta", action="append", default=[],
+                            help="ignora pastas de projeto cujo nome contém o texto")
+    args = analisador.parse_args(argv)
+    try:
+        sessoes = [s for s in ler_tudo(args.config, ate=args.ate)
+                   if not any(x in s.pasta_projeto for x in args.excluir_pasta)]
+    except ErroDeFormato as erro:
+        print(f"erro de formato: {erro}", file=sys.stderr)
+        return 1
+    for nome, valor in agregados(sessoes).items():
+        print(f"{nome}: {json.dumps(valor, ensure_ascii=False)}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

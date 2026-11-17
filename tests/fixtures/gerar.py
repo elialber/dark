@@ -51,9 +51,11 @@ class Arquivo:
                              promptSource="typed", permissionMode="default",
                              message={"role": "user", "content": texto}, **campos)
 
-    def resposta(self, ts, mid, blocos, uso, stop="tool_use", **campos):
+    def resposta(self, ts, mid, blocos, uso, stop="tool_use", usos=None, **campos):
+        """`usos`, se dado, traz um usage por bloco (parciais antes do final)."""
         uuids = []
         for i, bloco in enumerate(blocos):
+            uso = usos[i] if usos else uso
             uuids.append(self.conversa(
                 "assistant", ts, apiBlockIndex=i, requestId=f"req_{mid}",
                 message={"id": mid, "type": "message", "role": "assistant",
@@ -201,7 +203,8 @@ def sessao_principal():
                message={"role": "user", "content": "Revise o módulo."})
     sm1 = s.resposta("10:00:20", "msg_SM1", [
         texto("Lendo."), chamada("toolu_ST1", "Read", file_path="m.py"),
-    ], uso(20, 10, 10, 10), attributionAgent="exemplo-revisor")
+    ], None, usos=[uso(20, 4, 10, 10), uso(20, 10, 10, 10)],  # saída parcial no 1º bloco
+        attributionAgent="exemplo-revisor")
     s.resultado("10:00:21", "toolu_ST1", sm1[1], "P1",
                 estruturado={"type": "text", "file": {}})
     s.resposta("10:00:30", "msg_SM2", [texto("Sem problemas.")], uso(5, 5),

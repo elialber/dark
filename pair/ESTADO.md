@@ -27,14 +27,18 @@ Fase 1 em encerramento; Fase 2 começa pelo leitor (goal 005)
 | [002 — Viabilidade dos indicadores](goals/002-viabilidade-indicadores.md) | Aceito pelo revisor no [lote 003](entrada/lote-003.md) |
 | [003 — Auditoria manual](goals/003-auditoria-manual.md) | Bloqueado: aguarda escolha do repositório ([diário](diario/003.md)) |
 | [004 — Experimentos controlados](goals/004-experimentos-controlados.md) | Concluído, aguarda revisão ([relatório](diario/004.md) · [documento](../docs/experimentos-001.md)) |
+| [005 — Leitor de transcrições](goals/005-leitor-transcricoes.md) | Concluído, aguarda revisão ([relatório](diario/005.md) · código em `src/dark/leitor.py`) |
 
 ## Decisões pendentes
 
 - Qual repositório auditar no goal 003 (decisão do usuário).
+- Para o revisor: as constatações dos goals 004 e 005 sobre E4, E6, E7, E9
+  e E11 (ver diários 004 e 005). Nenhuma decisão foi alterada.
 
 Fechada: a linguagem da CLI é Python 3.12 ou mais recente
 ([E8](../docs/decisoes.md)).
 
 ## Próximo passo
 
-Goal 005. O goal 003 espera o usuário indicar o repositório.
+Revisão dos goals 004 e 005. Nada é construído sobre o leitor antes dela.
+O goal 003 espera o usuário indicar o repositório.
