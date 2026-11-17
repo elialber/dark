@@ -94,3 +94,5 @@ Registradas em [decisoes.md](decisoes.md), com data e motivo.
 - [E13. Última linha cortada](decisoes.md#e13-última-linha-cortada)
 - [E14. Armazenamento por lista explícita](decisoes.md#e14-armazenamento-por-lista-explícita)
 - [Goal 003 cancelado](decisoes.md#goal-003-cancelado)
+- [Decisões dos goals 006 e 007](decisoes.md#decisões-dos-goals-006-e-007) — confirmadas no lote 005; duas alteradas pelo revisor
+- [E15. Identidade do repositório](decisoes.md#e15-identidade-do-repositório)

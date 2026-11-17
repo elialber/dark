@@ -9,7 +9,9 @@ goal 001. As revisões de E1, E5, E6 e E7 e as entradas E9 a E11 vêm do
 [lote 003](../pair/entrada/lote-003.md), depois da revisão do goal 002. O
 [lote 004](../pair/entrada/lote-004.md), depois da revisão dos goals 004 e
 005, traz o complemento de E4, as novas versões de E6, E7 e E11, a exceção
-de E9 e as entradas E12 a E14. A base de cada uma está em
+de E9 e as entradas E12 a E14. O [lote 005](../pair/entrada/lote-005.md),
+depois da revisão dos goals 006 e 007, confirma as decisões tomadas nesses
+goals, altera duas delas e traz a entrada E15. A base de cada uma está em
 [formato-transcricoes.md](formato-transcricoes.md).
 
 ## E1. Leitor isolado
@@ -303,3 +305,137 @@ sem que o nome entre em arquivo público.
 
 **Motivo:** as investigações 001, 002 e 004 já ensinaram o que a auditoria
 manual ensinaria, e o leitor existe.
+
+## Decisões dos goals 006 e 007
+
+Tomadas nos diários [006](../pair/diario/006.md) e
+[007](../pair/diario/007.md) e confirmadas pelo revisor no
+[lote 005](../pair/entrada/lote-005.md), em 2026-11-17. O lote não traz
+motivo explícito para as confirmadas; o motivo de cada uma é o registrado
+no diário de origem.
+
+### E12, extensão. Subagente ilegível
+
+**Data:** 2026-11-17 ([lote 005](../pair/entrada/lote-005.md))
+
+Erro de formato em arquivo de subagente tira só aquele subagente e fica
+registrado como falha; a sessão-mãe continua sendo lida.
+
+**Motivo:** a E12 fala em "um arquivo"; o subagente é um arquivo (diário
+006).
+
+### Horários
+
+**Data:** 2026-11-17 ([lote 005](../pair/entrada/lote-005.md))
+
+Horário ilegível em registro de conversa é erro de formato. Horário sem
+fuso é lido como UTC.
+
+**Motivo:** o leitor depende do horário para ordenar e cortar (diário
+006).
+
+### Peso morto: uso inclui subagentes
+
+**Data:** 2026-11-17 ([lote 005](../pair/entrada/lote-005.md))
+
+No peso morto, o que um subagente chamou conta como usado. A lista do
+disponível é a da sessão principal.
+
+**Motivo:** a peça foi usada, ainda que por outro agente da mesma sessão
+(diário 007).
+
+### Nomes de skill sem prefixo de plugin
+
+**Data:** 2026-11-17 ([lote 005](../pair/entrada/lote-005.md))
+
+Nomes de skill são comparados sem o prefixo de plugin (`plugin:skill`
+vira `skill`).
+
+**Motivo:** a lista anuncia com prefixo e o uso às vezes vem sem (diário
+007).
+
+### Peso fixo em fork
+
+**Data:** 2026-11-17 ([lote 005](../pair/entrada/lote-005.md))
+
+Peso fixo não existe em sessão de fork.
+
+**Motivo:** a primeira resposta própria do fork já carrega o histórico
+copiado (diário 007).
+
+### `git commit` dentro de `bash -c` ou `eval`
+
+**Data:** 2026-11-17 ([lote 005](../pair/entrada/lote-005.md))
+
+Não é reconhecido. Limite declarado na função `analisar_commit`.
+
+**Motivo:** o texto passado a `bash -c` ou `eval` é outro programa; a
+análise não desce nele (diário 007).
+
+### Tokens por pedido seguem a E9
+
+**Data:** 2026-11-17 ([lote 005](../pair/entrada/lote-005.md))
+
+Trabalho disparado por aviso de tarefa em segundo plano entra no pedido
+humano anterior, também no indicador de custo.
+
+**Motivo:** é o que a E9 manda; a diferença contra o goal 002 está
+explicada na nota 4 do diário 007.
+
+### Diretório sem sessões
+
+> **Alterada pelo revisor em 2026-11-17.** Vale a versão nova, logo
+> abaixo. O texto original fica como registro.
+
+**Data:** 2026-11-17 ([diário 006](../pair/diario/006.md))
+
+O comando termina com erro também quando não há sessão nenhuma e nenhuma
+falha (diretório vazio).
+
+**Motivo:** seguir ao pé da letra "só termina com erro se nenhuma sessão
+for lida".
+
+### Diretório sem sessões não é erro
+
+**Data:** 2026-11-17 ([lote 005](../pair/entrada/lote-005.md))
+
+O comando termina com sucesso e uma mensagem clara. Só é erro quando há
+falhas de leitura e nenhuma sessão lida.
+
+**Motivo:** repositório novo, sem histórico, é um estado legítimo para a
+auditoria.
+
+### Skill usada
+
+> **Alterada pelo revisor em 2026-11-17.** Vale a versão nova, logo
+> abaixo. O texto original fica como registro.
+
+**Data:** 2026-11-17 ([diário 007](../pair/diario/007.md))
+
+Skill usada é chamada `Skill` ou `attributionSkill`. Skill acionada só
+por `/comando`, sem atribuição depois, fica de fora.
+
+**Motivo:** contar por `<command-name>` traria os comandos embutidos
+junto.
+
+### Skill acionada por `/comando` conta como usada
+
+**Data:** 2026-11-17 ([lote 005](../pair/entrada/lote-005.md))
+
+Skill acionada por `/comando` conta como usada quando o nome do comando
+está entre as skills anunciadas na sessão.
+
+**Motivo:** sem isso, uma skill usada só por comando aparece como peso
+morto; e como os comandos embutidos não estão na lista de skills, o
+cruzamento os exclui sem regra especial.
+
+## E15. Identidade do repositório
+
+**Data:** 2026-11-17 ([lote 005](../pair/entrada/lote-005.md))
+
+Dois diretórios são o mesmo repositório quando têm o mesmo commit
+inicial. A auditoria junta as sessões de todos os diretórios com a mesma
+identidade.
+
+**Motivo:** o mesmo repositório aberto por dois caminhos aparece como
+dois na regra E3.

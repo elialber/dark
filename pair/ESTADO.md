@@ -28,14 +28,17 @@ Fase 2: auditoria e placar
 | [003 — Auditoria manual](goals/003-auditoria-manual.md) | Cancelado no [lote 004](entrada/lote-004.md); substituído pela auditoria por comando (goal 008, no próximo lote) |
 | [004 — Experimentos controlados](goals/004-experimentos-controlados.md) | Aceito pelo revisor no [lote 004](entrada/lote-004.md) |
 | [005 — Leitor de transcrições](goals/005-leitor-transcricoes.md) | Aceito pelo revisor no [lote 004](entrada/lote-004.md), com as correções do goal 006 |
-| [006 — Correções do leitor](goals/006-correcoes-leitor.md) | Concluído, aguarda revisão ([relatório](diario/006.md)) |
-| [007 — Indicadores](goals/007-indicadores.md) | Concluído, aguarda revisão ([relatório](diario/007.md) · código em `src/dark/indicadores.py`) |
+| [006 — Correções do leitor](goals/006-correcoes-leitor.md) | Aceito pelo revisor no [lote 005](entrada/lote-005.md) |
+| [007 — Indicadores](goals/007-indicadores.md) | Aceito pelo revisor no [lote 005](entrada/lote-005.md) |
 
 ## Decisões pendentes
 
-Para o revisor confirmar: as decisões tomadas nos goals 006 e 007, listadas
-no fim dos diários [006](diario/006.md) e [007](diario/007.md).
+Nenhuma. As decisões dos goals 006 e 007 foram confirmadas no lote 005,
+duas delas alteradas pelo revisor ([docs/decisoes.md](../docs/decisoes.md)).
+
+Os lotes paralelos (goals 009 a 012) correm nas branches `goal-009` a
+`goal-012`, em worktrees próprios. A junção fica para o lote 006.
 
 ## Próximo passo
 
-Revisão dos goals 006 e 007.
+Goal 008: comando de auditoria ([lote 005](entrada/lote-005.md)).
