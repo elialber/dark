@@ -1,21 +1,21 @@
-"""Ligação das chamadas de `git commit` aos commits do repositório (goal 013).
+"""Commit links from `git commit` tool calls to the repository's commits (goal 013).
 
-Segue a E7 (terceira versão e acréscimos):
+Follows E7 (third version and additions):
 
-1. o hash registrado (`gitOperation.commit.sha`), quando existe;
-2. senão, a janela de horário entre a chamada e o resultado, no
-   repositório do `cwd` da chamada (E3); mais commits na janela do que o
-   comando faz é ambíguo, e nada é escolhido;
-3. o amend é decidido pela análise do comando; quando o repositório
-   existe e o commit foi ligado, o histórico git é o árbitro; o `kind`
-   gravado pelo Claude Code é guardado à parte e não decide nada.
+1. the recorded hash (`gitOperation.commit.sha`), when present;
+2. otherwise, the time window between the tool call and its result, in the
+   repository of the tool call's `cwd` (E3); more commits in the window than
+   the command makes is ambiguous, and nothing is chosen;
+3. amend is decided by analysing the command; when the repository
+   exists and the commit was linked, the git history is the arbiter; the
+   `kind` recorded by Claude Code is kept aside and decides nothing.
 
-Dos commits ligados, pergunta ao histórico se foram revertidos ou
-substituídos por amend depois. Retoque não é perguntado (lote 006).
+For the linked commits, asks the history whether they were later reverted
+or replaced by amend. Retouch is not asked (lote 006).
 
-Só lê o git, pelo módulo `historico`, e só os repositórios das chamadas
-recebidas. Comando com `cd` para outro repositório fica ligado ao
-repositório do `cwd`: limite conhecido da E3.
+Only reads git, through the `git_history` module, and only the repositories
+of the tool calls received. A command with `cd` into another repository
+stays linked to the `cwd` repository: a known limit of E3.
 """
 
 from __future__ import annotations
@@ -42,13 +42,13 @@ _REASON = {
 class CommitLink:
     session: str
     call: str
-    form: str                         # um de FORMAS
-    commits: tuple[str, ...]           # hashes completos (ou o registrado, se não resolveu)
+    form: str                         # one of FORMS
+    commits: tuple[str, ...]           # full hashes (or the recorded one, if unresolved)
     repository: Path | None
-    reason: str | None                 # por que ficou sem ligação
-    amend_by_command: bool                # pela análise do comando
-    recorded_kind: str | None        # gitOperation.commit.kind, só para registro
-    amend_by_git: bool | None             # o histórico diz que o commit substituiu outro
+    reason: str | None                 # why it was left unlinked
+    amend_by_command: bool                # from analysing the command
+    recorded_kind: str | None        # gitOperation.commit.kind, for the record only
+    amend_by_git: bool | None             # the history says the commit replaced another
 
     @property
     def amend(self) -> bool:
@@ -58,9 +58,9 @@ class CommitLink:
 @dataclass
 class CommitLinks:
     links_: list[CommitLink] = field(default_factory=list)
-    reverted: set[str] = field(default_factory=set)     # commits ligados revertidos depois
-    replaced_commits: set[str] = field(default_factory=set)   # commits ligados refeitos por amend
-    repositories: int = 0                                 # repositórios consultados
+    reverted: set[str] = field(default_factory=set)     # linked commits reverted later
+    replaced_commits: set[str] = field(default_factory=set)   # linked commits redone by amend
+    repositories: int = 0                                 # repositories queried
 
     def by_form(self) -> Counter:
         return Counter(x.form for x in self.links_)
@@ -117,7 +117,7 @@ def link_commits(sessions: Iterable[Session], *,
         if key not in by_cwd:
             r = open_repository(Path(key)) if key else git_history.Repository(
                 git_history.Status.MISSING, Path())
-            # Worktrees do mesmo repositório veem os mesmos commits: um índice só.
+            # Worktrees of the same repository see the same commits: a single index.
             repo_key = r.common_dir or r.root
             if repo_key is not None:
                 r = by_root.setdefault(repo_key, r)

@@ -1,12 +1,12 @@
-"""Testes do comando de auditoria (goal 008).
+"""Tests for the audit command (goal 008).
 
-Três camadas, testadas em separado:
+Three layers, tested separately:
 
-- cálculo (`dark.auditoria`): funções puras; os testes olham só os dados;
-- apresentação (`dark.relatorio`): dados para Markdown;
-- entrada e saída (`dark.cli`): argumentos, git, disco. Os repositórios
-  git e o diretório de configuração são criados em diretório temporário,
-  a partir dos arquivos sintéticos de tests/fixtures/.
+- computation (`dark.audit`): pure functions; the tests look only at the data;
+- presentation (`dark.report`): data to Markdown;
+- input and output (`dark.cli`): arguments, git, disk. The git repositories
+  and the configuration directory are created in a temporary directory,
+  from the synthetic files in tests/fixtures/.
 """
 
 import dataclasses
@@ -46,10 +46,10 @@ def fired_rules(a):
 
 
 # ==========================================================================
-# Cálculo
+# Computation
 # ==========================================================================
 
-def test_auditoria_resume_o_periodo_as_sessoes_e_os_pedidos(sessions):
+def test_audit_summarises_period_sessions_and_prompts(sessions):
     a = audit.audit(sessions)
     assert a.sessions == 5 and a.prompts == 7
     assert a.start == datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc)
@@ -59,7 +59,7 @@ def test_auditoria_resume_o_periodo_as_sessoes_e_os_pedidos(sessions):
     assert a.unknowns.kinds["tipo-novo"] == 1
 
 
-def test_auditoria_traz_os_indicadores(sessions):
+def test_audit_includes_indicators(sessions):
     a = audit.audit(sessions)
     assert a.fixed_context.summary.maximum == 32100
     assert a.dead_weight.skills.never_used == {"nunca-usada"}
@@ -69,7 +69,7 @@ def test_auditoria_traz_os_indicadores(sessions):
     assert (a.commits.calls, a.commits.without_hash) == (3, 1)
 
 
-def test_pedidos_mais_caros_por_data_e_hora_sem_texto(sessions):
+def test_costliest_prompts_by_date_and_time_without_text(sessions):
     a = audit.audit(sessions)
     assert len(a.costly) == 5
     first = a.costly[0]
@@ -81,8 +81,8 @@ def test_pedidos_mais_caros_por_data_e_hora_sem_texto(sessions):
     assert not any(hasattr(c, "text") for c in a.costly)
 
 
-def test_peso_fixo_por_semana_so_com_duas_semanas_ou_mais(sessions):
-    assert audit.audit(sessions).weekly_fixed_context == []    # tudo numa semana
+def test_weekly_fixed_context_only_with_two_or_more_weeks(sessions):
+    assert audit.audit(sessions).weekly_fixed_context == []    # all in one week
     other = dataclasses.replace(
         only(sessions, S6)[0], id="outra", start=datetime(2026, 1, 20, tzinfo=timezone.utc))
     weekly = audit.audit([*sessions, other]).weekly_fixed_context
@@ -90,27 +90,27 @@ def test_peso_fixo_por_semana_so_com_duas_semanas_ou_mais(sessions):
     assert weekly[1][1].n == 1 and weekly[1][1].median == 32100
 
 
-def test_sem_sessoes_a_auditoria_existe_e_nao_tem_achados():
+def test_without_sessions_audit_exists_and_has_no_findings():
     a = audit.audit([])
     assert (a.sessions, a.prompts, a.start, a.end) == (0, 0, None, None)
     assert a.findings == []
 
 
-# --- O que chama atenção: cada regra dispara e não dispara -------------------
+# --- Highlights: each rule fires and does not fire ---------------------------
 
 @pytest.mark.parametrize("category", [
     "skills", "subagent_types", "tools", "mcp_servers"])
-def test_regra_de_peso_morto(sessions, category):
+def test_dead_weight_rule(sessions, category):
     rule = f"dead_weight.{category}"
     a = audit.audit(only(sessions, S6))
     (finding,) = [x for x in a.findings if x.rule == rule]
     assert finding.section == "dead-weight"
     assert finding.values["never_used"] == len(
         getattr(a.dead_weight, category).never_used) > 0
-    assert rule not in fired_rules(audit.audit(only(sessions, S3)))  # sem lista
+    assert rule not in fired_rules(audit.audit(only(sessions, S3)))  # no listing
 
 
-def test_regra_de_peso_fixo(sessions):
+def test_fixed_context_rule(sessions):
     a = audit.audit(only(sessions, S6, S3))
     (finding,) = [x for x in a.findings if x.rule == "fixed_context"]
     assert finding.section == "fixed-context"
@@ -118,7 +118,7 @@ def test_regra_de_peso_fixo(sessions):
     assert "fixed_context" not in fired_rules(audit.audit(only(sessions, S4)))  # fork
 
 
-def test_regra_de_commits_sem_hash(sessions):
+def test_commits_without_hash_rule(sessions):
     a = audit.audit(only(sessions, S6))
     (finding,) = [x for x in a.findings if x.rule == "commits_without_hash"]
     assert finding.section == "commits"
@@ -126,7 +126,7 @@ def test_regra_de_commits_sem_hash(sessions):
     assert "commits_without_hash" not in fired_rules(audit.audit(only(sessions, S1)))
 
 
-def test_regra_de_modo_que_suprime_rejeicoes(sessions):
+def test_rule_for_mode_that_suppresses_rejections(sessions):
     a = audit.audit(only(sessions, S6))
     (finding,) = [x for x in a.findings if x.rule == "mode_without_rejection"]
     assert finding.section == "interventions"
@@ -134,12 +134,12 @@ def test_regra_de_modo_que_suprime_rejeicoes(sessions):
     assert "mode_without_rejection" not in fired_rules(audit.audit(only(sessions, S1)))
 
 
-def test_modos_que_suprimem_rejeicoes():
+def test_modes_that_suppress_rejections():
     assert "bypassPermissions" in audit.MODES_WITHOUT_REJECTION
     assert "default" not in audit.MODES_WITHOUT_REJECTION
 
 
-def test_regra_de_falhas_de_leitura(sessions):
+def test_read_failures_rule(sessions):
     failure = ReadFailure(Path("/cfg/projects/-repo-alpha/x.jsonl"), 2, "campo ausente")
     a = audit.audit(only(sessions, S3), [failure])
     (finding,) = [x for x in a.findings if x.rule == "read_failures"]
@@ -147,7 +147,7 @@ def test_regra_de_falhas_de_leitura(sessions):
     assert "read_failures" not in fired_rules(audit.audit(only(sessions, S3)))
 
 
-def test_regra_de_formato_desconhecido(sessions):
+def test_unknown_format_rule(sessions):
     a = audit.audit(only(sessions, S1))
     (finding,) = [x for x in a.findings if x.rule == "unknown_format"]
     assert finding.section == "header"
@@ -155,14 +155,14 @@ def test_regra_de_formato_desconhecido(sessions):
     assert "unknown_format" not in fired_rules(audit.audit(only(sessions, S6)))
 
 
-# --- seleção das sessões do repositório (E3 e E15) -----------------------------
+# --- selection of the repository's sessions (E3 and E15) ---------------------
 
 def _with_repository(sessions, paths):
     return [dataclasses.replace(s, repository=Path(paths[s.id]) if paths[s.id] else None)
             for s in sessions if s.id in paths]
 
 
-def test_selecao_junta_diretorios_com_a_mesma_identidade(sessions):
+def test_selection_joins_directories_with_same_identity(sessions):
     marked = _with_repository(sessions, {S1: "/a/proj", S6: "/b/proj-copia",
                                           S3: "/c/outro", S4: None})
     ids = {"/a/proj": "raiz1", "/b/proj-copia": "raiz1", "/c/outro": "raiz2"}
@@ -172,33 +172,33 @@ def test_selecao_junta_diretorios_com_a_mesma_identidade(sessions):
     assert sel.identity == "raiz1"
 
 
-def test_selecao_sem_identidade_compara_so_o_caminho(sessions):
+def test_selection_without_identity_compares_only_path(sessions):
     marked = _with_repository(sessions, {S1: "/a/proj", S6: "/b/proj"})
     sel = audit.select(marked, Path("/a/proj"), lambda p: None)
     assert [s.id for s in sel.sessions] == [S1]
     assert sel.directories == [Path("/a/proj")]
 
 
-def test_pasta_de_projeto_do_claude_code():
+def test_claude_code_project_folder():
     assert audit.project_dir_of(Path("/home/u/Repos/proj")) == "-home-u-Repos-proj"
     assert audit.project_dir_of(Path("/home/u/.x/a_b")) == "-home-u--x-a-b"
 
 
-def test_falhas_sao_atribuidas_pela_pasta_de_projeto():
+def test_failures_are_assigned_by_project_folder():
     failures = [ReadFailure(Path("/cfg/projects/-a-proj/s.jsonl"), 1, "x"),
               ReadFailure(Path("/cfg/projects/-a-proj/s/subagents/agent-1.jsonl"), 1, "y"),
               ReadFailure(Path("/cfg/projects/-c-outro/t.jsonl"), 1, "z")]
     assert [f.message for f in audit.failures_of_dirs(failures, {"-a-proj"})] == ["x", "y"]
 
 
-def test_periodo_por_inicio_da_sessao(sessions):
+def test_period_by_session_start(sessions):
     since = datetime(2026, 1, 2, 12, tzinfo=timezone.utc)
     assert [s.id for s in audit.in_period(sessions, since)] == [S6]
     assert len(audit.in_period(sessions, None)) == 5
 
 
 # ==========================================================================
-# Apresentação
+# Presentation
 # ==========================================================================
 
 SECTIONS = ["# Auditoria do harness", "## O que chama atenção", "## Peso fixo",
@@ -213,32 +213,32 @@ def text(sessions):
     return report.markdown(a)
 
 
-def test_relatorio_tem_as_secoes_na_ordem(text):
+def test_report_has_sections_in_order(text):
     positions = [text.index(s) for s in SECTIONS]
     assert positions == sorted(positions)
 
 
-def test_cada_secao_termina_com_como_ler(text):
+def test_each_section_ends_with_how_to_read(text):
     blocks = text.split("\n## ")
     for block in blocks:
         last = [l for l in block.strip().splitlines() if l.strip()][-1]
         assert last.startswith("*Como ler:*"), block[:40]
 
 
-def test_cabecalho(text):
+def test_header(text):
     hdr = text.split("\n## ")[0]
     assert "/repo/alpha" in hdr
     assert "2026-01-01" in hdr and "2026-01-03" in hdr
     assert "Sessões: 5" in hdr and "Pedidos: 7" in hdr
     assert "2.1.300" in hdr and "2.1.326" in hdr
     assert "30 dias" in hdr
-    # Formato desconhecido: no cabeçalho, só a contagem; o detalhe, no apêndice
+    # Unknown format: only the count in the header; the detail in the appendix
     # (goal 013).
     assert "Formato desconhecido" in hdr and "tipo-novo" not in hdr
     assert "tipo-novo" in text.split("## Apêndice")[1]
 
 
-def test_o_que_chama_atencao_aponta_para_a_secao(text):
+def test_highlights_point_to_section(text):
     block = text.split("## O que chama atenção")[1].split("\n## ")[0]
     items = [l for l in block.splitlines() if l.startswith("- ")]
     assert len(items) == 8
@@ -246,34 +246,34 @@ def test_o_que_chama_atencao_aponta_para_a_secao(text):
     assert any("1 de 3 chamadas de commit" in l for l in items)
 
 
-def test_textos_obrigatorios(text):
+def test_mandatory_texts(text):
     assert "a ausência de sinais não indica ausência de correções" in text
     assert "desfechos visíveis" in text
     assert "execuç" not in text.lower()
     assert "candidatos a revisar" in text
-    assert "nunca-usada" in text                # o relatório é local: traz os nomes
+    assert "nunca-usada" in text                # the report is local: it includes names
     assert "bypassPermissions" in text
 
 
-def test_commits_silenciosos_dizem_o_efeito_e_a_regra(text):
+def test_silent_commits_state_effect_and_rule(text):
     block = text.split("## Commits")[1].split("\n## ")[0]
     assert "-q" in block and "sem `-q`" in block
 
 
-def test_secao_ainda_nao_disponivel_saiu(text):
+def test_not_yet_available_section_was_removed(text):
     assert "Ainda não disponível" not in text          # goal 013
 
 
-def test_relatorio_nao_traz_texto_de_pedido(text):
+def test_report_has_no_prompt_text(text):
     assert "Faça os commits." not in text
     assert "Liste os arquivos" not in text
 
 
-def test_numeros_no_formato_brasileiro(text):
+def test_numbers_in_brazilian_format(text):
     assert "32.432" in text
 
 
-def test_relatorio_sem_sessoes():
+def test_report_without_sessions():
     a = audit.audit([], repository=Path("/r"), directories=[Path("/r")])
     t = report.markdown(a)
     assert "Nenhuma sessão" in t
@@ -281,7 +281,7 @@ def test_relatorio_sem_sessoes():
 
 
 # ==========================================================================
-# Entrada e saída
+# Input and output
 # ==========================================================================
 
 GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
@@ -303,8 +303,8 @@ def git(*args, cwd):
 def new_repo(path: Path) -> Path:
     path.mkdir(parents=True)
     git("init", "-q", cwd=path)
-    # Conteúdo distinto: dois commits iniciais iguais no mesmo segundo teriam o
-    # mesmo hash, e a mesma identidade (limite da E15).
+    # Distinct content: two identical initial commits in the same second would have
+    # the same hash, and the same identity (E15 limit).
     (path / "a.txt").write_text(path.name)
     git("add", "a.txt", cwd=path)
     git("commit", "-q", "-m", "inicial", cwd=path)
@@ -312,7 +312,7 @@ def new_repo(path: Path) -> Path:
 
 
 def config_pointing(tmp_path: Path, alpha: Path, beta: Path | None = None) -> Path:
-    """Cópia dos arquivos sintéticos com os cwd trocados por caminhos reais."""
+    """Copy of the synthetic files with cwd replaced by real paths."""
     destination = tmp_path / "config"
     shutil.copytree(CONFIG, destination)
     for file in destination.rglob("*.jsonl"):
@@ -328,18 +328,18 @@ def run_audit(*args):
     return cli.main(["auditar", *map(str, args)])
 
 
-def test_relatorio_completo_de_um_repositorio(tmp_path, capsys):
+def test_full_report_of_a_repository(tmp_path, capsys):
     repo = new_repo(tmp_path / "proj")
     cfg = config_pointing(tmp_path, repo)
     assert run_audit(repo, "--config", cfg) == 0
     output = capsys.readouterr().out
     assert f"Repositório: `{repo}`" in output
-    assert "Sessões: 2" in output                 # S1 e S6
+    assert "Sessões: 2" in output                 # S1 and S6
     for s in SECTIONS:
         assert s in output
 
 
-def test_comando_nao_escreve_no_repositorio_auditado(tmp_path, capsys):
+def test_command_does_not_write_to_audited_repository(tmp_path, capsys):
     repo = new_repo(tmp_path / "proj")
     cfg = config_pointing(tmp_path, repo)
     before = sorted(p.relative_to(repo) for p in repo.rglob("*"))
@@ -348,7 +348,7 @@ def test_comando_nao_escreve_no_repositorio_auditado(tmp_path, capsys):
     assert git("status", "--porcelain", cwd=repo) == ""
 
 
-def test_subdiretorio_audita_o_repositorio_inteiro(tmp_path, capsys):
+def test_subdirectory_audits_whole_repository(tmp_path, capsys):
     repo = new_repo(tmp_path / "proj")
     (repo / "sub").mkdir()
     cfg = config_pointing(tmp_path, repo)
@@ -356,55 +356,55 @@ def test_subdiretorio_audita_o_repositorio_inteiro(tmp_path, capsys):
     assert "Sessões: 2" in capsys.readouterr().out
 
 
-def test_repositorio_sem_sessoes_termina_bem(tmp_path, capsys):
-    repo = new_repo(tmp_path / "novo")
-    cfg = config_pointing(tmp_path, tmp_path / "outro")
+def test_repository_without_sessions_ends_ok(tmp_path, capsys):
+    repo = new_repo(tmp_path / "new")
+    cfg = config_pointing(tmp_path, tmp_path / "other")
     assert run_audit(repo, "--config", cfg) == 0
     assert "Nenhuma sessão" in capsys.readouterr().out
 
 
-def test_caminho_que_nao_e_repositorio_git(tmp_path, capsys):
-    folder = tmp_path / "solta"
+def test_path_that_is_not_git_repository(tmp_path, capsys):
+    folder = tmp_path / "loose"
     folder.mkdir()
     assert run_audit(folder, "--config", CONFIG) == 2
     assert "não é um repositório git" in capsys.readouterr().err
 
 
-def test_dois_diretorios_com_a_mesma_identidade(tmp_path, capsys):
+def test_two_directories_with_same_identity(tmp_path, capsys):
     repo = new_repo(tmp_path / "proj")
-    clone = tmp_path / "copia"
+    clone = tmp_path / "copy"
     git("clone", "-q", str(repo), str(clone), cwd=tmp_path)
-    other = new_repo(tmp_path / "outro")         # outro commit inicial
+    other = new_repo(tmp_path / "other")         # another initial commit
     cfg = config_pointing(tmp_path, repo, beta=clone)
     assert run_audit(repo, "--config", cfg) == 0
     output = capsys.readouterr().out
-    assert "Sessões: 4" in output                 # S1, S6 (proj) e S3, S4 (copia)
+    assert "Sessões: 4" in output                 # S1, S6 (proj) and S3, S4 (copy)
     assert str(clone) in output.split("\n## ")[0]
     assert str(other) not in output
 
 
-def test_identidade_e_o_commit_inicial(tmp_path):
+def test_identity_is_initial_commit(tmp_path):
     repo = new_repo(tmp_path / "proj")
-    clone = tmp_path / "copia"
+    clone = tmp_path / "copy"
     git("clone", "-q", str(repo), str(clone), cwd=tmp_path)
     (clone / "b.txt").write_text("b")
     git("add", "b.txt", cwd=clone)
     git("commit", "-q", "-m", "outro", cwd=clone)
     assert cli.git_identity(repo) == cli.git_identity(clone) is not None
     assert cli.git_identity(new_repo(tmp_path / "x")) != cli.git_identity(repo)
-    empty = tmp_path / "vazio"
+    empty = tmp_path / "empty"
     empty.mkdir()
     git("init", "-q", cwd=empty)
-    assert cli.git_identity(empty) is None      # sem commits, sem identidade
+    assert cli.git_identity(empty) is None      # no commits, no identity
 
 
-def test_falha_de_leitura_aparece_no_cabecalho(tmp_path, capsys):
+def test_read_failure_appears_in_header(tmp_path, capsys):
     repo = new_repo(tmp_path / "proj")
     cfg = config_pointing(tmp_path, repo)
     folder = cfg / "projects" / audit.project_dir_of(repo)
     folder.mkdir()
     shutil.copy(INVALID / "no-uuid.jsonl", folder / "quebrada.jsonl")
-    other = cfg / "projects" / "-de-outro-repo"
+    other = cfg / "projects" / "-from-other-repo"
     other.mkdir()
     shutil.copy(INVALID / "no-type.jsonl", other / "alheia.jsonl")
     assert run_audit(repo, "--config", cfg) == 0
@@ -413,7 +413,7 @@ def test_falha_de_leitura_aparece_no_cabecalho(tmp_path, capsys):
     assert "alheia.jsonl" not in hdr
 
 
-def test_so_falhas_e_nenhuma_sessao_termina_com_erro(tmp_path, capsys):
+def test_only_failures_and_no_session_ends_with_error(tmp_path, capsys):
     repo = new_repo(tmp_path / "proj")
     cfg = tmp_path / "config"
     folder = cfg / "projects" / audit.project_dir_of(repo)
@@ -423,18 +423,18 @@ def test_so_falhas_e_nenhuma_sessao_termina_com_erro(tmp_path, capsys):
     assert "quebrada.jsonl" in capsys.readouterr().out
 
 
-def test_todos_inclui_sessoes_de_qualquer_repositorio(capsys):
+def test_all_includes_sessions_from_any_repository(capsys):
     assert cli.main(["auditar", "--todos", "--config", str(CONFIG)]) == 0
     output = capsys.readouterr().out
     assert "Sessões: 5" in output and "todos os repositórios" in output
 
 
-def test_caminho_e_todos_nao_vao_juntos(capsys):
-    # Sem nenhum dos dois, audita o diretório atual (goal 013).
+def test_path_and_all_do_not_go_together(capsys):
+    # With neither of them, it audits the current directory (goal 013).
     assert cli.main(["auditar", "/tmp", "--todos", "--config", str(CONFIG)]) == 2
 
 
-def test_dias_e_ate(capsys):
+def test_days_and_cutoff(capsys):
     assert cli.main(["auditar", "--todos", "--config", str(CONFIG),
                      "--ate", "2026-01-03T23:59:59Z", "--dias", "1"]) == 0
     assert "Sessões: 1" in capsys.readouterr().out
@@ -443,17 +443,17 @@ def test_dias_e_ate(capsys):
     assert "Sessões: 1" in capsys.readouterr().out
 
 
-def test_ate_ilegivel(capsys):
+def test_unreadable_cutoff(capsys):
     assert cli.main(["auditar", "--todos", "--config", str(CONFIG), "--ate", "ontem"]) == 2
 
 
-def test_excluir_pasta(capsys):
+def test_exclude_folder(capsys):
     assert cli.main(["auditar", "--todos", "--config", str(CONFIG),
                      "--excluir-pasta=-repo-beta"]) == 0
     assert "Sessões: 3" in capsys.readouterr().out
 
 
-def test_saida_fora_de_repositorio_grava_sem_aviso(tmp_path, capsys):
+def test_output_outside_repository_writes_without_warning(tmp_path, capsys):
     destination = tmp_path / "rel.md"
     assert cli.main(["auditar", "--todos", "--config", str(CONFIG),
                      "--saida", str(destination)]) == 0
@@ -462,7 +462,7 @@ def test_saida_fora_de_repositorio_grava_sem_aviso(tmp_path, capsys):
     assert output.out == "" and "aviso" not in output.err.lower()
 
 
-def test_saida_dentro_de_repositorio_nao_ignorada_avisa(tmp_path, capsys):
+def test_output_inside_non_ignored_repository_warns(tmp_path, capsys):
     repo = new_repo(tmp_path / "proj")
     destination = repo / "rel.md"
     assert cli.main(["auditar", "--todos", "--config", str(CONFIG),
@@ -471,17 +471,17 @@ def test_saida_dentro_de_repositorio_nao_ignorada_avisa(tmp_path, capsys):
     assert destination.exists()
 
 
-def test_saida_ignorada_pelo_git_nao_avisa(tmp_path, capsys):
+def test_output_ignored_by_git_does_not_warn(tmp_path, capsys):
     repo = new_repo(tmp_path / "proj")
     (repo / ".gitignore").write_text("local/\n")
     (repo / "local").mkdir()
     destination = repo / "local" / "rel.md"
     assert cli.output_warning(destination) is None
     assert cli.output_warning(repo / "rel.md") is not None
-    assert cli.output_warning(tmp_path / "fora.md") is None
+    assert cli.output_warning(tmp_path / "outside.md") is None
 
 
-def test_comando_instalado_e_python_m_dark():
+def test_installed_command_and_python_m_dark():
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     assert project["project"]["scripts"]["dark"] == "dark.cli:main"
     env = dict(os.environ, PYTHONPATH=str(ROOT / "src"))

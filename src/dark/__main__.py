@@ -1,4 +1,4 @@
-"""`python -m dark`: o mesmo que o comando `dark`."""
+"""`python -m dark`: same as the `dark` command."""
 
 import sys
 

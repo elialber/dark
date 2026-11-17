@@ -1,14 +1,14 @@
-"""Comando `dark` (goal 008): entrada e saída da auditoria.
+"""The `dark` command (goal 008): input and output of the audit.
 
-Aqui ficam argumentos, relógio, git e disco. O cálculo é de
-`dark.auditoria`; o texto, de `dark.relatorio`.
+Arguments, clock, git and disk live here. The computation belongs to
+`dark.audit`; the text, to `dark.report`.
 
-O git é usado só para leitura (`rev-list`, `check-ignore` e as consultas
-de `dark.historico`, que só aceita subcomandos de leitura). O comando não
-escreve nada dentro do repositório auditado por conta própria: o
-relatório vai para a saída padrão, ou para `--saida`.
+Git is used read-only (`rev-list`, `check-ignore` and the queries of
+`dark.git_history`, which only accepts read subcommands). The command does
+not write anything inside the audited repository on its own: the report
+goes to standard output, or to `--saida`.
 
-Sem caminho nem `--todos`, audita o repositório do diretório atual.
+With neither a path nor `--todos`, it audits the current directory's repository.
 """
 
 from __future__ import annotations
@@ -36,10 +36,10 @@ def _git(*args: str) -> subprocess.CompletedProcess | None:
 
 @cache
 def git_identity(root: Path) -> str | None:
-    """Identidade do repositório (E15): o commit inicial.
+    """Repository identity (E15): the initial commit.
 
-    Com mais de uma raiz no histórico, todas, em ordem. None quando não há
-    commit, a pasta não existe mais ou o git não está disponível.
+    With more than one root in the history, all of them, sorted. None when there
+    is no commit, the folder no longer exists or git is not available.
     """
     r = _git("-C", str(root), "rev-list", "--max-parents=0", "HEAD")
     if r is None or r.returncode != 0:
@@ -48,7 +48,7 @@ def git_identity(root: Path) -> str | None:
 
 
 def _nearest_repository(path: Path) -> Path | None:
-    """Pasta com `.git` mais próxima (a do próprio worktree, não a principal)."""
+    """Nearest folder with `.git` (the worktree's own, not the main one)."""
     for folder in (path, *path.parents):
         if (folder / ".git").exists():
             return folder
@@ -56,7 +56,7 @@ def _nearest_repository(path: Path) -> Path | None:
 
 
 def output_warning(destination: Path) -> str | None:
-    """Aviso se o arquivo de saída cai dentro de um repositório git sem estar ignorado."""
+    """Warning if the output file falls inside a git repository without being ignored."""
     destination = Path(os.path.abspath(destination))
     root = _nearest_repository(destination.parent)
     if root is None:
@@ -71,7 +71,7 @@ def output_warning(destination: Path) -> str | None:
 
 def _confirm(question: str) -> bool:
     if not sys.stdin.isatty():
-        return True          # sem terminal, o aviso fica registrado e o comando segue
+        return True          # without a terminal, the warning is logged and the command proceeds
     try:
         return input(f"{question} [s/N] ").strip().lower() in ("s", "sim")
     except EOFError:
@@ -79,7 +79,7 @@ def _confirm(question: str) -> bool:
 
 
 def _inventory(repos: list[Path], args: argparse.Namespace) -> inventory.Inventory | None:
-    """Inventário de cada repositório, juntado; o escopo do usuário entra uma vez."""
+    """Inventory of each repository, merged; the user scope is included once."""
     existing = [r for r in repos if r.is_dir()]
     if not existing:
         return None
@@ -147,11 +147,11 @@ def _audit(args: argparse.Namespace) -> int:
         since = (cutoff or datetime.now(timezone.utc)) - timedelta(days=args.days)
         sessions = audit.in_period(sessions, since)
 
-    # Inventário: o do repositório auditado, ou o de cada repositório das sessões.
+    # Inventory: that of the audited repository, or of each of the sessions' repositories.
     repos = [root] if root is not None else sorted(
         {s.repository for s in sessions if s.repository is not None}, key=str)
     inv = _inventory(repos, args)
-    # Git: só os repositórios das chamadas de commit das sessões selecionadas.
+    # Git: only the repositories of the selected sessions' commit calls.
     valid_sessions = [s for s in sessions if not s.local_command_only]
     links = None if args.no_git else commit_linking.link_commits(valid_sessions)
 

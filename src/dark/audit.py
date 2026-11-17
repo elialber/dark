@@ -1,11 +1,11 @@
-"""Cálculo da auditoria de um repositório (goal 008).
+"""Computation of a repository's audit (goal 008).
 
-Funções puras: recebem sessões (do leitor) e devolvem dados. Não leem
-disco, relógio nem git; quem faz isso é `dark.cli`. O texto do relatório
-é de `dark.relatorio`.
+Pure functions: they take sessions (from the reader) and return data. They do
+not read disk, clock or git; `dark.cli` does that. The report text belongs
+to `dark.report`.
 
-"O que chama atenção" sai de regras fixas, cada uma uma função que olha a
-auditoria e devolve um achado (com números, sem frase) ou nada.
+"O que chama atenção" comes from fixed rules, each a function that looks at the
+audit and returns a finding (with numbers, no sentence) or nothing.
 """
 
 from __future__ import annotations
@@ -18,36 +18,36 @@ from datetime import datetime
 from pathlib import Path
 
 from dark import indicators as ind
-from dark import provenance as org
+from dark import provenance as prov
 from dark.inventory import Inventory
 from dark.reader import Unknowns, ReadFailure, Session
 from dark.commit_linking import CommitLinks
 
-# Modos em que o usuário não é consultado antes da ferramenta rodar: a
-# rejeição de ferramenta, um dos sinais de intervenção, não tem como
-# aparecer. `auto` fica de fora: nele ainda há consulta em parte das chamadas.
+# Modes in which the user is not asked before the tool runs: tool
+# rejection, one of the intervention signals, cannot appear.
+# `auto` is left out: in it the user is still asked for some of the calls.
 MODES_WITHOUT_REJECTION = frozenset({"bypassPermissions", "dontAsk"})
 
 COSTLY_COUNT = 5
 
 
 # --------------------------------------------------------------------------
-# Seleção das sessões do repositório (E3 e E15)
+# Selection of the repository's sessions (E3 and E15)
 # --------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class Selection:
     sessions: list[Session]
-    directories: list[Path]          # raízes juntadas: o alvo e as de mesma identidade
-    identity: str | None          # commit inicial; None se não houver
+    directories: list[Path]          # merged roots: the target and those with the same identity
+    identity: str | None          # initial commit; None if there is none
 
 
 def select(sessions: Iterable[Session], target: Path,
                identity: Callable[[Path], str | None]) -> Selection:
-    """Sessões cujo repositório (E3) é o alvo ou tem a mesma identidade (E15).
+    """Sessions whose repository (E3) is the target or has the same identity (E15).
 
-    `alvo` é a raiz git. Sem identidade (repositório sem commits, ou raiz
-    que não existe mais), compara só o caminho.
+    `target` is the git root. Without an identity (repository with no commits,
+    or a root that no longer exists), only the path is compared.
     """
     target = Path(target)
     target_id = identity(target)
@@ -64,7 +64,7 @@ def select(sessions: Iterable[Session], target: Path,
 
 
 def project_dir_of(directory: Path) -> str:
-    """Nome da pasta em `projects/` que o Claude Code usa para um diretório."""
+    """Name of the folder under `projects/` that Claude Code uses for a directory."""
     return re.sub(r"[^A-Za-z0-9]", "-", str(directory))
 
 
@@ -77,22 +77,22 @@ def _failure_dir(failure: ReadFailure) -> str | None:
 
 
 def failures_of_dirs(failures: Iterable[ReadFailure], folders: set[str]) -> list[ReadFailure]:
-    """Falhas de leitura cujo arquivo está numa das pastas de projeto.
+    """Read failures whose file is in one of the project folders.
 
-    Uma sessão ilegível não diz a que repositório pertence; a pasta onde
-    o arquivo está é a melhor pista.
+    An unreadable session does not say which repository it belongs to; the
+    folder the file is in is the best clue.
     """
     return [f for f in failures if _failure_dir(f) in folders]
 
 
 def in_period(sessions: Iterable[Session], since: datetime | None) -> list[Session]:
-    """Sessões iniciadas a partir de `desde` (todas, se None)."""
+    """Sessions started at or after `since` (all of them, if None)."""
     return [s for s in sessions
             if since is None or (s.start is not None and s.start >= since)]
 
 
 # --------------------------------------------------------------------------
-# Auditoria
+# Audit
 # --------------------------------------------------------------------------
 
 @dataclass(frozen=True)
@@ -105,7 +105,7 @@ class CostlyPrompt:
 
 @dataclass(frozen=True)
 class Finding:
-    """Fato de "O que chama atenção": a regra, a seção de detalhe e os números."""
+    """Fact for "O que chama atenção": the rule, the detail section and the numbers."""
     rule: str
     section: str
     values: dict
@@ -122,14 +122,14 @@ class InstructionSummary:
 
 @dataclass(frozen=True)
 class Installed:
-    """O que o inventário achou, em contagens (goal 013, parte 4)."""
-    counts: Counter                 # (tipo, escopo) -> peças
+    """What the inventory found, as counts (goal 013, part 4)."""
+    counts: Counter                 # (kind, scope) -> harness items
     local_items: int
     on_demand: int
     active_plugins: int
     plugins: int
     failures: int
-    instructions: InstructionSummary      # só as que carregam no início
+    instructions: InstructionSummary      # only those loaded at start
 
 
 def installed(inv: Inventory) -> Installed:
@@ -149,7 +149,7 @@ def installed(inv: Inventory) -> Installed:
 
 @dataclass
 class Audit:
-    repository: Path | None          # None: todas as sessões (--todos)
+    repository: Path | None          # None: all sessions (--todos)
     directories: list[Path]
     start: datetime | None
     end: datetime | None
@@ -167,27 +167,27 @@ class Audit:
     hooks: ind.Hooks
     commits: ind.Commits
     findings: list[Finding] = field(default_factory=list)
-    since: datetime | None = None     # recorte pedido (--dias)
-    cutoff: datetime | None = None       # recorte pedido (--ate)
+    since: datetime | None = None     # requested window (--dias)
+    cutoff: datetime | None = None       # requested cutoff (--ate)
     excluded_local_command: int = 0
     breakdown: ind.Breakdown | None = None
-    # Sem inventário, os campos de origem ficam None e as regras contam tudo.
-    provenances: org.Provenances | None = None
-    provenance_of: dict[str, dict[str, org.Provenance]] | None = None   # nomes do peso morto
-    platform: dict[str, int] | None = None     # anunciados de origem plataforma
+    # Without an inventory, the provenance fields stay None and the rules count everything.
+    provenances: prov.Provenances | None = None
+    provenance_of: dict[str, dict[str, prov.Provenance]] | None = None   # dead weight names
+    platform: dict[str, int] | None = None     # announced items with platform provenance
     installed: Installed | None = None
     not_announced: dict[str, list] | None = None
     commit_linking: CommitLinks | None = None
     no_git: bool = False
 
-    def provenance(self, category: str, name: str) -> org.Provenance | None:
+    def provenance(self, category: str, name: str) -> prov.Provenance | None:
         if self.provenance_of is None:
             return None
-        return self.provenance_of[category].get(name, org.Provenance("no_file"))
+        return self.provenance_of[category].get(name, prov.Provenance("no_file"))
 
     @property
     def never_used_by_provenance(self) -> dict[str, dict[str, list[str]]]:
-        """Categoria -> origem -> nomes nunca usados (só com inventário)."""
+        """Category -> provenance -> never used names (only with an inventory)."""
         if self.provenance_of is None:
             return {}
         out: dict[str, dict[str, list[str]]] = {}
@@ -227,9 +227,9 @@ def _costly(sessions: list[Session], cost: ind.Cost) -> list[CostlyPrompt]:
             for (sid, pid), spend in order[:COSTLY_COUNT] if spend.total]
 
 
-def _provenance_of(provenances: org.Provenances) -> dict[str, dict[str, org.Provenance]]:
-    """Origem pelo nome que o peso morto usa (skill sem prefixo de plugin)."""
-    skills: dict[str, org.Provenance] = {}
+def _provenance_of(provenances: prov.Provenances) -> dict[str, dict[str, prov.Provenance]]:
+    """Provenance by the name dead weight uses (skill without plugin prefix)."""
+    skills: dict[str, prov.Provenance] = {}
     for name, o in sorted(provenances.skills.items(), key=lambda kv: (not kv[1].mutable, kv[0])):
         skills.setdefault(ind.skill_name(name), o)
     return {"skills": skills, "subagent_types": provenances.subagent_types,
@@ -242,11 +242,11 @@ def audit(sessions: Iterable[Session], failures: Iterable[ReadFailure] = (), *,
             inventory: Inventory | None = None, commit_linking: CommitLinks | None = None,
             no_git: bool = False) -> Audit:
     every = list(sessions)
-    # Sessão de comando local (lote 006) não entra em nenhum indicador.
+    # A local-command session (lote 006) does not enter any indicator.
     sessions = [s for s in every if not s.local_command_only]
-    desc = Unknowns()
+    unknowns = Unknowns()
     for s in sessions:
-        desc.add_up(s.unknowns)
+        unknowns.add_up(s.unknowns)
     starts = [s.start for s in sessions if s.start]
     ends = [s.end for s in sessions if s.end]
     cost = ind.cost(sessions)
@@ -255,7 +255,7 @@ def audit(sessions: Iterable[Session], failures: Iterable[ReadFailure] = (), *,
         start=min(starts, default=None), end=max(ends, default=None),
         sessions=len(sessions), prompts=sum(len(s.prompts) for s in sessions),
         versions=sorted({v for s in sessions for v in s.versions}, key=_version_key),
-        failures=list(failures), unknowns=desc,
+        failures=list(failures), unknowns=unknowns,
         fixed_context=ind.fixed_context(sessions), weekly_fixed_context=_weekly(sessions),
         dead_weight=ind.dead_weight(sessions), cost=cost, costly=_costly(sessions, cost),
         interventions=ind.interventions(sessions), hooks=ind.hooks(sessions),
@@ -263,11 +263,11 @@ def audit(sessions: Iterable[Session], failures: Iterable[ReadFailure] = (), *,
         excluded_local_command=len(every) - len(sessions),
         breakdown=ind.breakdown(sessions), commit_linking=commit_linking, no_git=no_git)
     if inventory is not None:
-        a.provenances = org.classify(org.announced_from(sessions), inventory.items,
+        a.provenances = prov.classify(prov.announced_from(sessions), inventory.items,
                                     inventory.plugins)
         a.provenance_of = _provenance_of(a.provenances)
         a.platform = {cat: sum(n for o, n in a.provenances.counts(cat).items()
-                                 if o in org.PLATFORM) for cat in CATEGORIES}
+                                 if o in prov.PLATFORM) for cat in CATEGORIES}
         a.installed = installed(inventory)
         a.not_announced = a.provenances.not_announced
     a.findings = [x for rule in RULES if (x := rule(a)) is not None]
@@ -275,7 +275,7 @@ def audit(sessions: Iterable[Session], failures: Iterable[ReadFailure] = (), *,
 
 
 # --------------------------------------------------------------------------
-# Regras de "O que chama atenção"
+# Rules for "O que chama atenção"
 # --------------------------------------------------------------------------
 
 CATEGORIES = ("skills", "subagent_types", "tools", "mcp_servers")
@@ -286,7 +286,7 @@ def _rule_dead_weight(category: str) -> Callable[[Audit], Finding | None]:
         c: ind.Category = getattr(a.dead_weight, category)
         never, available = c.never_used, c.available
         if a.provenance_of is not None:
-            # Só conta o que o usuário pode mudar (E16).
+            # Only count what the user can change (E16).
             never = {n for n in never if a.provenance(category, n).mutable}
             available = {n for n in available if a.provenance(category, n).mutable}
         if not never:
