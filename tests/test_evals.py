@@ -13,9 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from dark.evals import caso as m_caso
-from dark.evals import mineracao, validacao
-from dark.evals.caso import Aceite, Caso, ErroFormato
+from dark.evals import case as m_caso
+from dark.evals import mining, validation
+from dark.evals.case import Aceite, Caso, ErroFormato
 from dark.evals.git import Git
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -173,7 +173,7 @@ def test_caso_valido(repo_calc, tmp_path):
     trabalho.mkdir()
     antes = _retrato(repo)
 
-    r = validacao.validar(_caso_calc(c1, c2), repo, dir_trabalho=trabalho)
+    r = validation.validar(_caso_calc(c1, c2), repo, dir_trabalho=trabalho)
 
     assert r.valido and r.motivo is None
     assert [e.rotulo for e in r.execucoes] == ["base", "solucao"]
@@ -189,21 +189,21 @@ def test_caso_valido(repo_calc, tmp_path):
 
 def test_caso_que_ja_passa_na_base(repo_calc, tmp_path):
     repo, _, c2, _ = repo_calc
-    r = validacao.validar(_caso_calc(c2, c2), repo, dir_trabalho=tmp_path)
-    assert not r.valido and r.motivo == validacao.Motivo.NAO_FALHA_NA_BASE
+    r = validation.validar(_caso_calc(c2, c2), repo, dir_trabalho=tmp_path)
+    assert not r.valido and r.motivo == validation.Motivo.NAO_FALHA_NA_BASE
     assert len(r.execucoes) == 1           # não roda a solução à toa
 
 
 def test_caso_que_nao_passa_na_solucao(repo_calc, tmp_path):
     repo, c1, c2, c3 = repo_calc
-    r = validacao.validar(_caso_calc(c1, c3, de=c2), repo, dir_trabalho=tmp_path)
-    assert not r.valido and r.motivo == validacao.Motivo.NAO_PASSA_NA_SOLUCAO
+    r = validation.validar(_caso_calc(c1, c3, de=c2), repo, dir_trabalho=tmp_path)
+    assert not r.valido and r.motivo == validation.Motivo.NAO_PASSA_NA_SOLUCAO
     assert r.execucoes[1].commit == c3 and r.execucoes[1].codigo != 0
 
 
 def test_sem_solucao_basta_falhar_na_base(repo_calc, tmp_path):
     repo, c1, c2, _ = repo_calc
-    r = validacao.validar(_caso_calc(c1, None, de=c2), repo, dir_trabalho=tmp_path)
+    r = validation.validar(_caso_calc(c1, None, de=c2), repo, dir_trabalho=tmp_path)
     assert r.valido and len(r.execucoes) == 1
 
 
@@ -213,26 +213,26 @@ def test_sem_solucao_basta_falhar_na_base(repo_calc, tmp_path):
 ])
 def test_comando_de_aceite_inexistente(repo_calc, tmp_path, comando):
     repo, c1, c2, _ = repo_calc
-    r = validacao.validar(_caso_calc(c1, c2, comando=comando), repo, dir_trabalho=tmp_path)
-    assert not r.valido and r.motivo == validacao.Motivo.COMANDO_NAO_RODA
+    r = validation.validar(_caso_calc(c1, c2, comando=comando), repo, dir_trabalho=tmp_path)
+    assert not r.valido and r.motivo == validation.Motivo.COMANDO_NAO_RODA
 
 
 @pytest.mark.parametrize("comando", ["", "   ", []])
 def test_comando_vazio_nao_roda(repo_calc, tmp_path, comando):
     """`sh -c ""` sai com 0; sem esta regra o rascunho sem comando "passaria"."""
     repo, c1, c2, _ = repo_calc
-    caso = _caso_calc(c1, c2)
-    caso.aceite.comando = comando
-    r = validacao.validar(caso, repo, dir_trabalho=tmp_path)
-    assert r.motivo == validacao.Motivo.COMANDO_NAO_RODA
+    case = _caso_calc(c1, c2)
+    case.aceite.comando = comando
+    r = validation.validar(case, repo, dir_trabalho=tmp_path)
+    assert r.motivo == validation.Motivo.COMANDO_NAO_RODA
 
 
 def test_tempo_esgotado(repo_calc, tmp_path):
     repo, c1, c2, _ = repo_calc
     dorme = [sys.executable, "-c", "import time; time.sleep(60)"]
-    r = validacao.validar(_caso_calc(c1, c2, comando=dorme, tempo_limite=1),
+    r = validation.validar(_caso_calc(c1, c2, comando=dorme, tempo_limite=1),
                           repo, dir_trabalho=tmp_path)
-    assert not r.valido and r.motivo == validacao.Motivo.TEMPO_ESGOTADO
+    assert not r.valido and r.motivo == validation.Motivo.TEMPO_ESGOTADO
     assert r.execucoes[0].tempo_esgotado
     assert r.execucoes[0].duracao < 15
 
@@ -242,9 +242,9 @@ def test_tempo_esgotado_mata_processos_filhos(repo_calc, tmp_path):
     marca = tmp_path / "marca"
     # o shell lança um filho que escreveria a marca depois do limite
     comando = f"{sys.executable} -c 'import time; time.sleep(3); open(\"{marca}\", \"w\")' ; true"
-    r = validacao.validar(_caso_calc(c1, c2, comando=comando, tempo_limite=1),
+    r = validation.validar(_caso_calc(c1, c2, comando=comando, tempo_limite=1),
                           repo, dir_trabalho=tmp_path)
-    assert r.motivo == validacao.Motivo.TEMPO_ESGOTADO
+    assert r.motivo == validation.Motivo.TEMPO_ESGOTADO
     import time
     time.sleep(3.5)
     assert not marca.exists()
@@ -252,16 +252,16 @@ def test_tempo_esgotado_mata_processos_filhos(repo_calc, tmp_path):
 
 def test_arquivo_de_teste_ausente_no_commit_indicado(repo_calc, tmp_path):
     repo, c1, c2, _ = repo_calc
-    r = validacao.validar(_caso_calc(c1, c2, arquivos=["nao_existe.py"]), repo,
+    r = validation.validar(_caso_calc(c1, c2, arquivos=["nao_existe.py"]), repo,
                           dir_trabalho=tmp_path)
-    assert not r.valido and r.motivo == validacao.Motivo.ERRO_DE_PREPARACAO
+    assert not r.valido and r.motivo == validation.Motivo.ERRO_DE_PREPARACAO
     assert "nao_existe.py" in r.detalhe
 
 
 def test_commit_inexistente(repo_calc, tmp_path):
     repo, _, c2, _ = repo_calc
-    r = validacao.validar(_caso_calc("f" * 40, c2), repo, dir_trabalho=tmp_path)
-    assert not r.valido and r.motivo == validacao.Motivo.ERRO_DE_PREPARACAO
+    r = validation.validar(_caso_calc("f" * 40, c2), repo, dir_trabalho=tmp_path)
+    assert not r.valido and r.motivo == validation.Motivo.ERRO_DE_PREPARACAO
 
 
 def test_solucao_roda_em_arvore_limpa(repo_calc, tmp_path):
@@ -269,22 +269,22 @@ def test_solucao_roda_em_arvore_limpa(repo_calc, tmp_path):
     repo, c1, c2, _ = repo_calc
     comando = ("test ! -e sobra.txt && touch sobra.txt && "
                f"{sys.executable} test_calc.py")
-    r = validacao.validar(_caso_calc(c1, c2, comando=comando), repo, dir_trabalho=tmp_path)
+    r = validation.validar(_caso_calc(c1, c2, comando=comando), repo, dir_trabalho=tmp_path)
     assert r.valido, r
 
 
 # --- mineração ---------------------------------------------------------------
 
 def test_e_teste_pelos_padroes():
-    p = mineracao.PADROES_TESTE
-    assert mineracao.e_teste("tests/test_a.py", p)
-    assert mineracao.e_teste("tests/fixtures/x.jsonl", p)
-    assert mineracao.e_teste("pacote/test_b.py", p)
-    assert mineracao.e_teste("pacote/b_test.py", p)
-    assert not mineracao.e_teste("src/dark/leitor.py", p)
-    assert not mineracao.e_teste("pyproject.toml", p)
-    assert mineracao.e_teste("spec/a_spec.rb", ["spec/*"])
-    assert not mineracao.e_teste("tests/test_a.py", ["spec/*"])
+    p = mining.PADROES_TESTE
+    assert mining.e_teste("tests/test_a.py", p)
+    assert mining.e_teste("tests/fixtures/x.jsonl", p)
+    assert mining.e_teste("pacote/test_b.py", p)
+    assert mining.e_teste("pacote/b_test.py", p)
+    assert not mining.e_teste("src/dark/leitor.py", p)
+    assert not mining.e_teste("pyproject.toml", p)
+    assert mining.e_teste("spec/a_spec.rb", ["spec/*"])
+    assert not mining.e_teste("tests/test_a.py", ["spec/*"])
 
 
 def test_mineracao_teste_e_codigo_no_mesmo_commit(tmp_path):
@@ -293,7 +293,7 @@ def test_mineracao_teste_e_codigo_no_mesmo_commit(tmp_path):
     c2 = commitar(repo, {"calc.py": "x = 2\n", "tests/test_calc.py": "assert 1\n"},
                   "Muda x e testa")
 
-    cands = mineracao.minerar(repo)
+    cands = mining.minerar(repo)
 
     assert len(cands) == 1
     c = cands[0]
@@ -312,7 +312,7 @@ def test_mineracao_testes_e_codigo_em_commits_seguidos(tmp_path):
     s = commitar(repo, {"calc.py": "x = 2\n", "tests/test_calc.py": "assert 2\n"},
                  "Código")
 
-    cands = mineracao.minerar(repo)
+    cands = mining.minerar(repo)
 
     assert len(cands) == 1               # o commit de testes não vira caso sozinho
     c = cands[0]
@@ -326,7 +326,7 @@ def test_commit_so_de_testes_seguido_de_commit_so_de_testes_nao_forma_par(tmp_pa
     commitar(repo, {"calc.py": "x = 1\n"}, "Início")
     commitar(repo, {"tests/test_a.py": "assert 1\n"}, "Teste a")
     commitar(repo, {"tests/test_b.py": "assert 1\n"}, "Teste b")
-    assert mineracao.minerar(repo) == []
+    assert mining.minerar(repo) == []
 
 
 def test_commit_de_codigo_com_um_teste_nao_puxa_o_seguinte(tmp_path):
@@ -336,7 +336,7 @@ def test_commit_de_codigo_com_um_teste_nao_puxa_o_seguinte(tmp_path):
     c2 = commitar(repo, {"a.py": "2\n", "b.py": "2\n", "tests/test_a.py": "assert 1\n"},
                   "Código com teste")
     c3 = commitar(repo, {"a.py": "3\n"}, "Só código")
-    cands = mineracao.minerar(repo)
+    cands = mining.minerar(repo)
     assert [(c.tipo, c.commit_solucao) for c in cands] == [("mesmo_commit", c2)]
     assert c3 not in [c.commit_solucao for c in cands]
 
@@ -346,13 +346,13 @@ def test_repositorio_sem_candidatos(tmp_path):
     commitar(repo, {"a.py": "1\n"}, "Início")
     commitar(repo, {"a.py": "2\n", "README.md": "x\n"}, "Código e doc")
     commitar(repo, {"README.md": "y\n"}, "Só doc")
-    assert mineracao.minerar(repo) == []
+    assert mining.minerar(repo) == []
 
 
 def test_commit_raiz_nao_vira_candidato(tmp_path):
     repo = novo_repo(tmp_path / "r")
     commitar(repo, {"a.py": "1\n", "tests/test_a.py": "assert 1\n"}, "Raiz")
-    assert mineracao.minerar(repo) == []
+    assert mining.minerar(repo) == []
 
 
 def test_teste_apagado_nao_entra_na_lista(tmp_path):
@@ -360,7 +360,7 @@ def test_teste_apagado_nao_entra_na_lista(tmp_path):
     commitar(repo, {"a.py": "1\n", "tests/test_velho.py": "assert 1\n"}, "Início")
     commitar(repo, {"a.py": "2\n", "tests/test_velho.py": None,
                     "tests/test_novo.py": "assert 1\n"}, "Troca o teste")
-    (c,) = mineracao.minerar(repo)
+    (c,) = mining.minerar(repo)
     assert c.arquivos_teste == ["tests/test_novo.py"]
 
 
@@ -368,15 +368,15 @@ def test_commit_que_so_apaga_teste_nao_vira_candidato(tmp_path):
     repo = novo_repo(tmp_path / "r")
     commitar(repo, {"a.py": "1\n", "tests/test_velho.py": "assert 1\n"}, "Início")
     commitar(repo, {"a.py": "2\n", "tests/test_velho.py": None}, "Apaga o teste")
-    assert mineracao.minerar(repo) == []
+    assert mining.minerar(repo) == []
 
 
 def test_padroes_configuraveis(tmp_path):
     repo = novo_repo(tmp_path / "r")
     commitar(repo, {"lib/a.rb": "1\n"}, "Início")
     s = commitar(repo, {"lib/a.rb": "2\n", "spec/a_spec.rb": "x\n"}, "Muda e testa")
-    assert mineracao.minerar(repo) == []
-    (c,) = mineracao.minerar(repo, padroes=["spec/*"])
+    assert mining.minerar(repo) == []
+    (c,) = mining.minerar(repo, padroes=["spec/*"])
     assert c.commit_solucao == s and c.arquivos_teste == ["spec/a_spec.rb"]
 
 
@@ -388,7 +388,7 @@ def test_merge_nao_vira_candidato(tmp_path):
     _git(repo, "checkout", "-q", "main")
     commitar(repo, {"b.py": "1\n"}, "Principal")
     _git(repo, "merge", "-q", "--no-edit", "lado")
-    cands = mineracao.minerar(repo)
+    cands = mining.minerar(repo)
     assert [c.commit_solucao for c in cands] == [lado]
 
 
@@ -397,7 +397,7 @@ def test_rascunho_tem_pedido_em_branco_e_assunto_nas_notas(tmp_path):
     c1 = commitar(repo, {"a.py": "1\n"}, "Início")
     c2 = commitar(repo, {"a.py": "2\n", "tests/test_a.py": "assert 1\n"},
                   "Corrige o cálculo do total")
-    (cand,) = mineracao.minerar(repo)
+    (cand,) = mining.minerar(repo)
 
     r = cand.rascunho(comando="python -m pytest -q")
 
@@ -421,7 +421,7 @@ def test_git_por_executor_injetavel(tmp_path):
         chamadas.append(list(argv))
         return real(argv, cwd)
 
-    cands = mineracao.minerar(repo, git=Git(repo, executor=registra))
+    cands = mining.minerar(repo, git=Git(repo, executor=registra))
     assert len(cands) == 1
     assert chamadas and all(a[0] == "git" for a in chamadas)
 
@@ -444,7 +444,7 @@ def test_executor_falso_sem_processo():
             return saidas[("log", argv[-1])]
         raise AssertionError(argv)
 
-    (c,) = mineracao.minerar(Path("/nao/existe"), git=Git(Path("/nao/existe"), executor=falso))
+    (c,) = mining.minerar(Path("/nao/existe"), git=Git(Path("/nao/existe"), executor=falso))
     assert (c.commit_base, c.commit_solucao, c.arquivos_teste) == ("c1", "c2", ["tests/test_a.py"])
 
 

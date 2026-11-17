@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 from functools import cache
 from pathlib import Path
 
-from dark import auditoria, inventario, leitor, ligacao, relatorio
+from dark import audit, inventory, reader, commit_linking, report
 
 _GIT_SO_LEITURA = {"GIT_OPTIONAL_LOCKS": "0"}
 
@@ -78,15 +78,15 @@ def _confirmar(pergunta: str) -> bool:
         return False
 
 
-def _inventario(repos: list[Path], args: argparse.Namespace) -> inventario.Inventario | None:
+def _inventario(repos: list[Path], args: argparse.Namespace) -> inventory.Inventario | None:
     """Inventário de cada repositório, juntado; o escopo do usuário entra uma vez."""
     existentes = [r for r in repos if r.is_dir()]
     if not existentes:
         return None
-    junto = inventario.Inventario()
+    junto = inventory.Inventario()
     vistos_p, vistos_pl, vistos_f = set(), set(), set()
     for r in existentes:
-        inv = inventario.inventariar(r, args.config, gerenciado=args.gerenciado)
+        inv = inventory.inventariar(r, args.config, gerenciado=args.gerenciado)
         for p in inv.pecas:
             chave = (p.tipo, p.escopo, p.nome, str(p.origem))
             if chave not in vistos_p:
@@ -111,7 +111,7 @@ def _auditar(args: argparse.Namespace) -> int:
     if not args.todos and args.caminho is None:
         args.caminho = Path.cwd()
     try:
-        ate = leitor.instante(args.ate) if args.ate else None
+        ate = reader.instante(args.ate) if args.ate else None
     except ValueError:
         print(f"dark auditar: --ate não é um horário ISO 8601: {args.ate}", file=sys.stderr)
         return 2
@@ -122,12 +122,12 @@ def _auditar(args: argparse.Namespace) -> int:
     raiz = None
     if not args.todos:
         alvo = Path(os.path.abspath(args.caminho))
-        raiz = leitor.raiz_git_de(alvo) if alvo.exists() else None
+        raiz = reader.raiz_git_de(alvo) if alvo.exists() else None
         if raiz is None:
             print(f"dark auditar: {args.caminho} não é um repositório git", file=sys.stderr)
             return 2
 
-    leitura = leitor.ler_tudo(args.config, ate=ate)
+    leitura = reader.ler_tudo(args.config, ate=ate)
 
     def fora(texto: str) -> bool:
         return any(x in texto for x in args.excluir_pasta)
@@ -136,16 +136,16 @@ def _auditar(args: argparse.Namespace) -> int:
     falhas = [f for f in leitura.falhas if not fora(str(f.arquivo))]
     diretorios: list[Path] = []
     if raiz is not None:
-        selecao = auditoria.selecionar(sessoes, raiz, identidade_git)
+        selecao = audit.selecionar(sessoes, raiz, identidade_git)
         sessoes, diretorios = selecao.sessoes, selecao.diretorios
-        pastas = ({auditoria.pasta_de_projeto(d) for d in diretorios}
+        pastas = ({audit.pasta_de_projeto(d) for d in diretorios}
                   | {s.pasta_projeto for s in sessoes})
-        falhas = auditoria.falhas_das_pastas(falhas, pastas)
+        falhas = audit.falhas_das_pastas(falhas, pastas)
 
     desde = None
     if args.dias is not None:
         desde = (ate or datetime.now(timezone.utc)) - timedelta(days=args.dias)
-        sessoes = auditoria.do_periodo(sessoes, desde)
+        sessoes = audit.do_periodo(sessoes, desde)
 
     # Inventário: o do repositório auditado, ou o de cada repositório das sessões.
     repos = [raiz] if raiz is not None else sorted(
@@ -153,12 +153,12 @@ def _auditar(args: argparse.Namespace) -> int:
     inv = _inventario(repos, args)
     # Git: só os repositórios das chamadas de commit das sessões selecionadas.
     validas = [s for s in sessoes if not s.so_comando_local]
-    lig = None if args.sem_git else ligacao.ligar(validas)
+    lig = None if args.sem_git else commit_linking.ligar(validas)
 
-    resultado = auditoria.auditar(sessoes, falhas, repositorio=raiz, diretorios=diretorios,
-                                  desde=desde, ate=ate, inventario=inv, ligacao=lig,
+    resultado = audit.auditar(sessoes, falhas, repositorio=raiz, diretorios=diretorios,
+                                  desde=desde, ate=ate, inventory=inv, commit_linking=lig,
                                   sem_git=args.sem_git)
-    texto = relatorio.markdown(resultado)
+    texto = report.markdown(resultado)
     codigo = 1 if falhas and not sessoes else 0
 
     if args.saida is None:

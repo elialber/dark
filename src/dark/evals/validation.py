@@ -19,7 +19,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .caso import Caso
+from .case import Caso
 from .git import ErroGit, Executor, Git, executor_padrao
 
 # Códigos com que o shell diz que não conseguiu executar o comando.
@@ -48,7 +48,7 @@ class Execucao:
 
 @dataclass
 class Resultado:
-    caso: str
+    case: str
     valido: bool
     motivo: Motivo | None = None
     detalhe: str = ""
@@ -104,20 +104,20 @@ def _preparar(git: Git, commit: str, arquivos: list[str], de: str | None) -> Non
         git("checkout", de, "--", *arquivos)
 
 
-def validar(caso: Caso, repo: Path, *, dir_trabalho: Path | None = None,
+def validar(case: Caso, repo: Path, *, dir_trabalho: Path | None = None,
             executor: Executor = executor_padrao) -> Resultado:
     inicio = time.monotonic()
-    res = Resultado(caso=caso.id, valido=False)
+    res = Resultado(case=case.id, valido=False)
     origem = Path(repo).resolve()
-    de = caso.aceite.origem_arquivos(caso)
+    de = case.aceite.origem_arquivos(case)
 
-    if caso.aceite.arquivos and not de:
+    if case.aceite.arquivos and not de:
         return _fim(res, inicio, Motivo.ERRO_DE_PREPARACAO,
                     "aceite.arquivos sem commit de origem")
 
-    etapas = [("base", caso.commit_base)]
-    if caso.commit_solucao:
-        etapas.append(("solucao", caso.commit_solucao))
+    etapas = [("base", case.commit_base)]
+    if case.commit_solucao:
+        etapas.append(("solucao", case.commit_solucao))
 
     with tempfile.TemporaryDirectory(prefix="dark-eval-", dir=dir_trabalho) as tmp:
         copia = Path(tmp) / "repo"
@@ -133,16 +133,16 @@ def validar(caso: Caso, repo: Path, *, dir_trabalho: Path | None = None,
 
         for rotulo, commit in etapas:
             try:
-                _preparar(git, commit, caso.aceite.arquivos, de)
+                _preparar(git, commit, case.aceite.arquivos, de)
             except ErroGit as e:
                 return _fim(res, inicio, Motivo.ERRO_DE_PREPARACAO, f"{rotulo}: {e}")
             codigo, dur, esgotou, nao_rodou, saida = rodar_aceite(
-                caso.aceite.comando, copia, caso.aceite.tempo_limite)
+                case.aceite.comando, copia, case.aceite.tempo_limite)
             res.execucoes.append(Execucao(rotulo, commit, codigo, dur, esgotou,
                                           nao_rodou, saida))
             if esgotou:
                 return _fim(res, inicio, Motivo.TEMPO_ESGOTADO,
-                            f"{rotulo}: passou de {caso.aceite.tempo_limite}s")
+                            f"{rotulo}: passou de {case.aceite.tempo_limite}s")
             if nao_rodou:
                 return _fim(res, inicio, Motivo.COMANDO_NAO_RODA,
                             f"{rotulo}: {saida.strip()[-300:]}")
@@ -168,7 +168,7 @@ def _fim(res: Resultado, inicio: float, motivo: Motivo, detalhe: str) -> Resulta
 
 def descrever(res: Resultado) -> str:
     """Texto curto para a linha de comando."""
-    linhas = [f"caso {res.caso}: " + ("VÁLIDO" if res.valido else
+    linhas = [f"caso {res.case}: " + ("VÁLIDO" if res.valido else
                                       f"INVÁLIDO ({res.motivo.value})")]
     if res.detalhe:
         linhas.append(f"  detalhe: {res.detalhe}")

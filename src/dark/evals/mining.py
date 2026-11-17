@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from fnmatch import fnmatchcase
 from pathlib import Path
 
-from .caso import Aceite, Caso
+from .case import Aceite, Caso
 from .git import Git
 
 # fnmatch: "*" casa também com "/".

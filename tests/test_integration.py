@@ -22,9 +22,9 @@ from pathlib import Path
 
 import pytest
 
-from dark import auditoria, cli, historico, indicadores, inventario, leitor, ligacao, origem
-from dark import relatorio
-from dark.inventario import Descricao, DetalheInstrucao, Inventario, Peca, Plugin
+from dark import audit, cli, git_history, indicators, inventory, reader, commit_linking, provenance
+from dark import report
+from dark.inventory import Descricao, DetalheInstrucao, Inventario, Peca, Plugin
 
 CONFIG = Path(__file__).parent / "fixtures" / "config"
 
@@ -123,7 +123,7 @@ FERRAMENTAS = [ferramenta("Bash", 50), ferramenta("Read", 30),
                ferramenta("mcp__servidor-a__buscar", 20)]
 
 
-def sessao_com_primeiro_pedido(tmp_path) -> leitor.Sessao:
+def sessao_com_primeiro_pedido(tmp_path) -> reader.Sessao:
     t = Transcricao()
     t.meta("mode", mode="normal")
     t.pedido(0, "P1", "abcdefghij")                                    # 10 caracteres
@@ -149,7 +149,7 @@ def sessao_com_primeiro_pedido(tmp_path) -> leitor.Sessao:
     t.forma(4, sistema("w" * 999), FERRAMENTAS + [ferramenta("Outra", 999)])
     t.pedido(5, "P2", "segundo pedido, mais longo que o primeiro")
     t.resposta(6, "msg-2", [{"type": "text", "text": "ok"}])
-    return leitor.ler_sessao(t.gravar(tmp_path / "p" / "s.jsonl"), [],
+    return reader.ler_sessao(t.gravar(tmp_path / "p" / "s.jsonl"), [],
                              raiz_git=lambda _: None)
 
 
@@ -183,7 +183,7 @@ def test_sem_forma_da_requisicao_o_sistema_e_as_ferramentas_ficam_sem_dado(tmp_p
     t.pedido(0, "P1", "oi")
     t.anexo(0, "skill_listing", content="s" * 40, names=["a"])
     t.resposta(1, "msg-1", [{"type": "text", "text": "ok"}])
-    p = leitor.ler_sessao(t.gravar(tmp_path / "p" / "s.jsonl"), [],
+    p = reader.ler_sessao(t.gravar(tmp_path / "p" / "s.jsonl"), [],
                           raiz_git=lambda _: None).partes_iniciais
     assert (p.sistema, p.ferramentas, p.ferramentas_mcp) == (None, None, None)
     assert p.anexos == {"skill_listing": 40} and p.pedido == 2
@@ -193,12 +193,12 @@ def test_sem_resposta_de_modelo_nao_ha_partes_iniciais(tmp_path):
     t = Transcricao()
     t.pedido(0, "P1", "oi")
     t.anexo(0, "skill_listing", content="s" * 40, names=["a"])
-    s = leitor.ler_sessao(t.gravar(tmp_path / "p" / "s.jsonl"), [], raiz_git=lambda _: None)
+    s = reader.ler_sessao(t.gravar(tmp_path / "p" / "s.jsonl"), [], raiz_git=lambda _: None)
     assert s.contexto_inicial is None and s.partes_iniciais is None
 
 
 def test_fork_nao_tem_partes_iniciais():
-    sessoes = {s.id: s for s in leitor.ler_tudo(CONFIG).sessoes}
+    sessoes = {s.id: s for s in reader.ler_tudo(CONFIG).sessoes}
     assert sessoes["aaaaaaaa-0000-4000-8000-000000000004"].partes_iniciais is None
 
 
@@ -215,14 +215,14 @@ def test_amend_e_decidido_pelo_comando_e_o_kind_fica_a_parte(tmp_path):
     t.bash(5, "t2", "git commit --amend --no-edit", "[main def5678] y", {
         "stdout": "[main def5678] y",
         "gitOperation": {"commit": {"sha": "def5678", "kind": "committed"}}})
-    s = leitor.ler_sessao(t.gravar(tmp_path / "p" / "s.jsonl"), [], raiz_git=lambda _: None)
+    s = reader.ler_sessao(t.gravar(tmp_path / "p" / "s.jsonl"), [], raiz_git=lambda _: None)
     c1, c2 = s.chamada("t1").commit, s.chamada("t2").commit
     assert (c1.amend, c1.kind_registrado) == (False, "amended")
     assert (c2.amend, c2.kind_registrado) == (True, "committed")
 
 
 def test_tipos_de_subagente_embutidos_vem_do_anuncio():
-    s6 = {s.id: s for s in leitor.ler_tudo(CONFIG).sessoes}[
+    s6 = {s.id: s for s in reader.ler_tudo(CONFIG).sessoes}[
         "aaaaaaaa-0000-4000-8000-000000000006"]
     assert s6.disponivel.tipos_embutidos == {"Explore"}
     assert "Explore" in s6.disponivel.tipos_subagente        # continua na lista toda
@@ -237,7 +237,7 @@ def _sessao_de_comando_local(tmp_path, nome, com_resposta=False, sintetica=False
     if com_resposta:
         t.resposta(1, f"msg-{nome}", [{"type": "text", "text": "ok"}],
                    modelo="<synthetic>" if sintetica else "claude-exemplo-1")
-    return leitor.ler_sessao(t.gravar(tmp_path / nome / "s.jsonl"), [],
+    return reader.ler_sessao(t.gravar(tmp_path / nome / "s.jsonl"), [],
                              raiz_git=lambda _: None)
 
 
@@ -247,7 +247,7 @@ def test_sessao_de_comando_local_e_marcada(tmp_path):
     assert _sessao_de_comando_local(tmp_path, "b", com_resposta=True,
                                     sintetica=True).so_comando_local
     assert not _sessao_de_comando_local(tmp_path, "c", com_resposta=True).so_comando_local
-    normal = {s.id: s for s in leitor.ler_tudo(CONFIG).sessoes}
+    normal = {s.id: s for s in reader.ler_tudo(CONFIG).sessoes}
     assert not any(s.so_comando_local for s in normal.values())
 
 
@@ -279,7 +279,7 @@ PECAS = [
 PLUGINS = [Plugin("plugin-exemplo@mercado", "user", Path("/inv/plug"), True),
            Plugin("plugin-desligado@mercado", "user", Path("/inv/off"), False)]
 
-ANUNCIADOS = origem.Anunciados(
+ANUNCIADOS = provenance.Anunciados(
     skills={"skill-projeto", "skill-usuario", "plugin-exemplo:skill-plugin",
             "conta-exemplo:skill-da-conta", "skill-embutida",
             "plugin-desligado:skill-sumida"},
@@ -292,7 +292,7 @@ ANUNCIADOS = origem.Anunciados(
 
 @pytest.fixture
 def origens():
-    return origem.classificar(ANUNCIADOS, PECAS, PLUGINS)
+    return provenance.classificar(ANUNCIADOS, PECAS, PLUGINS)
 
 
 def test_origem_das_skills(origens):
@@ -301,27 +301,27 @@ def test_origem_das_skills(origens):
         "projeto", Path("/inv/projeto/skill/skill-projeto.md"))
     assert o["skill-usuario"].origem == "usuario"
     assert o["plugin-exemplo:skill-plugin"].origem == "plugin"
-    assert o["conta-exemplo:skill-da-conta"] == origem.Origem("conta")
-    assert o["skill-embutida"] == origem.Origem("embutida")
+    assert o["conta-exemplo:skill-da-conta"] == provenance.Origem("conta")
+    assert o["skill-embutida"] == provenance.Origem("embutida")
     # Prefixo de um plugin instalado, mas sem arquivo ativo: não é da conta.
-    assert o["plugin-desligado:skill-sumida"] == origem.Origem("sem_arquivo")
+    assert o["plugin-desligado:skill-sumida"] == provenance.Origem("sem_arquivo")
 
 
 def test_origem_dos_tipos_de_subagente(origens):
     o = origens.tipos_subagente
     assert o["agente-projeto"].origem == "projeto" and o["agente-projeto"].caminho
-    assert o["Explore"] == origem.Origem("embutida")       # o próprio anúncio diz
-    assert o["agente-sumido"] == origem.Origem("sem_arquivo")
+    assert o["Explore"] == provenance.Origem("embutida")       # o próprio anúncio diz
+    assert o["agente-sumido"] == provenance.Origem("sem_arquivo")
 
 
 def test_origem_dos_servidores_e_das_ferramentas(origens):
     s = origens.servidores_mcp
     assert s["servidor-a"].origem == "projeto"
-    assert s["claude_ai_Exemplo"] == origem.Origem("conta")
+    assert s["claude_ai_Exemplo"] == provenance.Origem("conta")
     assert s["plugin_plugin-exemplo_servidor-p"].origem == "plugin"
-    assert s["servidor-sumido"] == origem.Origem("sem_arquivo")
+    assert s["servidor-sumido"] == provenance.Origem("sem_arquivo")
     f = origens.ferramentas
-    assert f["Bash"] == f["WebFetch"] == origem.Origem("embutida")
+    assert f["Bash"] == f["WebFetch"] == provenance.Origem("embutida")
     assert f["mcp__servidor-a__criar"] == s["servidor-a"]
     assert f["mcp__claude_ai_Exemplo__ler"].origem == "conta"
 
@@ -329,9 +329,9 @@ def test_origem_dos_servidores_e_das_ferramentas(origens):
 def test_so_o_que_tem_arquivo_o_usuario_pode_mudar(origens):
     mutaveis = {n for n, o in origens.skills.items() if o.mutavel}
     assert mutaveis == {"skill-projeto", "skill-usuario", "plugin-exemplo:skill-plugin"}
-    assert not origem.Origem("sem_arquivo").mutavel
-    assert origem.Origem("gerenciado", Path("/etc/x")).mutavel
-    assert {o for o in origem.ORIGENS if origem.Origem(o).plataforma} == {"conta", "embutida"}
+    assert not provenance.Origem("sem_arquivo").mutavel
+    assert provenance.Origem("gerenciado", Path("/etc/x")).mutavel
+    assert {o for o in provenance.ORIGENS if provenance.Origem(o).plataforma} == {"conta", "embutida"}
 
 
 def test_soma_por_origem_fecha_com_o_total_anunciado(origens):
@@ -351,8 +351,8 @@ def test_instaladas_e_nao_anunciadas(origens):
 
 
 def test_anunciados_e_a_uniao_das_sessoes():
-    sessoes = leitor.ler_tudo(CONFIG).sessoes
-    a = origem.anunciados_de(sessoes)
+    sessoes = reader.ler_tudo(CONFIG).sessoes
+    a = provenance.anunciados_de(sessoes)
     assert "plugin:outra-skill" in a.skills and a.tipos_embutidos == {"Explore"}
     assert a.servidores_mcp == {"servidor-a", "servidor-b"}
 
@@ -362,18 +362,18 @@ def test_anunciados_e_a_uniao_das_sessoes():
 # ==========================================================================
 
 def _sessao_com_partes(sid, medido, partes):
-    return leitor.Sessao(id=sid, caminho=Path(f"/{sid}"), pasta_projeto="p",
+    return reader.Sessao(id=sid, caminho=Path(f"/{sid}"), pasta_projeto="p",
                          contexto_inicial=medido, partes_iniciais=partes)
 
 
 def test_reparticao_em_grupos_com_fator_declarado():
-    partes = leitor.PartesIniciais(
+    partes = reader.PartesIniciais(
         sistema=360, ferramentas=720, ferramentas_mcp=36, pedido=36,
         anexos={"skill_listing": 180, "agent_listing_delta": 36,
                 "deferred_tools_delta": 72, "mcp_instructions_delta": 36,
                 "instructions": 72, "hook_success": 36, "environment": 36})
-    r = indicadores.reparticao([_sessao_com_partes("s1", 1000, partes)])
-    assert r.fator == indicadores.FATOR_CARACTERES_POR_TOKEN == 3.6
+    r = indicators.reparticao([_sessao_com_partes("s1", 1000, partes)])
+    assert r.fator == indicators.FATOR_CARACTERES_POR_TOKEN == 3.6
     assert r.soma("prompt de sistema") == pytest.approx(100)
     assert r.soma("ferramentas embutidas") == pytest.approx(200)
     assert r.soma("outros anexos") == pytest.approx(10)
@@ -388,11 +388,11 @@ def test_reparticao_em_grupos_com_fator_declarado():
 
 
 def test_reparticao_so_com_os_dois_dados():
-    partes = leitor.PartesIniciais(sistema=36, ferramentas=0, ferramentas_mcp=0,
+    partes = reader.PartesIniciais(sistema=36, ferramentas=0, ferramentas_mcp=0,
                                    pedido=0, anexos={})
-    sem_forma = leitor.PartesIniciais(sistema=None, ferramentas=None, ferramentas_mcp=None,
+    sem_forma = reader.PartesIniciais(sistema=None, ferramentas=None, ferramentas_mcp=None,
                                       pedido=3, anexos={"skill_listing": 10})
-    r = indicadores.reparticao([
+    r = indicators.reparticao([
         _sessao_com_partes("com", 100, partes),
         _sessao_com_partes("sem-forma", 200, sem_forma),
         _sessao_com_partes("fork", None, None)])
@@ -402,9 +402,9 @@ def test_reparticao_so_com_os_dois_dados():
 
 
 def test_nao_explicado_negativo_fica_como_esta():
-    partes = leitor.PartesIniciais(sistema=3600, ferramentas=0, ferramentas_mcp=0,
+    partes = reader.PartesIniciais(sistema=3600, ferramentas=0, ferramentas_mcp=0,
                                    pedido=0, anexos={})
-    r = indicadores.reparticao([_sessao_com_partes("s", 500, partes)])
+    r = indicators.reparticao([_sessao_com_partes("s", 500, partes)])
     assert r.nao_explicado == pytest.approx(-500)
 
 
@@ -419,8 +419,8 @@ def test_resumo_do_instalado():
         peca("instrucao", "usuario", "CLAUDE.md", itens=2, com_motivo=0, caracteres=100),
         peca("instrucao", "projeto", "web/CLAUDE.md", itens=9, com_motivo=9,
              sob_demanda=True)],
-        plugins=PLUGINS, falhas=[inventario.Falha(Path("/x"), "ruim")])
-    i = auditoria.instalado(inv)
+        plugins=PLUGINS, falhas=[inventory.Falha(Path("/x"), "ruim")])
+    i = audit.instalado(inv)
     assert i.contagem[("skill", "usuario")] == 2
     assert i.contagem[("mcp", "plugin")] == 1
     assert (i.plugins_ativos, i.plugins) == (1, 2)
@@ -435,10 +435,10 @@ def test_resumo_do_instalado():
 # ==========================================================================
 
 def test_sessao_de_comando_local_nao_entra_nos_indicadores(tmp_path):
-    normais = leitor.ler_tudo(CONFIG).sessoes
+    normais = reader.ler_tudo(CONFIG).sessoes
     so = _sessao_de_comando_local(tmp_path, "local")
-    a = auditoria.auditar([*normais, so])
-    b = auditoria.auditar(normais)
+    a = audit.auditar([*normais, so])
+    b = audit.auditar(normais)
     assert a.excluidas_comando_local == 1 and b.excluidas_comando_local == 0
     assert a.sessoes == b.sessoes
     assert a.peso_fixo.sem_dado == b.peso_fixo.sem_dado
@@ -458,12 +458,12 @@ def _inventario_s6():
 
 @pytest.fixture
 def s6():
-    return [s for s in leitor.ler_tudo(CONFIG).sessoes
+    return [s for s in reader.ler_tudo(CONFIG).sessoes
             if s.id == "aaaaaaaa-0000-4000-8000-000000000006"]
 
 
 def test_peso_morto_em_o_que_chama_atencao_conta_so_o_que_tem_arquivo(s6):
-    a = auditoria.auditar(s6, inventario=_inventario_s6())
+    a = audit.auditar(s6, inventory=_inventario_s6())
     achados = {x.regra: x.valores for x in a.achados}
     # skills nunca usadas: nunca-usada (projeto); as outras têm uso
     assert achados["peso_morto.skills"]["nunca_usados"] == 1
@@ -477,7 +477,7 @@ def test_peso_morto_em_o_que_chama_atencao_conta_so_o_que_tem_arquivo(s6):
 
 
 def test_plataforma_fica_em_linha_a_parte(s6):
-    a = auditoria.auditar(s6, inventario=_inventario_s6())
+    a = audit.auditar(s6, inventory=_inventario_s6())
     p = a.plataforma
     assert p["skills"] == 1                     # plugin:outra-skill: prefixo, sem arquivo
     assert p["tipos_subagente"] == 1            # Explore
@@ -487,7 +487,7 @@ def test_plataforma_fica_em_linha_a_parte(s6):
 
 
 def test_sem_inventario_a_regra_conta_tudo_como_antes(s6):
-    a = auditoria.auditar(s6)
+    a = audit.auditar(s6)
     assert a.origens is None and a.plataforma is None
     achados = {x.regra: x.valores for x in a.achados}
     assert achados["peso_morto.skills"]["nunca_usados"] == len(a.peso_morto.skills.nunca_usados)
@@ -496,7 +496,7 @@ def test_sem_inventario_a_regra_conta_tudo_como_antes(s6):
 def test_regra_nao_dispara_quando_so_a_plataforma_tem_peca_sem_uso(s6):
     inv = Inventario(pecas=[peca("skill", "projeto", n) for n in
                             ("exemplo-skill", "por-comando")])
-    a = auditoria.auditar(s6, inventario=inv)
+    a = audit.auditar(s6, inventory=inv)
     regras = {x.regra for x in a.achados}
     assert "peso_morto.skills" not in regras          # nunca-usada não tem arquivo
     assert a.nunca_usados_por_origem["skills"]["embutida"] == ["nunca-usada"]
@@ -537,7 +537,7 @@ def _sessao_de_commits(tmp_path, cwd, passos, sid="sess-commits"):
     t.pedido(0, "P1", "commits")
     for p in passos:
         t.bash(**p)
-    return leitor.ler_sessao(t.gravar(tmp_path / "proj" / f"{sid}.jsonl"), [],
+    return reader.ler_sessao(t.gravar(tmp_path / "proj" / f"{sid}.jsonl"), [],
                              raiz_git=lambda _: None)
 
 
@@ -554,7 +554,7 @@ def test_ligacao_por_hash_por_janela_ambigua_e_sem_ligacao(tmp_path, repo):
         dict(seg=30, tool_id="t-ambigua", comando="git commit -q -m c", ate=3),
         dict(seg=40, tool_id="t-nada", comando="git commit -q -m d"),
     ])
-    lig = ligacao.ligar([s])
+    lig = commit_linking.ligar([s])
     por = {x.chamada: x for x in lig.ligacoes}
     assert por["t-hash"].forma == "hash" and por["t-hash"].commits == (h_hash,)
     assert por["t-janela"].forma == "janela" and por["t-janela"].commits == (h_janela,)
@@ -570,14 +570,14 @@ def test_comando_com_dois_commits_liga_os_dois(tmp_path, repo):
     b = commit_em(repo, BASE + timedelta(seconds=11))
     s = _sessao_de_commits(tmp_path, repo, [
         dict(seg=10, tool_id="t", comando="git commit -q -m a && git commit -q -m b")])
-    (x,) = ligacao.ligar([s]).ligacoes
+    (x,) = commit_linking.ligar([s]).ligacoes
     assert x.forma == "janela" and set(x.commits) == {a, b}
 
 
 def test_repositorio_que_nao_existe_mais_fica_sem_ligacao(tmp_path):
     s = _sessao_de_commits(tmp_path, tmp_path / "sumiu", [
         dict(seg=10, tool_id="t", comando="git commit -q -m a")])
-    (x,) = ligacao.ligar([s]).ligacoes
+    (x,) = commit_linking.ligar([s]).ligacoes
     assert (x.forma, x.motivo) == ("sem_ligacao", "repositório ausente")
 
 
@@ -594,7 +594,7 @@ def test_git_e_o_arbitro_do_amend(tmp_path, repo):
         dict(seg=29.5, tool_id="t-heredoc", comando=heredoc, estruturado={
             "stdout": "", "gitOperation": {"commit": {"sha": falso, "kind": "amended"}}}),
     ])
-    lig = ligacao.ligar([s])
+    lig = commit_linking.ligar([s])
     por = {x.chamada: x for x in lig.ligacoes}
     assert por["t-amend"].commits == (novo,)
     assert (por["t-amend"].amend_comando, por["t-amend"].amend_git) == (True, True)
@@ -609,7 +609,7 @@ def test_git_e_o_arbitro_do_amend(tmp_path, repo):
 def test_sem_repositorio_o_amend_e_o_do_comando(tmp_path):
     s = _sessao_de_commits(tmp_path, tmp_path / "sumiu", [
         dict(seg=10, tool_id="t", comando="git commit --amend -q --no-edit")])
-    lig = ligacao.ligar([s])
+    lig = commit_linking.ligar([s])
     (x,) = lig.ligacoes
     assert (x.amend_comando, x.amend_git, x.amend) == (True, None, True)
     assert lig.amends == 1
@@ -622,7 +622,7 @@ def test_reversao_dos_commits_ligados(tmp_path, repo):
         env={"GIT_AUTHOR_DATE": data, "GIT_COMMITTER_DATE": data})
     s = _sessao_de_commits(tmp_path, repo, [
         dict(seg=9.5, tool_id="t", comando="git commit -q -m a")])
-    lig = ligacao.ligar([s])
+    lig = commit_linking.ligar([s])
     assert lig.revertidos == {alvo}
 
 
@@ -631,13 +631,13 @@ def test_so_consulta_os_repositorios_das_sessoes_recebidas(tmp_path, repo):
 
     def abrir(caminho, **kw):
         abertos.append(Path(caminho))
-        return historico.abrir(caminho, **kw)
+        return git_history.abrir(caminho, **kw)
 
     commit_em(repo, BASE + timedelta(seconds=10))
     s = _sessao_de_commits(tmp_path, repo, [
         dict(seg=10, tool_id="t1", comando="git commit -q -m a"),
         dict(seg=20, tool_id="t2", comando="git commit -q -m b")])
-    ligacao.ligar([s], abrir=abrir)
+    commit_linking.ligar([s], abrir=abrir)
     assert abertos == [repo]                  # um repositório, aberto uma vez
 
 
@@ -646,11 +646,11 @@ def test_historico_diz_o_que_um_commit_substituiu(repo):
     git("commit", "-q", "--amend", "--no-edit", cwd=repo,
         env={"GIT_COMMITTER_DATE": (BASE + timedelta(seconds=20)).isoformat()})
     novo = git("rev-parse", "HEAD", cwd=repo)
-    r = historico.abrir(repo)
-    sub = historico.substituidos(r, novo)
+    r = git_history.abrir(repo)
+    sub = git_history.substituidos(r, novo)
     assert sub.substitui and [o.hash for o in sub.originais] == [original]
     assert set(sub.originais[0].evidencias) == {"reflog", "estrutura"}
-    assert not historico.substituidos(r, original).substitui
+    assert not git_history.substituidos(r, original).substitui
 
 
 # ==========================================================================
@@ -659,20 +659,20 @@ def test_historico_diz_o_que_um_commit_substituiu(repo):
 
 @pytest.fixture
 def texto_integrado(s6, tmp_path):
-    sessoes = [*leitor.ler_tudo(CONFIG).sessoes, _sessao_de_comando_local(tmp_path, "loc")]
-    lig = ligacao.LigacaoCommits(ligacoes=[
-        ligacao.Ligacao("s", "a", "hash", ("a" * 40,), Path("/r"), None, False, None, False),
-        ligacao.Ligacao("s", "b", "janela", ("b" * 40,), Path("/r"), None, True, None, True),
-        ligacao.Ligacao("s", "c", "ambigua", ("c" * 40, "d" * 40), Path("/r"), None,
+    sessoes = [*reader.ler_tudo(CONFIG).sessoes, _sessao_de_comando_local(tmp_path, "loc")]
+    lig = commit_linking.LigacaoCommits(ligacoes=[
+        commit_linking.Ligacao("s", "a", "hash", ("a" * 40,), Path("/r"), None, False, None, False),
+        commit_linking.Ligacao("s", "b", "janela", ("b" * 40,), Path("/r"), None, True, None, True),
+        commit_linking.Ligacao("s", "c", "ambigua", ("c" * 40, "d" * 40), Path("/r"), None,
                         False, "amended", None),
-        ligacao.Ligacao("s", "d", "sem_ligacao", (), None, "repositório ausente",
+        commit_linking.Ligacao("s", "d", "sem_ligacao", (), None, "repositório ausente",
                         False, None, None)],
         revertidos={"a" * 40}, substituidos=set())
     inv = _inventario_s6()
     inv.pecas.append(peca("instrucao", "projeto", "CLAUDE.md", itens=4, com_motivo=1))
-    a = auditoria.auditar(sessoes, repositorio=Path("/repo/alfa"),
-                          diretorios=[Path("/repo/alfa")], inventario=inv, ligacao=lig)
-    return relatorio.markdown(a)
+    a = audit.auditar(sessoes, repositorio=Path("/repo/alfa"),
+                          diretorios=[Path("/repo/alfa")], inventory=inv, commit_linking=lig)
+    return report.markdown(a)
 
 
 def secao(texto, titulo):
@@ -728,10 +728,10 @@ def test_peso_morto_por_origem_sem_minimo(texto_integrado):
 
 def test_lista_longa_vai_para_o_apendice():
     nomes = {f"skill-{i:02d}" for i in range(12)}
-    s = leitor.Sessao(id="s", caminho=Path("/s"), pasta_projeto="p",
-                      disponivel=leitor.Disponivel(skills=nomes))
-    a = auditoria.auditar([s])
-    t = relatorio.markdown(a)
+    s = reader.Sessao(id="s", caminho=Path("/s"), pasta_projeto="p",
+                      disponivel=reader.Disponivel(skills=nomes))
+    a = audit.auditar([s])
+    t = report.markdown(a)
     corpo = secao(t, "Peso morto")
     assert "skill-00" in corpo and "skill-11" not in corpo
     assert "e mais 7" in corpo
@@ -754,8 +754,8 @@ def test_commits_ligados(texto_integrado):
 
 
 def test_relatorio_sem_git_diz_que_a_consulta_foi_pulada(s6):
-    a = auditoria.auditar(s6, sem_git=True)
-    bloco = secao(relatorio.markdown(a), "Commits")
+    a = audit.auditar(s6, sem_git=True)
+    bloco = secao(report.markdown(a), "Commits")
     assert "--sem-git" in bloco
 
 
@@ -772,7 +772,7 @@ def _config_com_sessao(tmp_path, repo):
     t.forma(0, sistema("p" * 36), [ferramenta("Bash")])
     t.resposta(1, "msg-1", [{"type": "text", "text": "ok"}], entrada=500)
     t.bash(2, "t1", "git commit -q -m x")
-    t.gravar(cfg / "projects" / auditoria.pasta_de_projeto(repo) / "sess-cli.jsonl")
+    t.gravar(cfg / "projects" / audit.pasta_de_projeto(repo) / "sess-cli.jsonl")
     return cfg
 
 
@@ -817,8 +817,8 @@ def test_sem_git_nao_consulta_o_historico(tmp_path, repo, monkeypatch, capsys):
     def proibido(*a, **k):
         raise AssertionError("o histórico git não devia ser consultado")
 
-    monkeypatch.setattr(historico, "abrir", proibido)
-    monkeypatch.setattr(ligacao, "ligar", proibido)
+    monkeypatch.setattr(git_history, "abrir", proibido)
+    monkeypatch.setattr(commit_linking, "ligar", proibido)
     assert cli.main(["auditar", str(repo), "--config", str(cfg), "--sem-git",
                      "--gerenciado", str(tmp_path / "nada")]) == 0
     assert "--sem-git" in secao(capsys.readouterr().out, "Commits")

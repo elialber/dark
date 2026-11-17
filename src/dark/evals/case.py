@@ -29,8 +29,8 @@ class Aceite:
     arquivos_de: str | None = None
     tempo_limite: int = TEMPO_LIMITE_PADRAO
 
-    def origem_arquivos(self, caso: "Caso") -> str | None:
-        return self.arquivos_de or caso.commit_solucao
+    def origem_arquivos(self, case: "Caso") -> str | None:
+        return self.arquivos_de or case.commit_solucao
 
 
 @dataclass

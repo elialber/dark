@@ -14,10 +14,10 @@ import re
 from collections import Counter
 from datetime import datetime
 
-from dark import indicadores as ind
-from dark import leitor
-from dark import origem as org
-from dark.auditoria import MODOS_SEM_REJEICAO, Achado, Auditoria
+from dark import indicators as ind
+from dark import reader
+from dark import provenance as org
+from dark.audit import MODOS_SEM_REJEICAO, Achado, Auditoria
 
 TITULO = "Auditoria do harness"
 
@@ -303,11 +303,11 @@ def _reparticao(a: Auditoria) -> list[str]:
 
 def _nunca_usadas_ferramentas(c: ind.Categoria) -> list[str]:
     """Ferramentas comuns por nome; as MCP agrupadas por servidor."""
-    comuns = sorted(x for x in c.nunca_usados if not leitor.servidor_mcp(x))
-    por_servidor_nunca = Counter(leitor.servidor_mcp(x) for x in c.nunca_usados
-                                 if leitor.servidor_mcp(x))
-    por_servidor_todas = Counter(leitor.servidor_mcp(x) for x in c.disponiveis
-                                 if leitor.servidor_mcp(x))
+    comuns = sorted(x for x in c.nunca_usados if not reader.servidor_mcp(x))
+    por_servidor_nunca = Counter(reader.servidor_mcp(x) for x in c.nunca_usados
+                                 if reader.servidor_mcp(x))
+    por_servidor_todas = Counter(reader.servidor_mcp(x) for x in c.disponiveis
+                                 if reader.servidor_mcp(x))
     linhas = []
     if comuns:
         linhas.append(f"  - nunca usadas: {primeiros(comuns)}")
@@ -527,7 +527,7 @@ def _commits(a: Auditoria) -> list[str]:
 def _ligacao(a: Auditoria) -> list[str]:
     if a.sem_git:
         return ["- Ligação aos commits do repositório: consulta ao git pulada (`--sem-git`)."]
-    lig = a.ligacao
+    lig = a.commit_linking
     if lig is None:
         return []
     f = lig.por_forma()

@@ -1245,7 +1245,7 @@ def agregados(sessoes: Iterable[Sessao]) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     analisador = argparse.ArgumentParser(
-        prog="python -m dark.leitor",
+        prog="python -m dark.reader",
         description="Lê as transcrições e imprime os agregados de conferência.")
     analisador.add_argument("--config", type=Path, default=None,
                             help="diretório de configuração (padrão: CLAUDE_CONFIG_DIR ou ~/.claude)")

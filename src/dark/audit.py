@@ -17,11 +17,11 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from dark import indicadores as ind
-from dark import origem as org
-from dark.inventario import Inventario
-from dark.leitor import Desconhecidos, Falha, Sessao
-from dark.ligacao import LigacaoCommits
+from dark import indicators as ind
+from dark import provenance as org
+from dark.inventory import Inventario
+from dark.reader import Desconhecidos, Falha, Sessao
+from dark.commit_linking import LigacaoCommits
 
 # Modos em que o usuário não é consultado antes da ferramenta rodar: a
 # rejeição de ferramenta, um dos sinais de intervenção, não tem como
@@ -177,7 +177,7 @@ class Auditoria:
     plataforma: dict[str, int] | None = None     # anunciados de origem plataforma
     instalado: Instalado | None = None
     nao_anunciados: dict[str, list] | None = None
-    ligacao: LigacaoCommits | None = None
+    commit_linking: LigacaoCommits | None = None
     sem_git: bool = False
 
     def origem(self, categoria: str, nome: str) -> org.Origem | None:
@@ -239,7 +239,7 @@ def _origem_de(origens: org.Origens) -> dict[str, dict[str, org.Origem]]:
 def auditar(sessoes: Iterable[Sessao], falhas: Iterable[Falha] = (), *,
             repositorio: Path | None = None, diretorios: Iterable[Path] = (),
             desde: datetime | None = None, ate: datetime | None = None,
-            inventario: Inventario | None = None, ligacao: LigacaoCommits | None = None,
+            inventory: Inventario | None = None, commit_linking: LigacaoCommits | None = None,
             sem_git: bool = False) -> Auditoria:
     todas = list(sessoes)
     # Sessão de comando local (lote 006) não entra em nenhum indicador.
@@ -261,14 +261,14 @@ def auditar(sessoes: Iterable[Sessao], falhas: Iterable[Falha] = (), *,
         intervencoes=ind.intervencoes(sessoes), hooks=ind.hooks(sessoes),
         commits=ind.commits(sessoes), desde=desde, ate=ate,
         excluidas_comando_local=len(todas) - len(sessoes),
-        reparticao=ind.reparticao(sessoes), ligacao=ligacao, sem_git=sem_git)
-    if inventario is not None:
-        a.origens = org.classificar(org.anunciados_de(sessoes), inventario.pecas,
-                                    inventario.plugins)
+        reparticao=ind.reparticao(sessoes), commit_linking=commit_linking, sem_git=sem_git)
+    if inventory is not None:
+        a.origens = org.classificar(org.anunciados_de(sessoes), inventory.pecas,
+                                    inventory.plugins)
         a.origem_de = _origem_de(a.origens)
         a.plataforma = {cat: sum(n for o, n in a.origens.contagem(cat).items()
                                  if o in org.PLATAFORMA) for cat in CATEGORIAS}
-        a.instalado = instalado(inventario)
+        a.instalado = instalado(inventory)
         a.nao_anunciados = a.origens.nao_anunciados
     a.achados = [x for regra in REGRAS if (x := regra(a)) is not None]
     return a

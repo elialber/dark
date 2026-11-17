@@ -19,8 +19,8 @@ from pathlib import Path
 
 import pytest
 
-from dark import inventario
-from dark.inventario import Inventario
+from dark import inventory
+from dark.inventory import Inventario
 
 FIXTURES = Path(__file__).parent / "fixtures" / "inventario"
 SRC = Path(__file__).parent.parent / "src"
@@ -50,10 +50,10 @@ def _copiar(origem: Path, destino: Path) -> None:
             shutil.copyfile(item, alvo)
 
 
-def montar(caso: str, tmp_path: Path) -> tuple[Path, Path, Path]:
+def montar(case: str, tmp_path: Path) -> tuple[Path, Path, Path]:
     """Copia o caso para tmp_path; devolve (repo, config, gerenciado)."""
-    base = tmp_path / caso
-    _copiar(FIXTURES / caso, base)
+    base = tmp_path / case
+    _copiar(FIXTURES / case, base)
     repo, config, gerenciado = base / "repo", base / "config", base / "gerenciado"
     for d in (repo, config, gerenciado):
         d.mkdir(exist_ok=True)
@@ -63,13 +63,13 @@ def montar(caso: str, tmp_path: Path) -> tuple[Path, Path, Path]:
                        encoding="utf-8")
     memoria = config / "projects" / "MEMORIA"
     if memoria.exists():
-        memoria.rename(config / "projects" / inventario.pasta_projeto(repo))
+        memoria.rename(config / "projects" / inventory.pasta_projeto(repo))
     return repo, config, gerenciado
 
 
-def inventariar(caso: str, tmp_path: Path) -> Inventario:
-    repo, config, gerenciado = montar(caso, tmp_path)
-    return inventario.inventariar(repo, config, gerenciado=gerenciado, ambiente={})
+def inventariar(case: str, tmp_path: Path) -> Inventario:
+    repo, config, gerenciado = montar(case, tmp_path)
+    return inventory.inventariar(repo, config, gerenciado=gerenciado, ambiente={})
 
 
 @pytest.fixture(scope="module")
@@ -256,7 +256,7 @@ def test_servidor_mcp_guarda_transporte_e_nomes_de_variaveis(completo):
 
 
 def test_nenhum_valor_secreto_aparece_no_resultado(completo):
-    tudo = repr(completo) + json.dumps(inventario.como_dict(completo), ensure_ascii=False)
+    tudo = repr(completo) + json.dumps(inventory.como_dict(completo), ensure_ascii=False)
     for segredo in SEGREDOS:
         assert segredo not in tudo, segredo
 
@@ -271,7 +271,7 @@ def test_arquivo_de_credenciais_nunca_e_aberto(tmp_path, monkeypatch):
         return original(self, *a, **k)
 
     monkeypatch.setattr(Path, "read_text", espiao)
-    inventario.inventariar(repo, config, gerenciado=gerenciado, ambiente={})
+    inventory.inventariar(repo, config, gerenciado=gerenciado, ambiente={})
     assert abertos and ".credentials.json" not in abertos
 
 
@@ -305,20 +305,20 @@ def _retrato(raiz: Path) -> dict:
 def test_somente_leitura(tmp_path):
     repo, config, gerenciado = montar("completo", tmp_path)
     antes = _retrato(tmp_path)
-    inventario.inventariar(repo, config, gerenciado=gerenciado, ambiente={})
+    inventory.inventariar(repo, config, gerenciado=gerenciado, ambiente={})
     assert _retrato(tmp_path) == antes
 
 
 # --- entradas injetáveis -----------------------------------------------------------------
 
 def test_diretorio_de_configuracao_respeita_variavel(tmp_path):
-    assert inventario.diretorio_config({"CLAUDE_CONFIG_DIR": str(tmp_path)}) == tmp_path
-    assert inventario.diretorio_config({}) == Path.home() / ".claude"
+    assert inventory.diretorio_config({"CLAUDE_CONFIG_DIR": str(tmp_path)}) == tmp_path
+    assert inventory.diretorio_config({}) == Path.home() / ".claude"
 
 
 def test_config_padrao_vem_do_ambiente(tmp_path):
     repo, config, gerenciado = montar("completo", tmp_path)
-    inv = inventario.inventariar(repo, gerenciado=gerenciado,
+    inv = inventory.inventariar(repo, gerenciado=gerenciado,
                                  ambiente={"CLAUDE_CONFIG_DIR": str(config)})
     assert any(p.nome == "skill-usuario" for p in inv.pecas)
 
@@ -330,18 +330,18 @@ def test_claude_json_fica_ao_lado_da_pasta_padrao(tmp_path):
                                        encoding="utf-8")
     vazio = tmp_path / "repo"
     vazio.mkdir()
-    inv = inventario.inventariar(vazio, casa / ".claude", gerenciado=tmp_path / "nada",
+    inv = inventory.inventariar(vazio, casa / ".claude", gerenciado=tmp_path / "nada",
                                  ambiente={})
     assert [p.nome for p in inv.pecas] == ["servidor-ao-lado"]
 
 
 def test_pasta_de_projeto_codifica_o_caminho():
-    assert inventario.pasta_projeto(Path("/mnt/c/Repos/Ex_1")) == "-mnt-c-Repos-Ex-1"
+    assert inventory.pasta_projeto(Path("/mnt/c/Repos/Ex_1")) == "-mnt-c-Repos-Ex-1"
 
 
 def test_nao_importa_o_leitor():
-    codigo = ("import sys; import dark.inventario; "
-              "sys.exit(1 if 'dark.leitor' in sys.modules else 0)")
+    codigo = ("import sys; import dark.inventory; "
+              "sys.exit(1 if 'dark.reader' in sys.modules else 0)")
     r = subprocess.run([sys.executable, "-c", codigo], env={**os.environ, "PYTHONPATH": str(SRC)})
     assert r.returncode == 0
 
@@ -357,7 +357,7 @@ def test_pecas_sao_dataclasses_congeladas(completo):
 
 def test_comando_imprime_contagens(tmp_path, capsys):
     repo, config, gerenciado = montar("completo", tmp_path)
-    assert inventario.main([str(repo), "--config", str(config),
+    assert inventory.main([str(repo), "--config", str(config),
                             "--gerenciado", str(gerenciado)]) == 0
     saida = capsys.readouterr().out
     assert "skill" in saida and "usuario" in saida and "falhas: 0" in saida

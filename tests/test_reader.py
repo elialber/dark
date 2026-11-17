@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from dark import leitor
-from dark.leitor import ErroDeFormato, Tokens
+from dark import reader
+from dark.reader import ErroDeFormato, Tokens
 
 FIXTURES = Path(__file__).parent / "fixtures"
 CONFIG = FIXTURES / "config"
@@ -31,7 +31,7 @@ def utc(*partes):
 
 @pytest.fixture(scope="module")
 def sessoes():
-    return {s.id: s for s in leitor.ler_tudo(CONFIG).sessoes}
+    return {s.id: s for s in reader.ler_tudo(CONFIG).sessoes}
 
 
 @pytest.fixture(scope="module")
@@ -42,15 +42,15 @@ def s1(sessoes):
 # --- localizar -------------------------------------------------------------
 
 def test_diretorio_config_respeita_claude_config_dir(tmp_path):
-    assert leitor.diretorio_config({"CLAUDE_CONFIG_DIR": str(tmp_path)}) == tmp_path
+    assert reader.diretorio_config({"CLAUDE_CONFIG_DIR": str(tmp_path)}) == tmp_path
 
 
 def test_diretorio_config_padrao_e_dot_claude_na_home():
-    assert leitor.diretorio_config({}) == Path.home() / ".claude"
+    assert reader.diretorio_config({}) == Path.home() / ".claude"
 
 
 def test_localiza_arquivos_principais_e_de_subagente():
-    achados = {a.principal.stem: a for a in leitor.localizar_sessoes(CONFIG)}
+    achados = {a.principal.stem: a for a in reader.localizar_sessoes(CONFIG)}
     assert set(achados) == {S1, S3, S4, S5, S6}
     assert achados[S1].pasta_projeto == "-repo-alfa"
     assert [p.name for p in achados[S1].subagentes] == ["agent-agt0000000000001.jsonl"]
@@ -58,7 +58,7 @@ def test_localiza_arquivos_principais_e_de_subagente():
 
 
 def test_config_sem_pasta_projects_nao_tem_sessoes(tmp_path):
-    assert leitor.localizar_sessoes(tmp_path) == []
+    assert reader.localizar_sessoes(tmp_path) == []
 
 
 # --- armadilha: usage repetido ---------------------------------------------
@@ -200,7 +200,7 @@ def test_repositorio_e_a_raiz_git_que_contem_o_cwd(tmp_path):
     (repo / "web" / "src").mkdir(parents=True)
     arq = _sessao_minima(tmp_path / "projects" / "-qualquer-nome" / "s.jsonl",
                          [repo, repo / "web" / "src", repo / "web"])
-    s = leitor.ler_sessao(arq)
+    s = reader.ler_sessao(arq)
     assert s.repositorio == repo
     assert s.pasta_projeto == "-qualquer-nome"  # o nome da pasta não decide
 
@@ -209,7 +209,7 @@ def test_cwd_que_nao_existe_mais_sobe_ate_achar_a_raiz(tmp_path):
     repo = tmp_path / "repo"
     (repo / ".git").mkdir(parents=True)
     arq = _sessao_minima(tmp_path / "s.jsonl", [repo / "apagado" / "depois"])
-    assert leitor.ler_sessao(arq).repositorio == repo
+    assert reader.ler_sessao(arq).repositorio == repo
 
 
 def test_worktree_pertence_ao_repositorio_principal(tmp_path):
@@ -219,14 +219,14 @@ def test_worktree_pertence_ao_repositorio_principal(tmp_path):
     wt.mkdir()
     (wt / ".git").write_text(f"gitdir: {repo}/.git/worktrees/wt\n")
     arq = _sessao_minima(tmp_path / "s.jsonl", [wt])
-    assert leitor.ler_sessao(arq).repositorio == repo
+    assert reader.ler_sessao(arq).repositorio == repo
 
 
 def test_sessao_fora_de_repositorio_fica_sem_repositorio(tmp_path):
     solto = tmp_path / "solto"
     solto.mkdir()
     arq = _sessao_minima(tmp_path / "s.jsonl", [solto])
-    assert leitor.ler_sessao(arq, raiz_git=lambda p: None).repositorio is None
+    assert reader.ler_sessao(arq, raiz_git=lambda p: None).repositorio is None
 
 
 # --- versão ------------------------------------------------------------------
@@ -285,7 +285,7 @@ def test_resposta_de_modelo_real_sem_usage_continua_sendo_erro(tmp_path):
     arq = tmp_path / "sem-usage.jsonl"
     arq.write_text("\n".join(json.dumps(x) for x in linhas) + "\n")
     with pytest.raises(ErroDeFormato, match="usage"):
-        leitor.ler_sessao(arq)
+        reader.ler_sessao(arq)
 
 
 # --- horários como instantes ---------------------------------------------------
@@ -300,22 +300,22 @@ def test_horario_sem_milissegundos_e_com_deslocamento(sessoes):
 
 def test_corte_compara_instantes_e_nao_texto():
     corte = datetime(2026, 1, 2, 7, 30, tzinfo=timezone(timedelta(hours=-3)))  # 10:30 UTC
-    (s5,) = [s for s in leitor.ler_tudo(CONFIG, ate=corte).sessoes if s.id == S5]
+    (s5,) = [s for s in reader.ler_tudo(CONFIG, ate=corte).sessoes if s.id == S5]
     assert s5.fim == utc(2026, 1, 2, 10, 0, 9)
-    (igual,) = [s for s in leitor.ler_tudo(CONFIG, ate="2026-01-02T10:30:00Z").sessoes
+    (igual,) = [s for s in reader.ler_tudo(CONFIG, ate="2026-01-02T10:30:00Z").sessoes
                 if s.id == S5]
     assert igual.fim == s5.fim
 
 
 def test_horario_ilegivel_e_erro_de_formato():
     with pytest.raises(ErroDeFormato, match="timestamp"):
-        leitor.ler_sessao(INVALIDOS / "horario-ilegivel.jsonl")
+        reader.ler_sessao(INVALIDOS / "horario-ilegivel.jsonl")
 
 
 # --- falha isolada por sessão (E12) --------------------------------------------
 
 def test_sessao_invalida_nao_impede_a_leitura_das_outras():
-    leitura = leitor.ler_tudo(CONFIG_COM_FALHA)
+    leitura = reader.ler_tudo(CONFIG_COM_FALHA)
     assert sorted(s.id[-1] for s in leitura.sessoes) == ["1", "3"]
     falhas = {f.arquivo.name: f for f in leitura.falhas}
     assert set(falhas) == {"cccccccc-0000-4000-8000-000000000002.jsonl",
@@ -325,7 +325,7 @@ def test_sessao_invalida_nao_impede_a_leitura_das_outras():
 
 
 def test_subagente_invalido_nao_derruba_a_sessao_mae():
-    leitura = leitor.ler_tudo(CONFIG_COM_FALHA)
+    leitura = reader.ler_tudo(CONFIG_COM_FALHA)
     (mae,) = [s for s in leitura.sessoes if s.id.endswith("3")]
     assert mae.subagentes == []
     assert len(mae.respostas) == 1
@@ -333,7 +333,7 @@ def test_subagente_invalido_nao_derruba_a_sessao_mae():
 
 
 def test_comando_imprime_sessoes_e_falhas_e_termina_bem(capsys):
-    assert leitor.main(["--config", str(CONFIG_COM_FALHA)]) == 0
+    assert reader.main(["--config", str(CONFIG_COM_FALHA)]) == 0
     saida = capsys.readouterr().out
     assert "sessoes: 2" in saida
     assert "falhas: 2" in saida
@@ -344,17 +344,17 @@ def test_comando_termina_com_erro_se_so_houver_falhas(tmp_path, capsys):
     pasta = tmp_path / "projects" / "-so-invalida"
     pasta.mkdir(parents=True)
     shutil.copy(INVALIDOS / "sem-uuid.jsonl", pasta / "x.jsonl")
-    assert leitor.main(["--config", str(tmp_path)]) == 1
+    assert reader.main(["--config", str(tmp_path)]) == 1
     assert "falhas: 1" in capsys.readouterr().out
 
 
 def test_diretorio_sem_sessoes_nao_e_erro(tmp_path, capsys):
     # Decisão alterada no lote 005: sem sessões e sem falhas, termina bem.
     (tmp_path / "projects").mkdir()
-    assert leitor.main(["--config", str(tmp_path)]) == 0
+    assert reader.main(["--config", str(tmp_path)]) == 0
     saida = capsys.readouterr()
     assert "nenhuma sessão encontrada" in (saida.out + saida.err)
-    assert leitor.main(["--config", str(tmp_path / "nao-existe")]) == 0
+    assert reader.main(["--config", str(tmp_path / "nao-existe")]) == 0
 
 
 # --- armadilha: tipo e campo desconhecidos -----------------------------------
@@ -381,14 +381,14 @@ def test_fixtures_validas_nao_tem_mais_nada_desconhecido(sessoes):
 ])
 def test_campo_de_que_o_leitor_depende_ausente_ou_trocado_e_erro(arquivo, trecho):
     with pytest.raises(ErroDeFormato) as erro:
-        leitor.ler_sessao(INVALIDOS / arquivo)
+        reader.ler_sessao(INVALIDOS / arquivo)
     assert trecho in str(erro.value)
     assert arquivo in str(erro.value)  # diz onde
     assert erro.value.linha >= 1
 
 
 def test_ultima_linha_cortada_e_tolerada_e_contada():
-    s = leitor.ler_sessao(INVALIDOS / "ultima-linha-cortada.jsonl")
+    s = reader.ler_sessao(INVALIDOS / "ultima-linha-cortada.jsonl")
     assert s.linhas_cortadas == 1
     assert len(s.respostas) == 1
 
@@ -407,7 +407,7 @@ def test_fork_nao_conta_de_novo_o_historico_copiado(sessoes):
 # --- agregados e comando -------------------------------------------------------
 
 def test_agregados_de_conferencia(sessoes):
-    ag = leitor.agregados(sessoes.values())
+    ag = reader.agregados(sessoes.values())
     assert ag["sessoes"] == 5
     assert ag["subagentes"] == 1
     assert ag["pedidos_humanos"] == 7
@@ -422,7 +422,7 @@ def test_agregados_de_conferencia(sessoes):
 
 
 def test_corte_por_data_ignora_registros_posteriores():
-    leitura = leitor.ler_tudo(CONFIG, ate="2026-01-01T10:59:59.000Z")
+    leitura = reader.ler_tudo(CONFIG, ate="2026-01-01T10:59:59.000Z")
     (s,) = [x for x in leitura.sessoes if x.id == S1]
     assert [p.id for p in s.pedidos] == ["P1"]
     assert s.tokens_principal.total == 127
@@ -430,7 +430,7 @@ def test_corte_por_data_ignora_registros_posteriores():
 
 
 def test_comando_imprime_os_agregados(capsys):
-    assert leitor.main(["--config", str(CONFIG)]) == 0
+    assert reader.main(["--config", str(CONFIG)]) == 0
     saida = capsys.readouterr().out
     assert "sessoes: 5" in saida and "32432" in saida
     assert "tipo-novo" in saida  # o relatório de desconhecidos aparece
@@ -514,7 +514,7 @@ def test_chamadas_de_commit_trazem_hash_e_amend(sessoes):
     ("sudo echo git commit", None),
 ])
 def test_deteccao_de_git_commit_pelo_comando_analisado(comando, esperado):
-    achado = leitor.analisar_commit(comando)
+    achado = reader.analisar_commit(comando)
     if esperado is None:
         assert achado is None
     else:
@@ -523,10 +523,10 @@ def test_deteccao_de_git_commit_pelo_comando_analisado(comando, esperado):
 
 def test_comando_que_nao_da_para_analisar_cai_na_leitura_aproximada():
     # Aspas desbalanceadas impedem a análise; a detecção fica marcada.
-    achado = leitor.analisar_commit("git commit -m 'sem fechar")
+    achado = reader.analisar_commit("git commit -m 'sem fechar")
     assert achado is not None and achado.aproximado is True
-    assert leitor.analisar_commit("git commit -m 'x'").aproximado is False
-    assert leitor.analisar_commit("echo 'git commit sem fechar") is None
+    assert reader.analisar_commit("git commit -m 'x'").aproximado is False
+    assert reader.analisar_commit("echo 'git commit sem fechar") is None
 
 
 # --- goal 008: modo de permissão e /comando ------------------------------------
@@ -544,7 +544,7 @@ def test_pedido_sem_modo_de_permissao_fica_sem_modo(tmp_path):
         r.pop("permissionMode", None)
     arquivo = tmp_path / "x.jsonl"
     arquivo.write_text("\n".join(json.dumps(r) for r in regs) + "\n")
-    (p,) = leitor.ler_sessao(arquivo, []).pedidos
+    (p,) = reader.ler_sessao(arquivo, []).pedidos
     assert p.modo_permissao is None
 
 

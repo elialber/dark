@@ -35,8 +35,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from dark.inventario import Peca, Plugin
-from dark.leitor import Sessao, servidor_mcp
+from dark.inventory import Peca, Plugin
+from dark.reader import Sessao, servidor_mcp
 
 ORIGENS = ("projeto", "usuario", "plugin", "gerenciado", "conta", "embutida", "sem_arquivo")
 COM_ARQUIVO = frozenset({"projeto", "usuario", "plugin", "gerenciado"})

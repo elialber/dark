@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from dark import contexto
+from dark import context_usage
 
 AMOSTRAS = Path(__file__).parent / "fixtures" / "contexto"
 
@@ -18,8 +18,8 @@ def ler(nome: str) -> str:
     return (AMOSTRAS / nome).read_text(encoding="utf-8")
 
 
-def analisar(nome: str) -> contexto.Reparticao:
-    return contexto.analisar(ler(nome))
+def analisar(nome: str) -> context_usage.Reparticao:
+    return context_usage.analisar(ler(nome))
 
 
 # --- números ---------------------------------------------------------------
@@ -42,12 +42,12 @@ def analisar(nome: str) -> contexto.Reparticao:
     (" 59 ", 59),
 ])
 def test_numero_com_separador_e_sufixo(texto, esperado):
-    assert contexto.numero(texto) == esperado
+    assert context_usage.numero(texto) == esperado
 
 
 @pytest.mark.parametrize("texto", ["", "muitos", "1.2.3", "k", "12x", "-5"])
 def test_numero_invalido_devolve_none(texto):
-    assert contexto.numero(texto) is None
+    assert context_usage.numero(texto) is None
 
 
 # --- saída completa ----------------------------------------------------------
@@ -160,39 +160,39 @@ def test_secao_e_linhas_desconhecidas_sao_guardadas_e_nao_derrubam():
 
 
 def test_saida_vazia_e_erro():
-    with pytest.raises(contexto.SaidaInvalida):
+    with pytest.raises(context_usage.SaidaInvalida):
         analisar("vazia.md")
 
 
 def test_saida_sem_categoria_e_erro():
-    with pytest.raises(contexto.SaidaInvalida):
+    with pytest.raises(context_usage.SaidaInvalida):
         analisar("sem-categorias.md")
 
 
 def test_analisar_nao_depende_de_fim_de_linha():
     texto = ler("completa.md").replace("\n", "\r\n")
-    assert contexto.analisar(texto) == analisar("completa.md")
+    assert context_usage.analisar(texto) == analisar("completa.md")
 
 
 # --- parte não atribuída -----------------------------------------------------
 
 def test_nao_atribuido_contra_usage():
     r = analisar("completa.md")
-    na = contexto.nao_atribuido(r, 16350)
+    na = context_usage.nao_atribuido(r, 16350)
     assert na.medido == 16350 and na.informado == 10900
     assert na.tokens == 5450
     assert na.percentual == pytest.approx(33.333, abs=0.001)
 
 
 def test_nao_atribuido_negativo_quando_usage_e_menor():
-    na = contexto.nao_atribuido(analisar("completa.md"), 10000)
+    na = context_usage.nao_atribuido(analisar("completa.md"), 10000)
     assert na.tokens == -900
     assert na.percentual == pytest.approx(-9.0)
 
 
 def test_nao_atribuido_rejeita_usage_invalido():
     with pytest.raises(ValueError):
-        contexto.nao_atribuido(analisar("completa.md"), 0)
+        context_usage.nao_atribuido(analisar("completa.md"), 0)
 
 
 # --- execução ----------------------------------------------------------------
@@ -204,7 +204,7 @@ def test_executar_usa_executor_injetado(tmp_path):
         chamadas.append((argumentos, diretorio))
         return ler("completa.md")
 
-    texto = contexto.executar(tmp_path, executor=executor)
+    texto = context_usage.executar(tmp_path, executor=executor)
     assert texto == ler("completa.md")
     [(argumentos, diretorio)] = chamadas
     assert diretorio == tmp_path
@@ -215,9 +215,9 @@ def test_executar_usa_executor_injetado(tmp_path):
 
 def test_executar_rejeita_diretorio_inexistente(tmp_path):
     with pytest.raises(FileNotFoundError):
-        contexto.executar(tmp_path / "nao-existe", executor=lambda a, d: "")
+        context_usage.executar(tmp_path / "nao-existe", executor=lambda a, d: "")
 
 
 def test_medir_junta_execucao_e_analise(tmp_path):
-    r = contexto.medir(tmp_path, executor=lambda a, d: ler("sem-skills.md"))
+    r = context_usage.medir(tmp_path, executor=lambda a, d: ler("sem-skills.md"))
     assert r.total == 8200

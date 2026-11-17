@@ -12,8 +12,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import caso as m_caso
-from . import mineracao, validacao
+from . import case as m_caso
+from . import mining, validation
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -40,8 +40,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _minerar(a) -> int:
-    padroes = a.padrao or mineracao.PADROES_TESTE
-    cands = mineracao.minerar(a.repo, padroes=padroes, ref=a.ref)
+    padroes = a.padrao or mining.PADROES_TESTE
+    cands = mining.minerar(a.repo, padroes=padroes, ref=a.ref)
     print(f"{len(cands)} candidato(s)")
     for c in cands:
         par = f"{c.commit_testes[:7]} + " if c.tipo == "commits_seguidos" else ""
@@ -69,8 +69,8 @@ def _validar(a) -> int:
             print(f"{arq}: formato inválido: {e}")
             todos_validos = False
             continue
-        r = validacao.validar(c, a.repo, dir_trabalho=a.dir_trabalho)
-        print(validacao.descrever(r))
+        r = validation.validar(c, a.repo, dir_trabalho=a.dir_trabalho)
+        print(validation.descrever(r))
         todos_validos &= r.valido
     return 0 if todos_validos else 1
 

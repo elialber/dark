@@ -17,8 +17,8 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from dark import leitor
-from dark.leitor import Sessao
+from dark import reader
+from dark.reader import Sessao
 
 
 @dataclass(frozen=True)
@@ -243,7 +243,7 @@ def _ferramentas_usadas(s: Sessao) -> set[str]:
 
 
 def _servidores(nomes: Iterable[str]) -> set[str]:
-    return {srv for srv in map(leitor.servidor_mcp, nomes) if srv}
+    return {srv for srv in map(reader.servidor_mcp, nomes) if srv}
 
 
 def _categoria(sessoes: list[Sessao], disponivel: Callable[[Sessao], set[str]],
@@ -302,7 +302,7 @@ class Sinais:
     mensagens_no_meio: int = 0
     por_modo: dict[str, int] = field(default_factory=dict)   # pedidos por modo de permissão
 
-    def contar_pedido(self, pedido: leitor.Pedido) -> None:
+    def contar_pedido(self, pedido: reader.Pedido) -> None:
         self.pedidos += 1
         modo = pedido.modo_permissao or "?"
         self.por_modo[modo] = self.por_modo.get(modo, 0) + 1
@@ -311,7 +311,7 @@ class Sinais:
     def sinais(self) -> int:
         return self.interrupcoes + self.rejeicoes + self.mensagens_no_meio
 
-    def contar(self, intervencao: leitor.Intervencao) -> None:
+    def contar(self, intervencao: reader.Intervencao) -> None:
         if intervencao.tipo == "interrupcao":
             self.interrupcoes += 1
         elif intervencao.tipo == "mensagem_no_meio":
@@ -457,7 +457,7 @@ class ContagemCommits:
     com_erro: int = 0
     aproximadas: int = 0
 
-    def contar(self, chamada: leitor.Chamada) -> None:
+    def contar(self, chamada: reader.Chamada) -> None:
         c = chamada.commit
         self.chamadas += 1
         self.com_hash += c.hash is not None
@@ -508,7 +508,7 @@ def _linha_resumo(r: Resumo) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     analisador = argparse.ArgumentParser(
-        prog="python -m dark.indicadores",
+        prog="python -m dark.indicators",
         description="Imprime os indicadores, só em contagens, para conferência.")
     analisador.add_argument("--config", type=Path, default=None)
     analisador.add_argument("--ate", default=None)
@@ -516,7 +516,7 @@ def main(argv: list[str] | None = None) -> int:
     analisador.add_argument("--nomes", action="store_true",
                             help="imprime também os nomes (não publique a saída)")
     args = analisador.parse_args(argv)
-    leitura = leitor.ler_tudo(args.config, ate=args.ate)
+    leitura = reader.ler_tudo(args.config, ate=args.ate)
     sessoes = [s for s in leitura.sessoes
                if not any(x in s.pasta_projeto for x in args.excluir_pasta)]
     if not sessoes:

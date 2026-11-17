@@ -777,7 +777,7 @@ def contagens(inv: Inventario) -> Counter:
 
 def main(argv: list[str] | None = None) -> int:
     analisador = argparse.ArgumentParser(
-        prog="python -m dark.inventario",
+        prog="python -m dark.inventory",
         description="Imprime as contagens do inventário do harness.")
     analisador.add_argument("repo", type=Path, nargs="?", default=Path("."))
     analisador.add_argument("--config", type=Path, default=None)

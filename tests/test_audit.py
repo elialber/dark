@@ -20,8 +20,8 @@ from pathlib import Path
 
 import pytest
 
-from dark import auditoria, cli, leitor, relatorio
-from dark.leitor import Falha
+from dark import audit, cli, reader, report
+from dark.reader import Falha
 
 RAIZ = Path(__file__).parent.parent
 CONFIG = Path(__file__).parent / "fixtures" / "config"
@@ -34,7 +34,7 @@ S6 = "aaaaaaaa-0000-4000-8000-000000000006"
 
 @pytest.fixture(scope="module")
 def sessoes():
-    return leitor.ler_tudo(CONFIG).sessoes
+    return reader.ler_tudo(CONFIG).sessoes
 
 
 def so(sessoes, *ids):
@@ -50,7 +50,7 @@ def regras_disparadas(a):
 # ==========================================================================
 
 def test_auditoria_resume_o_periodo_as_sessoes_e_os_pedidos(sessoes):
-    a = auditoria.auditar(sessoes)
+    a = audit.auditar(sessoes)
     assert a.sessoes == 5 and a.pedidos == 7
     assert a.inicio == datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc)
     assert a.fim == datetime(2026, 1, 3, 9, 11, tzinfo=timezone.utc)
@@ -60,7 +60,7 @@ def test_auditoria_resume_o_periodo_as_sessoes_e_os_pedidos(sessoes):
 
 
 def test_auditoria_traz_os_indicadores(sessoes):
-    a = auditoria.auditar(sessoes)
+    a = audit.auditar(sessoes)
     assert a.peso_fixo.resumo.maximo == 32100
     assert a.peso_morto.skills.nunca_usados == {"nunca-usada"}
     assert a.custo.total.total == 32432
@@ -70,7 +70,7 @@ def test_auditoria_traz_os_indicadores(sessoes):
 
 
 def test_pedidos_mais_caros_por_data_e_hora_sem_texto(sessoes):
-    a = auditoria.auditar(sessoes)
+    a = audit.auditar(sessoes)
     assert len(a.caros) == 5
     primeiro = a.caros[0]
     assert primeiro.sessao == S6 and primeiro.pedido == "PI1"
@@ -82,16 +82,16 @@ def test_pedidos_mais_caros_por_data_e_hora_sem_texto(sessoes):
 
 
 def test_peso_fixo_por_semana_so_com_duas_semanas_ou_mais(sessoes):
-    assert auditoria.auditar(sessoes).peso_fixo_semanal == []    # tudo numa semana
+    assert audit.auditar(sessoes).peso_fixo_semanal == []    # tudo numa semana
     outra = dataclasses.replace(
         so(sessoes, S6)[0], id="outra", inicio=datetime(2026, 1, 20, tzinfo=timezone.utc))
-    semanal = auditoria.auditar([*sessoes, outra]).peso_fixo_semanal
+    semanal = audit.auditar([*sessoes, outra]).peso_fixo_semanal
     assert [semana for semana, _ in semanal] == ["2026-W01", "2026-W04"]
     assert semanal[1][1].n == 1 and semanal[1][1].mediana == 32100
 
 
 def test_sem_sessoes_a_auditoria_existe_e_nao_tem_achados():
-    a = auditoria.auditar([])
+    a = audit.auditar([])
     assert (a.sessoes, a.pedidos, a.inicio, a.fim) == (0, 0, None, None)
     assert a.achados == []
 
@@ -102,57 +102,57 @@ def test_sem_sessoes_a_auditoria_existe_e_nao_tem_achados():
     "skills", "tipos_subagente", "ferramentas", "servidores_mcp"])
 def test_regra_de_peso_morto(sessoes, categoria):
     regra = f"peso_morto.{categoria}"
-    a = auditoria.auditar(so(sessoes, S6))
+    a = audit.auditar(so(sessoes, S6))
     (achado,) = [x for x in a.achados if x.regra == regra]
     assert achado.secao == "peso-morto"
     assert achado.valores["nunca_usados"] == len(
         getattr(a.peso_morto, categoria).nunca_usados) > 0
-    assert regra not in regras_disparadas(auditoria.auditar(so(sessoes, S3)))  # sem lista
+    assert regra not in regras_disparadas(audit.auditar(so(sessoes, S3)))  # sem lista
 
 
 def test_regra_de_peso_fixo(sessoes):
-    a = auditoria.auditar(so(sessoes, S6, S3))
+    a = audit.auditar(so(sessoes, S6, S3))
     (achado,) = [x for x in a.achados if x.regra == "peso_fixo"]
     assert achado.secao == "peso-fixo"
     assert achado.valores["mediana"] == a.peso_fixo.resumo.mediana
-    assert "peso_fixo" not in regras_disparadas(auditoria.auditar(so(sessoes, S4)))  # fork
+    assert "peso_fixo" not in regras_disparadas(audit.auditar(so(sessoes, S4)))  # fork
 
 
 def test_regra_de_commits_sem_hash(sessoes):
-    a = auditoria.auditar(so(sessoes, S6))
+    a = audit.auditar(so(sessoes, S6))
     (achado,) = [x for x in a.achados if x.regra == "commits_sem_hash"]
     assert achado.secao == "commits"
     assert (achado.valores["sem_hash"], achado.valores["chamadas"]) == (1, 3)
-    assert "commits_sem_hash" not in regras_disparadas(auditoria.auditar(so(sessoes, S1)))
+    assert "commits_sem_hash" not in regras_disparadas(audit.auditar(so(sessoes, S1)))
 
 
 def test_regra_de_modo_que_suprime_rejeicoes(sessoes):
-    a = auditoria.auditar(so(sessoes, S6))
+    a = audit.auditar(so(sessoes, S6))
     (achado,) = [x for x in a.achados if x.regra == "modo_sem_rejeicao"]
     assert achado.secao == "intervencoes"
     assert (achado.valores["pedidos_no_modo"], achado.valores["pedidos"]) == (1, 2)
-    assert "modo_sem_rejeicao" not in regras_disparadas(auditoria.auditar(so(sessoes, S1)))
+    assert "modo_sem_rejeicao" not in regras_disparadas(audit.auditar(so(sessoes, S1)))
 
 
 def test_modos_que_suprimem_rejeicoes():
-    assert "bypassPermissions" in auditoria.MODOS_SEM_REJEICAO
-    assert "default" not in auditoria.MODOS_SEM_REJEICAO
+    assert "bypassPermissions" in audit.MODOS_SEM_REJEICAO
+    assert "default" not in audit.MODOS_SEM_REJEICAO
 
 
 def test_regra_de_falhas_de_leitura(sessoes):
     falha = Falha(Path("/cfg/projects/-repo-alfa/x.jsonl"), 2, "campo ausente")
-    a = auditoria.auditar(so(sessoes, S3), [falha])
+    a = audit.auditar(so(sessoes, S3), [falha])
     (achado,) = [x for x in a.achados if x.regra == "falhas_de_leitura"]
     assert achado.secao == "cabecalho" and achado.valores["falhas"] == 1
-    assert "falhas_de_leitura" not in regras_disparadas(auditoria.auditar(so(sessoes, S3)))
+    assert "falhas_de_leitura" not in regras_disparadas(audit.auditar(so(sessoes, S3)))
 
 
 def test_regra_de_formato_desconhecido(sessoes):
-    a = auditoria.auditar(so(sessoes, S1))
+    a = audit.auditar(so(sessoes, S1))
     (achado,) = [x for x in a.achados if x.regra == "formato_desconhecido"]
     assert achado.secao == "cabecalho"
     assert achado.valores["tipos"] >= 1 and achado.valores["campos"] >= 1
-    assert "formato_desconhecido" not in regras_disparadas(auditoria.auditar(so(sessoes, S6)))
+    assert "formato_desconhecido" not in regras_disparadas(audit.auditar(so(sessoes, S6)))
 
 
 # --- seleção das sessões do repositório (E3 e E15) -----------------------------
@@ -166,7 +166,7 @@ def test_selecao_junta_diretorios_com_a_mesma_identidade(sessoes):
     marcadas = _com_repositorio(sessoes, {S1: "/a/proj", S6: "/b/proj-copia",
                                           S3: "/c/outro", S4: None})
     ids = {"/a/proj": "raiz1", "/b/proj-copia": "raiz1", "/c/outro": "raiz2"}
-    sel = auditoria.selecionar(marcadas, Path("/a/proj"), lambda p: ids.get(str(p)))
+    sel = audit.selecionar(marcadas, Path("/a/proj"), lambda p: ids.get(str(p)))
     assert {s.id for s in sel.sessoes} == {S1, S6}
     assert sel.diretorios == [Path("/a/proj"), Path("/b/proj-copia")]
     assert sel.identidade == "raiz1"
@@ -174,27 +174,27 @@ def test_selecao_junta_diretorios_com_a_mesma_identidade(sessoes):
 
 def test_selecao_sem_identidade_compara_so_o_caminho(sessoes):
     marcadas = _com_repositorio(sessoes, {S1: "/a/proj", S6: "/b/proj"})
-    sel = auditoria.selecionar(marcadas, Path("/a/proj"), lambda p: None)
+    sel = audit.selecionar(marcadas, Path("/a/proj"), lambda p: None)
     assert [s.id for s in sel.sessoes] == [S1]
     assert sel.diretorios == [Path("/a/proj")]
 
 
 def test_pasta_de_projeto_do_claude_code():
-    assert auditoria.pasta_de_projeto(Path("/home/u/Repos/proj")) == "-home-u-Repos-proj"
-    assert auditoria.pasta_de_projeto(Path("/home/u/.x/a_b")) == "-home-u--x-a-b"
+    assert audit.pasta_de_projeto(Path("/home/u/Repos/proj")) == "-home-u-Repos-proj"
+    assert audit.pasta_de_projeto(Path("/home/u/.x/a_b")) == "-home-u--x-a-b"
 
 
 def test_falhas_sao_atribuidas_pela_pasta_de_projeto():
     falhas = [Falha(Path("/cfg/projects/-a-proj/s.jsonl"), 1, "x"),
               Falha(Path("/cfg/projects/-a-proj/s/subagents/agent-1.jsonl"), 1, "y"),
               Falha(Path("/cfg/projects/-c-outro/t.jsonl"), 1, "z")]
-    assert [f.mensagem for f in auditoria.falhas_das_pastas(falhas, {"-a-proj"})] == ["x", "y"]
+    assert [f.mensagem for f in audit.falhas_das_pastas(falhas, {"-a-proj"})] == ["x", "y"]
 
 
 def test_periodo_por_inicio_da_sessao(sessoes):
     desde = datetime(2026, 1, 2, 12, tzinfo=timezone.utc)
-    assert [s.id for s in auditoria.do_periodo(sessoes, desde)] == [S6]
-    assert len(auditoria.do_periodo(sessoes, None)) == 5
+    assert [s.id for s in audit.do_periodo(sessoes, desde)] == [S6]
+    assert len(audit.do_periodo(sessoes, None)) == 5
 
 
 # ==========================================================================
@@ -208,9 +208,9 @@ SECOES = ["# Auditoria do harness", "## O que chama atenção", "## Peso fixo",
 
 @pytest.fixture(scope="module")
 def texto(sessoes):
-    a = auditoria.auditar(sessoes, repositorio=Path("/repo/alfa"),
+    a = audit.auditar(sessoes, repositorio=Path("/repo/alfa"),
                           diretorios=[Path("/repo/alfa")])
-    return relatorio.markdown(a)
+    return report.markdown(a)
 
 
 def test_relatorio_tem_as_secoes_na_ordem(texto):
@@ -274,8 +274,8 @@ def test_numeros_no_formato_brasileiro(texto):
 
 
 def test_relatorio_sem_sessoes():
-    a = auditoria.auditar([], repositorio=Path("/r"), diretorios=[Path("/r")])
-    t = relatorio.markdown(a)
+    a = audit.auditar([], repositorio=Path("/r"), diretorios=[Path("/r")])
+    t = report.markdown(a)
     assert "Nenhuma sessão" in t
     assert "## Peso fixo" not in t
 
@@ -401,7 +401,7 @@ def test_identidade_e_o_commit_inicial(tmp_path):
 def test_falha_de_leitura_aparece_no_cabecalho(tmp_path, capsys):
     repo = novo_repo(tmp_path / "proj")
     cfg = config_apontando(tmp_path, repo)
-    pasta = cfg / "projects" / auditoria.pasta_de_projeto(repo)
+    pasta = cfg / "projects" / audit.pasta_de_projeto(repo)
     pasta.mkdir()
     shutil.copy(INVALIDOS / "sem-uuid.jsonl", pasta / "quebrada.jsonl")
     outra = cfg / "projects" / "-de-outro-repo"
@@ -416,7 +416,7 @@ def test_falha_de_leitura_aparece_no_cabecalho(tmp_path, capsys):
 def test_so_falhas_e_nenhuma_sessao_termina_com_erro(tmp_path, capsys):
     repo = novo_repo(tmp_path / "proj")
     cfg = tmp_path / "config"
-    pasta = cfg / "projects" / auditoria.pasta_de_projeto(repo)
+    pasta = cfg / "projects" / audit.pasta_de_projeto(repo)
     pasta.mkdir(parents=True)
     shutil.copy(INVALIDOS / "sem-uuid.jsonl", pasta / "quebrada.jsonl")
     assert auditar(repo, "--config", cfg) == 1
