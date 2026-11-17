@@ -194,7 +194,7 @@ def test_from_dict_builds_nested_records(store):
     lambda: CommitLink("toolu_1", at(2), "recorded"),                  # recorded needs a hash
     lambda: CommitLink("toolu_1", at(2), "unlinked", commit_hash=H1),  # unlinked has none
     lambda: CommitLink("toolu_1", at(2), "guessed", commit_hash=H1),
-    lambda: CommitLink("toolu_1", at(2), "recorded", commit_hash=H1.upper()),
+    lambda: CommitLink("toolu_1", at(2), "recorded", commit_hash="AB" * 20),
     lambda: session("s1", at(2), parts=[skill("tdd", True), skill("tdd", False)]),
     lambda: session("s1", at(2), commit_links=[
         CommitLink("toolu_1", at(2), "recorded", commit_hash=H1),
@@ -230,9 +230,9 @@ def test_session_of_unknown_repository_is_refused(store):
 # Idempotency (E10)
 # --------------------------------------------------------------------------
 
-def full_session(sid: str = "s1", **fields) -> SessionRecord:
-    return session(
-        sid, at(2), claude_code_version="2.1.3", requests=3,
+def full_session(sid: str = "s1", **overrides) -> SessionRecord:
+    fields = dict(
+        claude_code_version="2.1.3", requests=3,
         main_tokens=TokenCounts(1000, 200, 50, 800), subagent_tokens=TokenCounts(300, 30),
         fixed_weight=60000, fixed_platform=20000.5, fixed_harness=30000.0,
         fixed_request=1000.0, fixed_unexplained=-500.5, chars_per_token=3.6,
@@ -249,8 +249,9 @@ def full_session(sid: str = "s1", **fields) -> SessionRecord:
                       CommitLink("toolu_2", at(2, 11), "window", H2, amend=True,
                                  reverted=True, replaced=False),
                       CommitLink("toolu_2", at(2, 11), "window", H3),
-                      CommitLink("toolu_3", at(2, 12), "unlinked")],
-        **fields)
+                      CommitLink("toolu_3", at(2, 12), "unlinked")])
+    fields.update(overrides)
+    return session(sid, at(2), **fields)
 
 
 def test_rewriting_session_leaves_same_state(store):
@@ -432,6 +433,26 @@ def test_two_connections_at_the_same_time(db: Path):
             assert "another" in str(err.value) and "nothing was written" in str(err.value)
         b.write_session(session("s4", at(5)))
         assert a.session_ids(ROOT_A) == ["s1", "s2", "s3", "s4"]
+
+
+def test_first_open_by_several_processes_at_once(db: Path):
+    import threading
+    errors: list[BaseException] = []
+
+    def opener() -> None:
+        try:
+            open_store(db, timeout=10).close()
+        except BaseException as error:       # collected and asserted below
+            errors.append(error)
+
+    threads = [threading.Thread(target=opener) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert errors == []
+    with open_store(db) as s:
+        assert s.collections() == []
 
 
 def test_batch_is_all_or_nothing(store):
