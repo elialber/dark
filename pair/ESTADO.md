@@ -62,9 +62,12 @@ Fase 3 em andamento; laço de par disponível
 | [037 — Documentos em dia com a ablação](goals/037-docs-ablation.md) | Aceito na [revisão 5 da rodada 002](rodadas/002/revisao-5.md) e incorporado à `main` |
 | [038 — Resultados de evals no banco e duas regras](goals/038-evals-in-store.md) | Aceito com correções na [revisão 5 da rodada 002](rodadas/002/revisao-5.md) e incorporado à `main`; `guardar` estoura com inteiro acima de 2^63 (goal 039); só `evals_at_100_percent` foi ligada |
 | [039 — Limites do `guardar` e modelo das sessões](goals/039-store-model.md) | Aceito na [revisão 1 da rodada 003](rodadas/003/revisao-1.md) e incorporado à `main`; esquema 3, regra `model_changed_since_last_evals` ligada |
-| [040 — Documentos em dia com `iniciar`, `remover` e `guardar`](goals/040-docs-init.md) | Aceito na [revisão 1 da rodada 003](rodadas/003/revisao-1.md), **ainda não junto**: o `README.md` da `main` mudou (obra do usuário) e conflita no parágrafo inicial; entra num goal de documentos que parta da `main` atual |
+| 040 — Documentos em dia com `iniciar`, `remover` e `guardar` | Aceito na [revisão 1 da rodada 003](rodadas/003/revisao-1.md), **não junto**; substituído pelo goal 045 (decisão do usuário, opção a); a branch `goal-040` é só material de partida |
 | [041 — `dark coletar --evals`](goals/041-collect-evals.md) | Aceito na [revisão 1 da rodada 003](rodadas/003/revisao-1.md) e incorporado à `main`; skill `coletar` do plugin e documentos ainda não citam `--evals` |
 | [042 — `dark adicionar`, `dark verificar` e registro de módulos](goals/042-add-modules.md) | Aceito na [revisão de fechamento da rodada 003](rodadas/003/revisao-fechamento.md) e incorporado à `main` |
+| 043 — Módulo Langfuse | Em execução ([lote 017](entrada/lote-017.md)) |
+| 044 — Módulo Graphify | Em execução ([lote 017b](entrada/lote-017b.md)) |
+| 045 — Documentos em dia com 036 a 042 | Em execução ([lote 017c](entrada/lote-017c.md)) |
 
 ## Decisões pendentes
 
@@ -88,9 +91,9 @@ Fase 3 em andamento; laço de par disponível
 
 ## Próximo passo
 
-Lista de funcionalidades com situação de cada item: [FUNCIONALIDADES.md](../FUNCIONALIDADES.md) ([diário](diario/042-funcionalidades.md)); o revisor a mantém em dia a cada goal aceito.
+Lista de funcionalidades com situação de cada item: [FUNCIONALIDADES.md](../FUNCIONALIDADES.md) ([diário](diario/042-funcionalidades.md)); o goal 045 a põe em dia.
 
-Rodada 003, fechamento: goals 039, 041 e 042 juntados; 040 aceito, mas não junto (conflito de `README.md` com a obra do usuário). Sem lote novo.
-Depois: documentos para 039, 040, 041 e 042 e skill `coletar` com `--evals`; módulos do scaffold (Langfuse, Graphify; item 6);
-calibração dos casos novos e medição real da ablação (pedem credencial);
-piloto (item 9).
+Rodada 004, ciclo 1: D1 respondida pelo usuário; lotes 017 (goal 043,
+Langfuse), 017b (goal 044, Graphify) e 017c (goal 045, documentos), em
+paralelo. Depois: documentos dos módulos; calibração dos casos novos e
+medição real da ablação e dos módulos (pedem credencial); piloto (item 9).

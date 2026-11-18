@@ -1,0 +1,16 @@
+{
+  "cycle": 1,
+  "verdicts": [],
+  "merged": [],
+  "tests_passed": true,
+  "merge_conflict": false,
+  "privacy_violation": false,
+  "pending_decisions": [],
+  "batches": [
+    {"batch": "017", "file": "pair/entrada/lote-017.md", "goal": "043", "branch": "goal-043"},
+    {"batch": "017b", "file": "pair/entrada/lote-017b.md", "goal": "044", "branch": "goal-044"},
+    {"batch": "017c", "file": "pair/entrada/lote-017c.md", "goal": "045", "branch": "goal-045"}
+  ],
+  "stop": false,
+  "stop_reason": ""
+}

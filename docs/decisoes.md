@@ -1582,3 +1582,36 @@ funcionalidades) colidiu com o do goal 042; foi renomeado para
 **Motivo:** merge de ensaio com a colisão resolvida, 1221 testes;
 sondagens: nome em caixa alta, `../x`, `--listar` com módulo e caminho,
 caminho fora da raiz, `--aplicar` duas vezes. Nenhum traceback.
+
+## Rodada 004, ciclo 1 (planejamento dos goals 043, 044 e 045)
+
+**D1 da rodada 003, respondida pelo usuário (`pair/DIRECAO.md`):**
+Langfuse auto-hospedado, embarcado no módulo como Docker Compose; origem,
+a edição community oficial de cada projeto; versão, a mais recente
+publicada quando o goal for feito, fixada (nada de `latest`).
+
+**Goal 040, respondido pelo usuário (opção a):** não entra; o goal 045
+refaz os documentos sobre a `main` atual, usando a branch `goal-040` só
+como material de partida.
+
+**Padrões do revisor para os módulos, todos a confirmar:**
+
+- os arquivos do Langfuse ficam no repositório, em `.dark/langfuse/`
+  (compose, `env.exemplo`), com `.dark/langfuse/.env` no `.gitignore`;
+  assim a ida e volta do motor vale para eles;
+- todo segredo do compose vira referência a variável de ambiente; o
+  módulo nunca grava valor;
+- o conteúdo embarcado fica em constantes Python, sem dados de pacote no
+  `pyproject.toml`;
+- os dois módulos usam o indicador `cost_per_task`;
+- o Graphify entra só com a skill e o hook oficiais, no escopo do
+  projeto; **sem** seção no `CLAUDE.md` (regras nascem de falhas);
+- a dependência de execução de cada ferramenta (SDK, executável) é da
+  máquina do usuário: o plano diz como instalá-la com versão fixa; o
+  módulo não instala;
+- `verify` não usa rede nem Docker nem executa a ferramenta.
+
+**Motivo:** a resposta do usuário fixa origem e versão; o resto segue o
+contrato do motor (goal 016) e a regra de não gerar conteúdo (`docs/visao.md`).
+O registro dos dois módulos em `registry.py` conflita por construção; o
+revisor resolve na junção (duas linhas).

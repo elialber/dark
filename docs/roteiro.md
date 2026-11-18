@@ -104,10 +104,13 @@ que descobrir. O porquê do projeto está em `docs/visao.md`.
 
 ## Em andamento
 
-Goal 040 (documentos de `iniciar`, `remover`, `guardar`): aceito, **não
-junto**; o `README.md` da `main` mudou (obra do usuário) e conflita no
-parágrafo inicial. Fica para um goal de documentos que parta da `main`
-atual (README, 039, 041, 042, skill `coletar` com `--evals`).
+Rodada 004, ciclo 1 (lotes 017, 017b e 017c):
+
+- goal 043, módulo Langfuse (item 6), lote principal;
+- goal 044, módulo Graphify (item 6), em paralelo;
+- goal 045, documentos em dia com 036 a 042 (itens 7 e 8), em paralelo.
+  Substitui a junção do goal 040, que fica só como material de partida
+  (resposta do usuário à rodada 003, opção a).
 
 ## Fila, em ordem
 
@@ -213,12 +216,13 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
 - **Situação:** o goal 036 entregou `dark iniciar` e `dark remover` com
   o módulo `base` (sem terceiros). O goal 042 entregou `dark adicionar`
   (com `--listar`), `dark verificar` e o registro de módulos, provados
-  com módulo de teste. Faltam os módulos Langfuse e Graphify, que
-  esperam a decisão D1 (origem e versão fixada; padrão a confirmar:
-  Langfuse auto-hospedado).
-- **Próximo:** goal 042 (registro, `adicionar`, `verificar`) com módulo de
-  teste; os módulos Langfuse e Graphify esperam a decisão D1 da rodada 003
-  (origem e versão do que instalar).
+  com módulo de teste. A decisão D1 da rodada 003 foi respondida pelo
+  usuário: Langfuse auto-hospedado, embarcado como Docker Compose; origem,
+  a edição community oficial de cada projeto; versão, a mais recente
+  publicada quando o goal for feito, fixada.
+- **Próximo:** goals 043 (Langfuse) e 044 (Graphify), em paralelo, na
+  rodada 004. Depois: documentos dos dois módulos e a medição de ganho
+  (pede credencial para os evals).
 - **Cuidado:** módulo de terceiro executa código na máquina do usuário.
   Versão fixada, e o que mudou é lido antes de atualizar.
 - **Depende de:** 016 e do inventário; a medição dos módulos depende
