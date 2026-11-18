@@ -3,7 +3,7 @@
 # first round.
 
 [round]
-cycles = 3                    # review -> execute cycles per round
+cycles = 5                    # review -> execute cycles per round
 max_parallel_executors = 4    # executor sessions at the same time
 token_budget = 150_000_000    # all tokens (input, output, cache) of the round
 wall_clock_minutes = 600      # session time of the round; governs when
