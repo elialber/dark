@@ -23,6 +23,11 @@ _NULL_INT = {"type": ["integer", "null"], "minimum": 0}
 _NULL_STR = {"type": ["string", "null"]}
 _SHA = {"type": "string", "pattern": "^[0-9a-f]{40}$"}
 
+# `name:version` (goal 057): exactly one colon, both parts non-empty and without
+# whitespace at either end. A `pattern` only applies to strings, so `null` and records
+# without the field stay valid.
+APPLIED_MODULE_PATTERN = r"^[^:\s](?:[^:]*[^:\s])?:[^:\s](?:[^:]*[^:\s])?$"
+
 RECORD_SCHEMA: dict = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": SCHEMA_ID,
@@ -63,6 +68,7 @@ RECORD_SCHEMA: dict = {
                            "outras. Ausente em registros antigos"},
         "applied_module": {
             "type": ["string", "null"],
+            "pattern": APPLIED_MODULE_PATTERN,
             "description": "nome:versão do módulo aplicado na condição with_module; nulo "
                            "nas outras. Ausente em registros antigos"},
         "base_commit": _SHA,
