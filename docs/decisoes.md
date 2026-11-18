@@ -1775,3 +1775,49 @@ mantida; depois `.dark/notas.txt` e `meu.log` ficam, com aviso);
 `ignored_path` com `../x`, `/`, `a/../b`, espaço no fim, `\`, `#`, `!`,
 `a//b/`; verificadores do 047 com `pip install` sem versão, evento `Stop`
 e `--all` (acusados) e versão no fim de frase (não acusada).
+
+## Rodada 004, ciclo 5 (goals 049 e 050)
+
+**Goal 049:** aceito e juntado. Padrões do executor confirmados (padrão
+a confirmar): o CHANGELOG diz `[aplicar]` para `python -m dark.scaffold
+aplicar` com conflito, que é o rótulo de plano desse comando (o lote
+dizia `[criar]`; vale o código); o parágrafo geral de `dark remover`
+antes da tabela fica como está; o fim de versão `(?!\w|\.\w)` também
+recusa `1.2.3.x`. A marca ✅ de "instalar e desinstalar deixam o
+repositório idêntico, medido em módulo de terceiro" fica: os testes de
+ida e volta comparam SHA-256 de cada arquivo e a lista de diretórios.
+
+**Goal 050:** aceito com correções, juntado. Os dez padrões do diário
+050 confirmados como padrão a confirmar (código 1 para preparação ou
+`verify` que falha, código 2 para entrada recusada; módulo presente no
+todo ou em parte no harness avaliado é recusado; conferência numa cópia
+de teste por commit base antes da rodada; preparação com o ambiente do
+agente; arquivos novos não ignorados da preparação num commit; médias
+sobre os registros que têm o número; comparação em frações;
+`applied_module` = `nome:versão`; `guardar` recusa com código 2;
+executável ausente é aviso no `--simular`). Correções, no goal 052: a
+preparação que muda, apaga ou troca um arquivo rastreado da cópia
+passa a ser recusada (sondagem do revisor: um `graphify` falso que
+corrigia o `calc.py` deu 0/15 contra 15/15 e a decisão "sem ganho", sem
+aviso); a linha "queda de acerto" com número negativo vira uma frase
+sobre acerto maior.
+
+**Acerto maior com o módulo não é "ganho"**, padrão a confirmar: a regra
+segue medindo custo e passos, como o item 6 do roteiro pede ao Graphify
+("custo e passos em tarefas de exploração de código"); o acerto só conta
+para a `piora`. A saída passa a dizer quando o acerto subiu (goal 052).
+
+**Langfuse não é medível hoje pelo `modulo`**: o `verify` falha na cópia
+sem as variáveis do `.env` (sondagem do revisor; recusa clara, nada
+rodado). Fica assim, documentado no goal 051; medir o Langfuse pede
+decidir de onde vêm os segredos na cópia, e não há pressa (o Langfuse
+dá rastros, não promete ganho de custo).
+
+**Motivo:** testes de cada branch e merge de ensaio `main` + 049 + 050
+sem conflito, 1388 testes; depois da junção real, 1388. Sondagens do
+revisor: `version_problems` com versão seguida de `.`, `,`, `)`, `...`,
+`.)`, `.-`, quebra de linha e `v` na frente (todas acusadas) e `1.2.3.4`,
+`4.82.0.1` (não acusadas); `modulo --nome graphify` com `graphify` falso
+que reescreve um arquivo rastreado (defeito acima); `--nome langfuse`
+(recusa no `verify`); `--nome base --simular` (aviso do indicador
+`adherence`); `rodar --condicoes with_module` (código 2).

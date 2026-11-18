@@ -71,8 +71,10 @@ Fase 3 em andamento; laço de par disponível
 | [046 — Documentos do módulo Langfuse](goals/046-langfuse-docs.md) | Aceito na [revisão 3 da rodada 004](rodadas/004/revisao-3.md) e incorporado à `main`; achou o defeito do `.env` no `remover` (goal 048) |
 | [047 — Documentos do módulo Graphify](goals/047-graphify-docs.md) | Aceito com correções na [revisão 4 da rodada 004](rodadas/004/revisao-4.md) e incorporado à `main`; os testes de deriva de versão não pegam versão no fim de frase (goal 049) |
 | [048 — Correções do motor do scaffold](goals/048-scaffold-fixes.md) | Aceito na [revisão 4 da rodada 004](rodadas/004/revisao-4.md) e incorporado à `main`; README ainda diz que a linha do `.env` sai do `.gitignore` (goal 049) |
-| 049 — Documentos em dia com o 048 e testes de deriva | Em execução ([lote 020](entrada/lote-020.md)) |
-| 050 — Medir o ganho de um módulo | Em execução ([lote 020b](entrada/lote-020b.md)) |
+| [049 — Documentos em dia com o 048 e testes de deriva](goals/049-docs-048.md) | Aceito na [revisão 5 da rodada 004](rodadas/004/revisao-5.md) e incorporado à `main`; ida e volta com módulo de terceiro marcada ✅ |
+| [050 — Medir o ganho de um módulo](goals/050-module-gain.md) | Aceito com correções na [revisão 5 da rodada 004](rodadas/004/revisao-5.md) e incorporado à `main`; preparação que altera arquivo rastreado passa calada (goal 052); documentos no goal 051 |
+| 051 — Documentos da medição de ganho | Planejado ([lote 021](entrada/lote-021.md)) |
+| 052 — Correções da medição de ganho | Planejado ([lote 021b](entrada/lote-021b.md)) |
 
 ## Decisões pendentes
 
@@ -100,11 +102,13 @@ Fase 3 em andamento; laço de par disponível
 
 Lista de funcionalidades com situação de cada item: [FUNCIONALIDADES.md](../FUNCIONALIDADES.md).
 
-Rodada 004, ciclo 4: goals 047 (documentos do Graphify) e 048
-(linha do `.gitignore` mantida enquanto o caminho existir; rótulo
-verdadeiro com conflito) juntados; 1353 testes. Lotes 020 (goal 049:
-README e CHANGELOG em dia com o 048, testes de deriva que pegam versão
-no fim de frase) e 020b (goal 050: `python -m dark.evals modulo`, a
-medição de ganho de um módulo, testada com o agente falso), em paralelo.
-Depois: documentos do 050; medição real dos módulos e da ablação e
-calibração dos casos novos (pedem credencial); piloto (item 9).
+Rodada 004, ciclo 5: goals 049 (README e CHANGELOG em dia com o 048,
+testes de deriva que pegam versão no fim de frase, ida e volta com
+módulo de terceiro ✅) e 050 (`python -m dark.evals modulo`, condição
+`with_module`, regra de ganho em custo e passos, testado com agente
+falso) juntados; 1388 testes. Lotes 021 (goal 051: documentos do 050) e
+021b (goal 052: recusar preparação que altera arquivo rastreado; linha
+do acerto maior), em paralelo, para o próximo ciclo. Depois:
+`with_module` no banco (esquema 4); medição real dos módulos e da
+ablação e calibração dos casos novos (pedem credencial); piloto (item
+9).

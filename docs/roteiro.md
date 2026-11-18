@@ -123,22 +123,29 @@ que descobrir. O porquê do projeto está em `docs/visao.md`.
   `remover langfuse` deixava o `.env` com segredos fora do git), e
   nenhum `[aplicado]` quando há conflito. Parte dos itens 6 e 7.
 
+- **Documentos do 048 e medição de ganho de um módulo** (goals 049 e
+  050, rodada 004): README e CHANGELOG dizem que a linha do `.gitignore`
+  fica enquanto o caminho existir; testes de deriva pegam versão no fim
+  de frase; ida e volta com módulo de terceiro marcada ✅ (testes byte a
+  byte dos goals 043, 044 e 048). `python -m dark.evals modulo`: condição
+  `with_module`, preparação declarada pelo módulo só na cópia, regra de
+  ganho em custo e passos, testada com agente e `graphify` falsos; o
+  banco ainda não guarda `with_module`. Parte dos itens 5, 6 e 7.
+
 ## Em andamento
 
-Rodada 004, ciclo 4 (lotes 020 e 020b):
+Próximo ciclo (lotes 021 e 021b), escritos na rodada 004, ciclo 5:
 
-- goal 049, documentos em dia com o 048 (README e CHANGELOG: a linha do
-  `.gitignore` fica enquanto o caminho existir) e testes de deriva que
-  pegam versão no fim de frase; `FUNCIONALIDADES.md` marca a ida e volta
-  com módulo de terceiro se os testes a medem byte a byte (itens 6 e 7),
-  lote principal;
-- goal 050, `python -m dark.evals modulo`: o "medir" do contrato de
-  módulo, com a condição `with_module` e a regra de ganho em custo e
-  passos, testado com o agente falso (itens 5 e 6), em paralelo.
+- goal 051, documentos da medição de ganho (`evals/README.md`, README,
+  método, glossário, CHANGELOG, `FUNCIONALIDADES.md`) com teste de
+  deriva contra as constantes da regra (itens 6 e 7), lote principal;
+- goal 052, correções do 050: preparação que muda, apaga ou troca
+  arquivo rastreado da cópia é recusada; a saída diz quando o acerto
+  sobe com o módulo (item 6), em paralelo.
 
-Depois: documentos do 050 (README, `evals/README.md`, CHANGELOG);
-guardar `with_module` no banco (esquema 4); medição real dos módulos e
-da ablação e calibração dos casos novos (pedem credencial); piloto (item
+Depois: guardar `with_module` no banco (esquema 4) e ligar a regra
+`third_party_module_without_gain`; medição real dos módulos e da
+ablação e calibração dos casos novos (pedem credencial); piloto (item
 9).
 
 ## Fila, em ordem
@@ -252,9 +259,11 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
 - **Próximo:** Langfuse (goal 043) e Graphify (goal 044) estão na
   `main`, documentados (goals 046 e 047), com ida e volta byte a byte
   nos testes, também os dois juntos e com o `.env` ou o grafo do usuário
-  no lugar (goal 048). Falta o "medir" do contrato (goal 050, comando
-  `python -m dark.evals modulo`) e a medição real de ganho dos dois
-  (pede credencial).
+  no lugar (goal 048): o critério "idêntico ao inicial" está cumprido
+  nos testes (goal 049). O "medir" do contrato está no goal 050
+  (`python -m dark.evals modulo`), com correções e documentos nos goals
+  051 e 052. Falta a medição real de ganho (pede credencial); o
+  Langfuse só pode ser medido com as variáveis do `.env` na cópia.
 - **Cuidado:** módulo de terceiro executa código na máquina do usuário.
   Versão fixada, e o que mudou é lido antes de atualizar.
 - **Depende de:** 016 e do inventário; a medição dos módulos depende

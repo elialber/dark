@@ -1,0 +1,23 @@
+{
+  "cycle": 5,
+  "verdicts": [
+    {"goal": "049", "branch": "goal-049", "verdict": "accepted",
+     "reason": "README e CHANGELOG em dia com o 048, conferidos contra a execução nos dois módulos; testes de deriva pegam versão no fim de frase (sondagens do revisor com oito variações); marca da ida e volta com base em testes byte a byte. Merge limpo, 1388 testes."},
+    {"goal": "050", "branch": "goal-050", "verdict": "accepted_with_fixes",
+     "reason": "python -m dark.evals modulo, condição with_module e regra de ganho como pedido, conferidos com script independente. Correção no goal 052: uma preparação que reescreve arquivo rastreado entra calada no commit da cópia (sondagem: 0/15 contra 15/15) e a saída mostra queda de acerto negativa."}
+  ],
+  "merged": ["goal-049", "goal-050"],
+  "tests_passed": true,
+  "merge_conflict": false,
+  "privacy_violation": false,
+  "pending_decisions": [
+    {"id": "D1", "question": "Apagar a branch goal-040 (local, em origin e o worktree ../dark-goal-040)? O goal 045 a substituiu e ela não foi nem será juntada.",
+     "options": ["a) apagar", "b) manter"], "recommendation": "a", "blocks": []}
+  ],
+  "batches": [
+    {"batch": "021", "file": "pair/entrada/lote-021.md", "goal": "051", "branch": "goal-051"},
+    {"batch": "021b", "file": "pair/entrada/lote-021b.md", "goal": "052", "branch": "goal-052"}
+  ],
+  "stop": false,
+  "stop_reason": ""
+}
