@@ -179,7 +179,8 @@ class ClaudeCliRunner:
         proc = subprocess.Popen(self.argv(request), cwd=request.cwd, env=env,
                                 stdin=subprocess.DEVNULL,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                text=True, start_new_session=True)
+                                text=True, encoding="utf-8", errors="replace",
+                                start_new_session=True)
         try:
             stdout, stderr = proc.communicate(timeout=request.timeout_s)
             timed_out = False

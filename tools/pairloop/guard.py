@@ -295,7 +295,8 @@ def written_paths(argv: list[str]) -> list[str]:
 def _current_branch(cwd: Path) -> str | None:
     try:
         r = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                           cwd=cwd, capture_output=True, text=True, timeout=10)
+                           cwd=cwd, capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=10)
     except (OSError, subprocess.SubprocessError):
         return None
     return r.stdout.strip() if r.returncode == 0 else None

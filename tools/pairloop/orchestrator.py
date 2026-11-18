@@ -540,7 +540,8 @@ class Orchestrator:
     def _tests_pass(self) -> bool:
         try:
             r = subprocess.run(list(self.cfg.test_command), cwd=self.repo,
-                               capture_output=True, text=True, timeout=3600)
+                               capture_output=True, text=True, encoding="utf-8",
+                               errors="replace", timeout=3600)
         except (OSError, subprocess.SubprocessError) as exc:
             self._note(f"testes não rodaram: {exc}")
             return False

@@ -26,6 +26,7 @@ from dark.scaffold import cli as scaffold_cli
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src" / "dark"
+TOOLS = ROOT / "tools"
 FIXTURES = Path(__file__).parent / "fixtures"
 CONFIG = FIXTURES / "config"
 
@@ -39,7 +40,7 @@ _PROCESS_CALLS = {"run", "Popen", "check_output", "check_call", "call"}
 
 def _text_mode_calls_without_encoding() -> list[str]:
     found = []
-    for path in sorted(SRC.rglob("*.py")):
+    for path in sorted([*SRC.rglob("*.py"), *TOOLS.rglob("*.py")]):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
@@ -56,7 +57,10 @@ def _text_mode_calls_without_encoding() -> list[str]:
 
 
 def test_process_output_is_never_decoded_with_the_locale():
-    """`text=True` without `encoding` uses the locale (cp1252 on Windows)."""
+    """`text=True` without `encoding` uses the locale (cp1252 on Windows).
+
+    Covers `src/dark` and `tools/` (batch 009).
+    """
     assert _text_mode_calls_without_encoding() == []
 
 

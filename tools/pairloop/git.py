@@ -18,14 +18,16 @@ class Git:
     def run(self, *args: str, cwd: Path | None = None,
             check: bool = True) -> str:
         r = subprocess.run(["git", *args], cwd=cwd or self.repo, env=self.env,
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace")
         if check and r.returncode != 0:
             raise GitError(f"git {' '.join(args)}: {r.stderr.strip()}")
         return r.stdout.strip() if r.returncode == 0 else ""
 
     def ok(self, *args: str, cwd: Path | None = None) -> bool:
         r = subprocess.run(["git", *args], cwd=cwd or self.repo, env=self.env,
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace")
         return r.returncode == 0
 
     def rev(self, ref: str) -> str | None:
@@ -45,7 +47,8 @@ class Git:
 
     def show(self, ref: str, path: str) -> str | None:
         r = subprocess.run(["git", "show", f"{ref}:{path}"], cwd=self.repo,
-                           env=self.env, capture_output=True, text=True)
+                           env=self.env, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace")
         return r.stdout if r.returncode == 0 else None
 
     def changed_files(self, old: str, new: str) -> list[str]:
