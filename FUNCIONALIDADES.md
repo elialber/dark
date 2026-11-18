@@ -27,7 +27,7 @@ Situação em 2026-11-18, versão `0.1.0` mais as mudanças em "Não lançado".
 | 2. Coleta e histórico | 4 | 5 |
 | 3. Evals | 6 | 7 |
 | 4. Recomendações | 7 | 8 |
-| 5. Scaffold e módulos | 4 | 6 |
+| 5. Scaffold e módulos | 5 | 6 |
 | 6. Distribuição | 6 | 8 |
 | 7. Método e documentação | 3 | 4 |
 | 8. Piloto | 0 | 1 |
@@ -87,7 +87,7 @@ Aplicar e desfazer estrutura no repositório, sem sobrescrever nada.
 - ✅ `dark adicionar <módulo>` (com `--listar`) e `dark verificar`
 - ✅ Módulo Langfuse (rastros de sessão; opcional; nunca grava chaves): goal 043, documentado no goal 046
 - 🔧 Módulo Graphify (grafo do repositório; opcional; precisa provar ganho): goal 044, documentado no goal 047; falta medir o ganho (pede credencial)
-- ⬜ Instalar e desinstalar deixam o repositório idêntico ao inicial, medido em módulo de terceiro
+- ✅ Instalar e desinstalar deixam o repositório idêntico ao inicial, medido em módulo de terceiro: goals 043, 044 e 048 (testes de ida e volta)
 
 ## 6. Distribuição
 

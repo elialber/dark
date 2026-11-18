@@ -46,6 +46,19 @@ podem mudar entre versões menores.
   grafo e não escreve no `CLAUDE.md`, e imprime os passos para isso.
   `dark verificar graphify` confere arquivos, hooks, a linha e o
   executável no `PATH`, sem executá-lo. O ganho ainda não foi medido.
+- **Linha do `.gitignore` mantida na remoção** (goal 048): `dark
+  remover` não tira uma linha que um módulo pôs no `.gitignore` enquanto
+  o caminho que ela ignora existir (o `.dark/langfuse/.env`, a pasta
+  `graphify-out/`); a remoção sai parcial (código 1) e diz o que fazer:
+  apagar o caminho e rodar `dark remover` de novo, que então tira a linha
+  e deixa a árvore igual à inicial. Com conflito, `dark adicionar` e
+  `dark iniciar` mostram as operações com o rótulo do plano (`[criar]`),
+  nunca `[aplicado]`; `python -m dark.scaffold aplicar`, com o rótulo do
+  plano desse comando (`[aplicar]`).
+- **Documentos em dia com o goal 048** (goal 049): README (remoção do
+  `langfuse` e do `graphify`, tabela de códigos de saída) e este registro;
+  os testes de deriva do README passam a acusar uma versão errada no fim
+  de uma frase (`0.9.111.`).
 - **Documentos do módulo `graphify`** (goal 047): subseção no README,
   Anexo A de `docs/metodo.md` e glossário; teste que falha se o README
   citar versão, comando, caminho ou evento de hook diferente do código.

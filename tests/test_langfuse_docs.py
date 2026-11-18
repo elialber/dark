@@ -23,7 +23,9 @@ HEADING = "### Módulo `langfuse`"
 PLUGIN_ONLY_VARS = frozenset({"CC_LANGFUSE_STATE_DIR"})
 
 _VAR = re.compile(r"(?<![A-Za-z0-9_])[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?![A-Za-z0-9_])")
-_SEMVER = re.compile(r"(?<![\w.])(v?)(\d+\.\d+\.\d+)(?![\w.])")
+# A version may end a sentence ("4.81.0."), but a fourth part ("1.2.3.4")
+# makes the number something else (goal 049).
+_SEMVER = re.compile(r"(?<![\w.])(v?)(\d+\.\d+\.\d+)(?!\w|\.\w)")
 _MODULE_PATH = re.compile(r"\.dark/langfuse/[\w.-]+")
 _SDK_PIN = re.compile(r"langfuse==[\w.]+")
 
@@ -183,3 +185,14 @@ def test_probe_a_different_docker_command_fails():
     assert command_problems(doctored) == [
         "`docker compose -f .dark/langfuse/docker-compose.yml --env-file .dark/langfuse/.env up` "
         "is not in NOTES"]
+
+
+def test_probe_a_wrong_version_ending_a_sentence_fails():
+    assert version_problems("Langfuse 4.82.0, plugin v1.2.2. Antes era 4.81.0.") == [
+        "version 4.81.0 is neither Langfuse 4.82.0 nor the SDK 4.18.0"]
+    assert version_problems("Langfuse 4.82.0. Plugin v1.2.1.") == [
+        "plugin tag v1.2.1 is not v1.2.2", "plugin tag v1.2.2 is not cited"]
+
+
+def test_probe_a_four_part_number_is_not_a_version():
+    assert version_problems("Langfuse 4.82.0, plugin v1.2.2. Endereço 1.2.3.4.") == []
