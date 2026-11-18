@@ -52,9 +52,12 @@ Fase 3 em andamento; laço de par disponível
 | [027 — Auditoria sobre o banco](goals/027-audit-from-store.md) | Aceito na [revisão 2 da rodada 002](rodadas/002/revisao-2.md) e incorporado à `main` |
 | [028 — Plugin do Claude Code](goals/028-plugin.md) | Aceito na [revisão 2 da rodada 002](rodadas/002/revisao-2.md) e incorporado à `main`; sessão real pendente (sem credencial) |
 | [029 — Casos de eval difíceis](goals/029-hard-eval-cases.md) | Aceito na [revisão 2 da rodada 002](rodadas/002/revisao-2.md) e incorporado à `main`; rodada nos casos novos pendente (sem credencial) |
-| 030 — Aceite do executor à prova de configuração do pytest | Em andamento: [lote 012](entrada/lote-012.md), branch `goal-030` |
-| 031 — Plugin ligado ao README e ao comando | Em andamento: [lote 012b](entrada/lote-012b.md), branch `goal-031` |
-| 032 — Recomendações por regras fixas | Em andamento: [lote 012c](entrada/lote-012c.md), branch `goal-032` |
+| [030 — Aceite do executor à prova de configuração do pytest](goals/030-runner-acceptance-hardening.md) | Aceito com correções na [revisão 3 da rodada 002](rodadas/002/revisao-3.md) e incorporado à `main`; faltam `.pytest.ini`, `pytest.toml` e `.pytest.toml` (goal 033) |
+| [031 — Plugin ligado ao README e ao comando](goals/031-plugin-wiring.md) | Aceito na [revisão 3 da rodada 002](rodadas/002/revisao-3.md) e incorporado à `main`; sessão real pendente (sem credencial) |
+| [032 — Recomendações por regras fixas](goals/032-recommendations.md) | Aceito na [revisão 3 da rodada 002](rodadas/002/revisao-3.md) e incorporado à `main` |
+| 033 — Nomes de configuração do pytest 9 | Em andamento: [lote 013](entrada/lote-013.md), branch `goal-033` |
+| 034 — Ablação de uma peça do harness | Em andamento: [lote 013b](entrada/lote-013b.md), branch `goal-034` |
+| 035 — Documento do método e recomendações no README | Em andamento: [lote 013c](entrada/lote-013c.md), branch `goal-035` |
 
 ## Decisões pendentes
 
@@ -74,6 +77,6 @@ Fase 3 em andamento; laço de par disponível
 
 ## Próximo passo
 
-Rodada 002, ciclo 2: lotes 012, 012b e 012c escritos (goals 030 a 032).
-Depois: ablação (item 4), que depende do 030; método (item 7) e piloto
-(item 9) quando houver medição.
+Rodada 002, ciclo 3: lotes 013, 013b e 013c escritos (goals 033 a 035).
+Depois: calibração dos casos novos e medição real da ablação (pedem
+credencial); módulos do scaffold (item 6) e piloto (item 9).

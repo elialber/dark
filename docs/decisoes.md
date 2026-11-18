@@ -1437,3 +1437,41 @@ do pytest escritos pelo agente podem fazer o aceite passar
 sondagens próprias (banco corrompido, diretório no lugar do banco,
 `--direto` com `--coletar`, `claude plugin validate`, validação de dois
 casos novos), merge de ensaio sem conflito.
+
+## Rodada 002, ciclo 3 (goals 030, 031 e 032)
+
+**Goal 030 (aceite contra configuração do pytest):** opção (a): o
+executor restaura ao commit de partida, antes do aceite, o
+`conftest.py` (em qualquer profundidade), `pytest.ini`, `tox.ini`,
+`setup.cfg` e `pyproject.toml` que o agente criou, mudou ou apagou fora
+dos `files`, achados por varredura do disco (não só do git). Exceção: no
+`pyproject.toml` só conta a árvore `tool.pytest*`; mudança fora dela é
+mantida. Os `files` do caso ficam fora da regra. Campo
+`acceptance_config_changed` no registro (opcional no esquema; verdadeiro
+mesmo para `conftest.py` vazio, o que não prova trapaça). Nenhum dos 16
+casos toca esses arquivos. Limites aceitos: diretório sem permissão não
+é varrido; link simbólico de diretório para fora da cópia não é tratado.
+**Lacuna achada na revisão:** o pytest 9.2 também lê `.pytest.ini`,
+`pytest.toml` e `.pytest.toml`, que a lista não cobre: goal 033.
+
+**Goal 031 (plugin e README):** as skills são atribuídas a um subcomando
+fixo para o teste de deriva (`--versao` é opção de nível superior); uma
+skill que cite opção inexistente falha o teste. Sessão real do plugin
+segue pendente (sem credencial).
+
+**Goal 032 (recomendações):** regras puras em `src/dark/recommend.py`,
+seção "Recomendações" depois de "O que mudou", em auditoria direta e pelo
+banco. Limites, todos **padrão a confirmar** e em constantes: peça sem
+uso 4 semanas com sessão, arquivo de instruções acima de 200 linhas (só
+escopos `user` e `project`), 3 bloqueios de hook por evento no período.
+O bloqueio é contado por evento, porque o banco não guarda o nome do
+hook. Adiadas por falta de dado: evals em 100% por rodadas, modelo mudou
+desde a última rodada, módulo de terceiro sem ganho. Uma linha única
+diz quando as regras do banco não rodaram por falta dele. O executor
+alterou `tests/test_integration.py` (ordem das seções), fora da lista do
+lote, mas é o ajuste do esperado que o lote previa: aceito.
+
+**Motivo:** conferência do revisor em cópia limpa: merge de ensaio sem
+conflito, 981 testes, sondagens próprias (teto de 200 e 201 linhas pela
+CLI; `.pytest.ini`, `pytest.toml` e `.pytest.toml` no pytest 9.2.0 à
+mão), `claude plugin validate`.

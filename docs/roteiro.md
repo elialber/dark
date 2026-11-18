@@ -73,14 +73,23 @@ que descobrir. O porquê do projeto está em `docs/visao.md`.
   as pontas (goal 031), a licença e uma sessão real (pedidos ao usuário).
 - **Casos de eval difíceis** (goal 029). 16 casos válidos; falta rodá-los
   com credencial.
+- **Aceite do executor contra configuração do pytest** (goal 030) e
+  **plugin ligado ao README e ao comando** (goal 031), este com teste de
+  deriva entre as skills e o `--help`. O 030 deixou de fora arquivos que
+  o pytest 9 lê (goal 033).
+- **Recomendações por regras fixas** (goal 032, item 5). Cinco regras
+  (peça sem uso, arquivo de instruções longo, peso fixo subiu, bloqueio
+  de hook repetido, commits sem hash) e três adiadas por falta de dado
+  (evals em 100%, modelo mudou, módulo de terceiro). Faltam README e
+  CHANGELOG (goal 035); a recomendação "uma seguida produz melhora
+  medida" depende da ablação.
 
 ## Em andamento
 
-Rodada 002, ciclo 2: goal 030 (aceite do executor à prova de
-configuração do pytest; item 3), goal 031 (plugin ligado ao README e ao
-comando real; item 8) e goal 032 (recomendações por regras fixas; item
-5). Branches `goal-030`, `goal-031` e `goal-032`. A ablação (item 4) fica
-para depois do 030, porque mexe no mesmo executor.
+Rodada 002, ciclo 3: goal 033 (nomes de configuração do pytest 9 que o
+goal 030 não cobre; item 3), goal 034 (ablação de uma peça, com o agente
+falso; item 4) e goal 035 (`docs/metodo.md` e recomendações no README;
+item 7). Branches `goal-033`, `goal-034` e `goal-035`.
 
 ## Fila, em ordem
 
@@ -116,7 +125,8 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
   e a medição dos módulos do item 6 não têm o que medir.
   O goal 029 acrescentou cinco casos mais difíceis (16 no total), ainda
   sem rodada: precisa de credencial (pedido ao usuário). O goal 030
-  fecha a lacuna do aceite por configuração do pytest.
+  fechou a lacuna do aceite por configuração do pytest (o 033 fecha os
+  nomes que restaram).
 - **Entrega:** roda o agente, em modo não interativo, sobre um caso de
   eval, em cópia limpa do repositório, várias vezes, em duas condições:
   sem harness e com harness. Aplica o orçamento da decisão E17, começando
@@ -157,6 +167,8 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
   - módulo de terceiro sem ganho medido: desinstalar;
   - commits sem hash registrado: aplicar a regra do commit sem `-q`.
 - **Depende de:** 2; as regras de ablação dependem de 4.
+- **Situação:** o goal 032 entregou as regras que os dados de hoje
+  sustentam; as adiadas esperam evals no banco e módulos medidos.
 - **Pronto quando:** uma recomendação seguida produz melhora medida
   (critério da Fase 5).
 

@@ -1,0 +1,23 @@
+{
+  "cycle": 3,
+  "verdicts": [
+    {"goal": "030", "branch": "goal-030", "verdict": "accepted_with_fixes",
+     "reason": "Aceite restaura a configuração do pytest e registra o campo; 16 casos válidos. Faltam .pytest.ini, pytest.toml e .pytest.toml, que o pytest 9.2 lê (conferido à mão): goal 033."},
+    {"goal": "031", "branch": "goal-031", "verdict": "accepted",
+     "reason": "Skills em dia com o --help, teste de deriva, README e CHANGELOG; plugin validado; sessão real pendente por falta de credencial."},
+    {"goal": "032", "branch": "goal-032", "verdict": "accepted",
+     "reason": "Cinco regras com limites exatos, sondagem do teto (200 e 201 linhas) confere, sem recomendação sem evidência; três regras adiadas com o dado que falta."}
+  ],
+  "merged": ["goal-030", "goal-031", "goal-032"],
+  "tests_passed": true,
+  "merge_conflict": false,
+  "privacy_violation": false,
+  "pending_decisions": [],
+  "batches": [
+    {"batch": "013", "file": "pair/entrada/lote-013.md", "goal": "033", "branch": "goal-033"},
+    {"batch": "013b", "file": "pair/entrada/lote-013b.md", "goal": "034", "branch": "goal-034"},
+    {"batch": "013c", "file": "pair/entrada/lote-013c.md", "goal": "035", "branch": "goal-035"}
+  ],
+  "stop": false,
+  "stop_reason": ""
+}
