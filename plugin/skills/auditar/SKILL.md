@@ -71,6 +71,8 @@ ela não existe.
   fixo, peso morto, custo e intervenções.
 - **Não invente números.** Cite só valores que aparecem no relatório; se
   algo não está lá, diga que o relatório não traz.
+- O relatório traz a seção "Recomendações", de regras fixas; resuma-a sem
+  inventar ação que o relatório não tenha.
 - Num repositório sem sessões o relatório diz isso e para: é um estado
   normal, os números aparecem depois das primeiras sessões.
 

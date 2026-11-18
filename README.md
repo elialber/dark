@@ -118,6 +118,20 @@ a consulta ao histórico git (mais rápido; as ligações já gravadas ficam).
 `dark auditar` não coleta sozinho; `dark auditar --coletar` coleta e
 audita.
 
+## Recomendações
+
+O relatório traz uma seção "Recomendações", feita por regras fixas: sem nota
+única e sem texto gerado. Cada linha dá a regra, o número ou o nome que a
+disparou, uma ação que você mesmo faz e como conferir depois. Há cinco
+regras: peça sem uso há semanas, arquivo de instruções grande, peso do
+inventário que subiu, bloqueios repetidos de hook e commits sem hash. As
+regras de peça sem uso e de peso do inventário dependem do banco de coleta
+(`dark coletar`); as demais funcionam na leitura direta. Os limites (4 semanas, 200
+linhas, 3 bloqueios) são padrões a confirmar, constantes em
+`src/dark/recommend.py`. Cada regra, o que fazer e como ler o resto do
+relatório estão em [docs/metodo.md](docs/metodo.md), que também resume o
+método (derivação e poda) em que a ferramenta se apoia.
+
 ## Requisitos
 
 - Python 3.12 ou mais recente.

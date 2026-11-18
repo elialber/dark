@@ -1,0 +1,314 @@
+# O método
+
+Para quem vai usar o `dark` e não participou do projeto. Este documento
+ensina três coisas: o ciclo que leva a um harness melhor, o ciclo que tira
+dele o que não ajuda e como ler o relatório de `dark auditar` e o que fazer
+com ele. Quem ainda não instalou a ferramenta começa pelo [README](../README.md).
+
+*Harness* é tudo o que envolve o modelo no Claude Code: instruções
+(`CLAUDE.md`), memória, skills, subagentes, hooks, servidores MCP,
+permissões. O propósito do projeto e o que ficou de fora dele estão em
+[visao.md](visao.md); a especificação, em [especificacao.md](especificacao.md).
+Este texto resume esses dois e remete a eles; onde divergir, valem eles.
+
+## 1. O que o método promete e o que não promete
+
+O método é geral: serve a qualquer aplicação e qualquer linguagem. O
+resultado depende da qualidade das tarefas com que você mede. A promessa é
+que, seguindo o ciclo, você chega a um harness cuja eficiência consegue
+**medir e melhorar**; não há promessa de quanto vai melhorar.
+
+Duas regras valem em todo o documento:
+
+- **Saúde se mede, não se sente.** O relatório traz indicadores separados,
+  sem nota única. Vale a tendência no mesmo repositório, não um limiar
+  universal.
+- **O que o `dark` não faz:** não gera recomendação com IA (as regras são
+  fixas), não compara pessoas, não guarda texto de conversa e não monitora em
+  tempo real. A lista completa está em [visao.md](visao.md#o-que-foi-negociado-e-ficou-de-fora).
+
+## 2. O ciclo de derivação
+
+A estrutura de um harness não se copia: copiar pastas reproduz a forma, não
+o comportamento. O que se reproduz é o ciclo. Ele tem quatro movimentos:
+
+1. **Observar a falha.** Escreva tarefas reais, cada uma com um critério de
+   aceite, e meça o agente quase sem harness (a linha de base). Cada tarefa
+   que ele não resolve é uma falha a classificar.
+2. **Localizar a camada.** Pergunte por que ele falhou; a resposta aponta a
+   camada onde a correção mora (tabela abaixo).
+3. **Mudar uma coisa.** Uma correção por vez, na camada certa, para saber o
+   que funcionou.
+4. **Medir de novo.** A correção só fica se o resultado melhora. Repita até
+   o limiar que você definiu.
+
+A tabela de falha para camada, como está em [visao.md](visao.md#as-ideias-que-sustentam-o-projeto):
+
+| O agente falhou porque | Correção |
+|---|---|
+| Não sabia um fato ou convenção | Constituição, se vale sempre; memória, se muda |
+| Não sabia executar um procedimento | Skill |
+| Sabia a regra e não seguiu | Hook |
+| Não tinha como fazer | Ferramenta nova |
+| Escolheu a ferramenta errada | Menos ferramentas, descrições melhores |
+| Perdeu o fio em tarefa longa | Arquivo de progresso ou subagente |
+| Disse "pronto" sem estar | Verificação obrigatória |
+| Fez o que não devia | Permissão ou guardrail |
+
+Duas observações:
+
+- Toda regra que entra no harness traz o motivo (a falha que a originou),
+  para que alguém possa apagá-la depois.
+- Reprodutibilidade aqui é estatística: o agente não é determinístico.
+  "Funciona" quer dizer a mesma taxa de acerto, dentro de uma tolerância, em
+  várias execuções, com modelo e versões fixados.
+
+**Onde o `dark` entra.** Os movimentos 1 e 4 pedem tarefas e medida. As
+tarefas são os casos de eval, tirados do histórico git do seu repositório;
+`python -m dark.evals` os monta, confere e roda (formato e comandos em
+[evals/README.md](../evals/README.md)). O relatório de `dark auditar` mostra
+o que o harness pesa e o que não é usado; ele ajuda a achar o que revisar,
+mas não decide o que ajuda: quem decide é a medida do passo 4.
+
+## 3. O ciclo de poda
+
+Harness deteriora: regras se acumulam, memória e skills envelhecem, uma
+muleta feita para um modelo antigo atrapalha o novo, ferramenta sem uso
+ocupa contexto. Por isso **tudo o que entra tem de provar valor, e o que
+não prova sai**.
+
+- **Peça candidata** é uma peça com arquivo (skill, subagente, servidor MCP)
+  que o relatório mostra sem uso por semanas com sessão. É candidata a
+  revisar, não a apagar: uso raro parece morte. O relatório não decide
+  nada; ele indica por onde começar.
+- **Ablação** é o teste que decide: remover a peça, rodar os evals, manter a
+  remoção só se o resultado não cair. Faça de novo a cada modelo novo.
+- **Estado hoje:** o comando de ablação (`python -m dark.evals ablacao`) está
+  **em construção** (goal 034). Quando existir, as opções estarão em
+  [evals/README.md](../evals/README.md); até lá, não conte com elas. Sem o
+  comando, a remoção é à mão: tire o arquivo, rode seus evals antes e
+  depois e compare.
+- Plataforma não é harness. Parte do que o agente carrega vem do Claude
+  Code e da conta, e você não pode mudar. O relatório separa as duas coisas e
+  só recomenda sobre o que tem arquivo.
+
+## 4. Como ler o relatório de `dark auditar`
+
+`dark auditar` só lê: não escreve no repositório auditado. Ele imprime um
+relatório em Markdown. Cada seção termina com uma linha "Como ler", que diz o
+que o número mede e o que ele não mede; leia essa linha antes de tirar
+conclusão. Os números são **contagens**, com poucas sessões nenhuma taxa
+tem sentido.
+
+### Cabeçalho
+
+Traz o repositório, a **fonte** (banco de coleta ou leitura direta das
+transcrições, e por que), o período coberto, o número de sessões e de
+pedidos e as versões do Claude Code. Dois cuidados:
+
+- o Claude Code apaga transcrições com mais de 30 dias, por padrão; na
+  leitura direta o relatório só enxerga o que ainda está no disco. O banco de
+  `dark coletar` guarda os números depois disso (veja o [README](../README.md));
+- "formato desconhecido" é contagem de registros que o leitor não
+  interpretou. Não é erro; interessa a quem mantém o `dark`.
+
+### O que chama atenção
+
+Resumo: os pontos que mais pesam, primeiro, cada um um fato com número e
+ligação para a seção de detalhe. **Não** é nota nem ordem de gravidade
+total.
+
+### Recomendações
+
+Regras fixas; está explicado na [seção 5](#5-as-recomendações).
+
+### O que mudou desde a última semana
+
+Só aparece quando a fonte é o banco, e só compara quando há duas semanas com
+dados. Compara a semana ISO mais recente com a anterior com sessões: sessões,
+pedidos, tokens, tokens por pedido, intervenções, peso fixo, peças que
+passaram a ser usadas ou deixaram de ser, peças sem uso há semanas, peso do
+inventário. A anterior pode não ser a imediatamente anterior. Uma semana
+contra outra, com poucos pedidos, oscila: olhe a tendência de várias
+coletas, não um par.
+
+### Peso fixo
+
+Quanto do contexto cada pedido **já começa ocupando**, medido nos tokens de
+entrada da primeira resposta de cada sessão (inclui cache e o primeiro
+pedido). A repartição divide em plataforma (do Claude Code, que você não
+muda), harness (o que vem da sua configuração) e pedido. É estimativa por
+fator fixo de caracteres por token. Mede tamanho de contexto, **não custo
+em dinheiro**; o "não explicado" é a diferença entre o medido e a soma das
+partes. O que fazer com ele: o peso do harness é o que você pode reduzir
+(instruções menores, menos skills e servidores MCP anunciados).
+
+### Peso morto
+
+Peças disponíveis na sessão e nunca usadas no período: skills, subagentes,
+ferramentas, servidores MCP. Vale só para o período mostrado; peça de uso
+raro parece morta. Só as peças com arquivo são suas para mudar; as da
+plataforma aparecem separadas. Hooks e regras de instrução não entram: as
+transcrições não têm lista do que estava disponível. É daqui que sai a
+regra `unused_piece`.
+
+### O que está instalado
+
+O estado de agora, lido dos arquivos (repositório, diretório do usuário,
+plugins ativos e política gerenciada): contagem por tipo e escopo, o tamanho
+das instruções carregadas no início e quantos itens trazem motivo (estimativa
+que erra nos dois sentidos). Não é o estado do período. Aparece quando o
+relatório é de um repositório que existe na máquina.
+
+### Custo
+
+Soma de entrada, saída e cache, por sessão e por pedido, e os pedidos mais
+caros. Cache lido entra com o mesmo peso: é volume de tokens, **não
+dinheiro**. Serve para achar o pedido que fugiu do normal.
+
+### Intervenções
+
+Interrupções, rejeições de ferramenta, mensagens no meio do turno e o modo de
+permissão dos pedidos. São contagens cruas ao lado do número de pedidos.
+Duas limitações: nos modos que não consultam o usuário a rejeição não tem
+como aparecer; e **a ausência de sinais não indica ausência de correções**,
+porque a correção digitada depois do turno é só mais um pedido.
+Interrupção também mede o hábito de acompanhar o agente, não só como ele
+se saiu.
+
+### Hooks
+
+Os desfechos que o hook deixou visíveis (saída, falha, bloqueio, tempo
+esgotado), por evento. Hook que roda calado não deixa registro: zero
+desfechos não quer dizer que o hook não roda. A regra `repeated_hook_block`
+sai daqui.
+
+### Commits
+
+Chamadas de `git commit` nas sessões, com e sem hash registrado, silenciosas
+(`-q`) e amends. Sem hash registrado não quer dizer que o commit não
+existe: só que a transcrição não diz qual foi. A ligação da sessão ao commit
+cai então na janela de horário, que pode ser ambígua. É daqui que sai a regra
+`commits_without_hash`.
+
+### Apêndice
+
+As listas completas do que as seções resumem.
+
+## 5. As recomendações
+
+A seção "Recomendações" vem de **regras fixas**, em
+[`src/dark/recommend.py`](../src/dark/recommend.py): sem nota, sem ordem de
+gravidade e sem texto gerado. Cada linha traz o identificador da regra, a
+evidência (o número ou o nome que a disparou, os mesmos do relatório), uma
+ação que você mesmo faz e como verificar depois. Uma regra só dispara com o
+dado que a sustenta: "sem dados" nunca vira recomendação. Sem disparo, a
+seção diz "Nenhuma regra disparou com os dados disponíveis".
+
+| Regra | O que a dispara | O que fazer | Como verificar | Fonte |
+|---|---|---|---|---|
+| `unused_piece` | peça com arquivo, ainda no disco, sem uso há `UNUSED_WEEKS` semanas ou mais (só semanas com sessão) | decidir se a peça sai: é candidata à ablação | a peça sai de "Peças com arquivo sem uso", em "O que mudou", quando é usada ou o arquivo é removido | banco |
+| `instruction_file_too_long` | arquivo de instruções de escopo de usuário ou de projeto com mais de `INSTRUCTION_LINES_CEILING` linhas | mover procedimentos para skill e apagar o que não tem motivo | "Instruções carregadas no início" mostra menos caracteres | direta e banco |
+| `fixed_weight_grew` | peso do inventário maior entre os dois últimos retratos e ao menos uma peça nova | conferir se cada peça nova precisa carregar no início e remover as que não | o peso do inventário, em "O que mudou", volta a cair | banco |
+| `repeated_hook_block` | `HOOK_BLOCKS_MIN` bloqueios ou mais do mesmo evento no período | achar a ação bloqueada e dizer na instrução ou na skill como fazê-la sem ser bloqueada | "Hooks" mostra menos bloqueios no período seguinte | direta e banco |
+| `commits_without_hash` | um ou mais commits sem hash registrado | rodar `git commit` sem `-q` | "Commits" mostra 0 sem hash nas sessões novas | direta e banco |
+
+Regras do banco precisam que `dark coletar` tenha rodado; sem ele, o
+relatório diz isso numa linha só. Três regras ainda não existem por falta de
+dado e o relatório as lista como adiadas: `evals_at_100_percent`,
+`model_changed_since_last_evals` e `third_party_module_without_gain`.
+
+### Limites que são padrões a confirmar
+
+Os números abaixo não estão em nenhuma decisão do projeto: são padrões
+escolhidos para começar, constantes com nome em `recommend.py`, fáceis de
+mudar. Trate-os como ponto de partida, não como norma.
+
+| Constante | Valor | Observação |
+|---|---|---|
+| `UNUSED_WEEKS` | 4 semanas | o banco já só mostra sequências de 2 semanas ou mais; 4 evita recomendar por oscilação de um mês |
+| `INSTRUCTION_LINES_CEILING` | 200 linhas | teto sugerido na documentação do Claude Code para o arquivo de memória; dispara acima dele (200 não, 201 sim) |
+| `HOOK_BLOCKS_MIN` | 3 bloqueios | "repetidamente" não tem número no roteiro; conta por evento, não por hook |
+
+Limites conhecidos: o bloqueio de hook é contado por evento, porque o banco
+não guarda o nome do hook nem a ação bloqueada; e a regra
+`fixed_weight_grew` não dispara quando só o tamanho de uma peça existente
+muda, porque a ação manda listar o que entrou.
+
+## 6. Exemplo de ponta a ponta
+
+O repositório traz arquivos sintéticos em `tests/fixtures/`: transcrições
+inventadas, sem dado real. Rode da raiz de um clone do repositório (os
+arquivos sintéticos não vão no pacote instalado). Você pode instalar como no
+README ou não instalar nada: use `PYTHONPATH=src python -m dark` no lugar de
+`dark`.
+
+```bash
+dark auditar --todos --config tests/fixtures/config --direto --sem-git
+```
+
+`--todos` pega as sessões de todos os repositórios das transcrições
+sintéticas (elas não pertencem a um repositório que exista nesta máquina);
+`--config` aponta para as transcrições; `--direto` e `--sem-git` dispensam o
+banco e o git. Trechos do que ele imprime:
+
+```text
+- Repositório: todos os repositórios (`--todos`)
+- Período coberto: 2026-01-01 10:00 UTC a 2026-01-03 09:11 UTC
+- Sessões: 5 · Pedidos: 7
+...
+- Skills: 1 de 4 disponíveis sem nenhum uso no período. → Peso morto
+...
+- 1 de 3 chamadas de commit não deixaram hash registrado (com `-q`: 1). → Commits
+
+## Recomendações
+
+- `commits_without_hash`: 1 de 3 commits sem hash registrado. Ação: rodar `git commit` sem `-q`, para o hash ficar na transcrição. Verificação: `dark auditar`: "Commits" mostra 0 sem hash nas sessões novas.
+
+As regras de peça sem uso e de peso do inventário precisam do banco de agregados: rode `dark coletar` e depois `dark auditar`.
+```
+
+Como ler esse trecho:
+
+1. O cabeçalho diz que são 5 sessões e 7 pedidos: pouco. Qualquer taxa
+   seria ruído; o relatório mostra contagens.
+2. "Skills: 1 de 4 sem uso" aponta para o **peso morto**: a skill
+   `nunca-usada` é candidata a revisar. Não há recomendação de remover: a
+   regra `unused_piece` precisa de 4 semanas com sessão no banco, e aqui a
+   leitura é direta.
+3. Em "Commits", 1 de 3 chamadas de `git commit` não deixou hash, e o
+   relatório conta 1 chamada com `-q`, que é a causa típica. A regra `commits_without_hash` dispara.
+4. **Ação:** acrescentar ao `CLAUDE.md` do repositório a regra "faça `git commit`
+   sem `-q`", com o motivo ao lado ("sem `-q` o hash fica gravado na
+   transcrição"). Para a ação não ficar sem medida, rode a auditoria de novo
+   depois de algumas sessões: "Commits" deve mostrar 0 sem hash nas sessões
+   novas.
+5. A linha final avisa que as regras de peça sem uso e de peso do inventário
+   precisam do banco: rode `dark coletar` de vez em quando (uma vez por
+   semana serve) e depois `dark auditar`.
+
+## Anexo A. Catálogo de ferramentas por tema (novembro de 2026)
+
+**Datado de 2026-11-17** e tirado só do que o repositório já registra: o guia
+de origem em [origem/guia-harness-14-camadas.md](origem/guia-harness-14-camadas.md)
+e as decisões em [decisoes.md](decisoes.md). Não houve pesquisa na rede.
+Ferramentas, versões e preços mudam; confira a página de cada fornecedor
+antes de decidir. O guia traz, para cada tema, o problema que resolve e
+como montar; aqui está só o ponto de partida.
+
+| Tema | Comece por | Alternativas registradas, e quando |
+|---|---|---|
+| Constituição | `CLAUDE.md` | — |
+| Memória | Claude Code (`CLAUDE.md` mais memória automática) e uma pasta de arquivos com índice | Mem0 (memória por usuário final); Zep (fatos que mudam, com histórico); Letta (o agente administra a memória); LangMem (quem já usa LangGraph) |
+| Skills | Agent Skills no Claude Code | empacotar skills, subagentes e hooks em um plugin, para distribuir |
+| Subagentes | subagentes do Claude Code (`.claude/agents/`) | orquestração multiagente do Managed Agents; handoffs no OpenAI Agents SDK; Crews no CrewAI |
+| Hooks | hooks do Claude Code | — |
+| Loop e orquestração | Claude Agent SDK | LangGraph (fluxo fixo, com aprovação e retomada); CrewAI (protótipo de equipe); outras opções por linguagem e fornecedor no guia |
+| Ferramentas e ambiente | MCP e um sandbox isolado | E2B, Daytona, Modal, Vercel Sandbox, contêiner Docker (desenvolvimento local, sem isolamento forte) |
+| Verificação | a suíte de testes e o CI que você já tem | subagente revisor; saída estruturada com validação quando o resultado é um dado |
+| Observabilidade e evals | Langfuse e um conjunto de evals | LangSmith (LangChain); Braintrust (evals como trava de CI); Arize Phoenix (RAG); Datadog LLM Observability |
+
+Dois dos módulos de terceiros previstos pelo projeto, Langfuse e Graphify,
+são opcionais e ainda não têm comando no `dark` (o motor que os instalaria
+existe, os módulos não). Os temas custo e latência, gestão da janela e
+guardrails de ação estão no guia, sem tabela de ferramentas.
