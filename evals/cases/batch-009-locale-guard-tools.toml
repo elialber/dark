@@ -1,0 +1,26 @@
+id = "batch-009-locale-guard-tools"
+source = "mined"
+base_commit = "3bb76b2ab6ac9d5145f795f860c52d82803e84cd"
+solution_commit = "f3bbfb39c934c93d002f49189bc32303781661dd"
+prompt = """
+O teste test_process_output_is_never_decoded_with_the_locale, em
+tests/test_portability.py, procura chamadas de processo em modo texto
+sem encoding explícito (que decodificam com a localidade, cp1252 no
+Windows), mas só em src/dark. Estenda-o para cobrir também tools/ e
+corrija as chamadas que ele apontar ali: a saída passa a ser
+decodificada como UTF-8, com caracteres inválidos substituídos.
+"""
+notes = """
+Pedido escrito a partir da mensagem do commit f3bbfb3 (lote 009, sem
+goal próprio). Candidato mesmo_commit: o commit estendeu o teste e
+corrigiu seis chamadas em tools/pairloop.
+Solução: 18 linhas alteradas fora de tests/ (git diff --numstat).
+"""
+
+[acceptance]
+command = "python -m pytest -q -p no:cacheprovider tests/test_portability.py"
+files = [
+  "tests/test_portability.py",
+]
+files_from = "f3bbfb39c934c93d002f49189bc32303781661dd"
+timeout = 60

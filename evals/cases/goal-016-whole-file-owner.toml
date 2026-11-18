@@ -1,0 +1,36 @@
+id = "goal-016-whole-file-owner"
+source = "mined"
+base_commit = "637a0a0cf7ed64fc49fa2ea0c2bda1b34fbb79b1"
+solution_commit = "6e577e6d399371baf5f35b78d9bd0e52a2b00482"
+prompt = """
+No motor do scaffold (src/dark/scaffold/engine.py), um arquivo criado
+inteiro por um módulo (operação de criar arquivo) hoje pode ser editado
+por outro módulo, por exemplo com uma linha acrescentada. Ao desfazer o
+módulo dono primeiro, a reversão confere o hash do arquivo inteiro, vê
+que mudou e deixa o arquivo para trás.
+
+Mude o motor para que outro módulo não possa editar um arquivo criado
+inteiro por um módulo: aplicar a edição dá conflito, com o motivo
+nomeando o módulo dono, e nada muda no disco. O próprio módulo que criou
+o arquivo continua podendo editá-lo, e desfazê-lo restaura o estado de
+antes.
+
+Os testes de tests/test_scaffold.py devem continuar passando.
+"""
+notes = """
+Pedido escrito a partir da mensagem do commit 6e577e6 (goal 016, sem
+seção própria no texto do goal). Candidato mesmo_commit: o commit trouxe
+o código e dois testes novos em tests/test_scaffold.py. A outra mudança
+do commit (diff que marca a falta de quebra de linha final) não tem
+teste e ficou de fora do pedido.
+Solução: 309 linhas alteradas fora de tests/ (git diff --numstat), das
+quais 12 em src/ e 297 no diário.
+"""
+
+[acceptance]
+command = "python -m pytest -q -p no:cacheprovider tests/test_scaffold.py"
+files = [
+  "tests/test_scaffold.py",
+]
+files_from = "6e577e6d399371baf5f35b78d9bd0e52a2b00482"
+timeout = 60

@@ -1,0 +1,32 @@
+id = "goal-019-store-header"
+source = "mined"
+base_commit = "c7f83bcd5ea9e22662ba8dc5402805dc1d41f72b"
+solution_commit = "d5a7a09f23f506d6b3cc74c386a801a80f35973f"
+prompt = """
+No armazenamento de agregados (src/dark/store/core.py), abrir um
+arquivo lê o cabeçalho (application id, versão do esquema e número de
+tabelas) em três comandos separados, cada um na sua transação. Se outro
+processo cria o esquema entre essas leituras, o primeiro vê id 0 com
+tabelas e recusa o arquivo como estranho. Isso apareceu no Windows, na
+CI.
+
+Faça a leitura do cabeçalho ver um único estado do arquivo, de modo que
+uma criação concorrente não pareça corrupção. O teste
+test_header_is_read_in_one_snapshot, em tests/test_store.py, reproduz a
+corrida de forma determinística; faça-o passar sem enfraquecê-lo, e os
+demais testes do arquivo devem continuar passando.
+"""
+notes = """
+Pedido escrito a partir da mensagem do commit d5a7a09 (goal 019).
+Candidato commits_seguidos: o teste entrou em c7f83bc e a correção em
+d5a7a09, que não mudou testes. A base já tem o teste visível.
+Solução: 18 linhas alteradas fora de tests/ (git diff --numstat).
+"""
+
+[acceptance]
+command = "python -m pytest -q -p no:cacheprovider tests/test_store.py"
+files = [
+  "tests/test_store.py",
+]
+files_from = "d5a7a09f23f506d6b3cc74c386a801a80f35973f"
+timeout = 60

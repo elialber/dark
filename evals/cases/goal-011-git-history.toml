@@ -1,0 +1,59 @@
+id = "goal-011-git-history"
+source = "mined"
+base_commit = "975ce0e4428d8b01023f849f7d3707d7fde8ccdf"
+solution_commit = "1a5ebf7c4976b8d082c36b66fc2b7bf3c42cbd70"
+prompt = """
+Escreva o módulo src/dark/historico.py, que lê o histórico git de um
+repositório e responde às perguntas da auditoria sobre commits. Ele não
+lê transcrições nem importa dark.leitor: recebe hashes e intervalos de
+horário como parâmetros.
+
+Os testes já estão em tests/test_historico.py e definem a interface;
+faça-os passar sem enfraquecê-los.
+
+O módulo responde:
+
+1. Commits numa janela: dado um repositório e dois instantes, quais
+   commits têm data de commit entre eles, incluindo os que só existem no
+   reflog. O resultado distingue nenhum, um e mais de um (ambíguo; o
+   módulo não escolhe).
+2. Situação de um commit: existe? É alcançável a partir de alguma
+   branch? Da branch padrão? Só pelo reflog?
+3. Amend: o commit foi substituído por outro logo em seguida?
+4. Reversão: o commit foi revertido por um commit posterior?
+5. Retoque: os arquivos que o commit alterou foram alterados de novo por
+   outro commit dentro de N dias? É um sinal fraco de retrabalho, não
+   uma "correção". A função de retoques aceita também `ignorar`, uma
+   lista de padrões de caminho (como "pair/diario/*") de arquivos que
+   não contam: o resultado lista em `arquivos` só os que contam e em
+   `ignorados` os que foram deixados de fora.
+
+Limite conhecido, a relatar e não a resolver: commit incorporado por
+squash some da branch padrão; diga no resultado quando esse pode ser o
+caso.
+
+Requisitos: só biblioteca padrão; git chamado como processo, por um
+executor injetável; somente leitura (nada de fetch, gc, checkout, commit
+ou equivalente); horários comparados como instantes, com fuso explícito;
+repositório inexistente, sem commits ou que não é git dá resultado
+explícito, não exceção solta.
+"""
+notes = """
+Pedido escrito a partir do goal 011 (pair/goals/011-historico-git.md).
+Candidato mesmo_commit: os testes entraram em 975ce0e e o módulo em
+1a5ebf7, que também mudou o arquivo de teste: acrescentou o teste de
+arquivos ignorados no retoque (por isso o pedido fala de `ignorar`) e
+tirou o -q de um cherry-pick. O aceite traz o arquivo de teste de
+1a5ebf7. Os critérios do goal sobre este repositório real ficaram de
+fora.
+Solução: 957 linhas alteradas fora de tests/ (git diff --numstat), das
+quais 662 em src/ e 295 no diário. Um dos três casos acima de 800.
+"""
+
+[acceptance]
+command = "python -m pytest -q -p no:cacheprovider tests/test_historico.py"
+files = [
+  "tests/test_historico.py",
+]
+files_from = "1a5ebf7c4976b8d082c36b66fc2b7bf3c42cbd70"
+timeout = 60

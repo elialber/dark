@@ -1,0 +1,51 @@
+id = "goal-012-eval-cases"
+source = "mined"
+base_commit = "e0393f4ea126fbfb9865d05960f26d477a32f2b7"
+solution_commit = "6dfbe92c1ac774ebdbd02b0eb4fe168430ad9d05"
+prompt = """
+Escreva a primeira parte do componente de evals em src/dark/evals/: o
+formato de um caso, a validação de um caso e a mineração de candidatos
+no histórico git. Nada aqui executa um agente.
+
+Os testes já estão em tests/test_evals.py e definem a interface e os
+nomes; faça-os passar sem enfraquecê-los.
+
+- Formato: um arquivo TOML por caso, lido com a biblioteca padrão, com
+  id, origem (manual ou minerado), commit_base, pedido, aceite (comando
+  e arquivos de teste a trazer de outro commit), commit_solucao opcional
+  e notas.
+- Validação: um caso é válido quando o aceite falha no commit_base e,
+  havendo commit_solucao, passa nele. Trabalha numa cópia do repositório
+  em diretório temporário, sem alterar o original nem a lista de
+  worktrees dele; traz os arquivos de teste, roda o comando com limite de
+  tempo e registra código de saída e duração; devolve válido ou inválido
+  com o motivo (não falha na base, não passa na solução, comando não
+  roda, tempo esgotado); apaga a cópia no fim. Comando de aceite vazio
+  (texto vazio, só espaços ou lista vazia) conta como comando que não
+  roda, porque `sh -c ""` sai com 0.
+- Mineração: propõe candidatos (commit que altera testes e outros
+  arquivos; testes num commit e código no seguinte), cada um com um
+  rascunho de caso de pedido em branco e o assunto do commit nas notas.
+  O que é arquivo de teste vem de padrões de caminho configuráveis.
+
+Requisitos: só biblioteca padrão; git chamado como processo, por um
+executor injetável.
+"""
+notes = """
+Pedido escrito a partir do goal 012 (pair/goals/012-casos-de-eval.md).
+Candidato mesmo_commit: os testes entraram em e0393f4 e o código em
+6dfbe92, que acrescentou um teste (comando vazio não roda); por isso o
+pedido fala do comando vazio. Nomes em português, como era o código
+nessa época. O critério do goal de gravar um caso deste repositório
+ficou de fora do pedido.
+Solução: 1022 linhas alteradas fora de tests/ (git diff --numstat), das
+quais 810 em src/. Um dos três casos acima de 800.
+"""
+
+[acceptance]
+command = "python -m pytest -q -p no:cacheprovider tests/test_evals.py"
+files = [
+  "tests/test_evals.py",
+]
+files_from = "6dfbe92c1ac774ebdbd02b0eb4fe168430ad9d05"
+timeout = 60
