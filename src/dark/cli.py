@@ -401,7 +401,8 @@ def _add_module(name: str, path: Path | None, apply_: bool, command: str) -> int
               f"{error}", file=sys.stderr)
         return 1
     print(f"Módulo {module.name} {module.version} em {root}:")
-    labels = {"new": "aplicado" if apply_ else "criar", "already_applied": "já aplicado",
+    # With a conflict nothing is written: show the plan label, not "aplicado".
+    labels = {"new": "aplicado" if outcome.applied else "criar", "already_applied": "já aplicado",
               "already_present": "já presente", "conflict": "conflito"}
     for step in outcome.steps:
         why = module.reasons.get(step.op.path, "")
