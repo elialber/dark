@@ -121,6 +121,8 @@ class Graphify(Module):
     version = VERSION
     indicator = "cost_per_task"
     notes = NOTES
+    # Goal 050: the graph the notes tell the user to build, built in the eval copy.
+    prepare = ((EXECUTABLE, "extract", ".", "--code-only"),)
 
     def plan(self, repo: Path) -> Plan:
         ops: list = [CreateFile(path, content) for path, content, _ in _files()]

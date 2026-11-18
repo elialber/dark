@@ -40,6 +40,7 @@ from . import process, workspace
 from .ablation import AblationError, Piece
 from .agent_stream import StreamTally
 from .case import Case
+from .module_gain import ModuleGainError, ModuleSetup
 from .run_record import CONDITIONS, RunRecord
 from .validation import run_acceptance
 
@@ -128,6 +129,7 @@ class RunConfig:
     workdir: Path | None = None        # where the temporary directories go
     model: str | None = None
     ablation: Piece | None = None      # the piece the `ablated` condition removes (goal 034)
+    module: ModuleSetup | None = None  # the module the `with_module` condition adds (goal 050)
 
 
 def agent_environment(base: Mapping[str, str], config_dir: Path, home: Path,
@@ -178,6 +180,8 @@ def run_once(case: Case, condition: str, run_index: int, config: RunConfig,
         raise ValueError(f"condição desconhecida: {condition}")
     if condition == "ablated" and config.ablation is None:
         raise ValueError("condição ablated sem peça a retirar")
+    if condition == "with_module" and config.module is None:
+        raise ValueError("condição with_module sem módulo a aplicar")
     started_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     start = time.monotonic()
     limits = config.limits
@@ -192,7 +196,8 @@ def run_once(case: Case, condition: str, run_index: int, config: RunConfig,
                acceptance_config_changed=False,
                base_commit="0" * 40, harness_commit=None, max_turns=limits.max_turns,
                max_tokens=limits.max_tokens, timeout_s=float(limits.timeout_s),
-               ablated_piece=config.ablation.label if condition == "ablated" else None)
+               ablated_piece=config.ablation.label if condition == "ablated" else None,
+               applied_module=config.module.label if condition == "with_module" else None)
 
     def finish(**kw) -> RunRecord:
         rec.update(kw)
@@ -201,27 +206,32 @@ def run_once(case: Case, condition: str, run_index: int, config: RunConfig,
 
     tmp = Path(tempfile.mkdtemp(prefix="dark-run-", dir=parent))
     try:
+        config_dir, home = tmp / "config", tmp / "home"
+        config_dir.mkdir()
+        home.mkdir()
         # --- copy -------------------------------------------------------------
         try:
             base_sha = workspace.resolve_commit(source, case.base_commit)
             rec["base_commit"] = base_sha
             harness_sha = (workspace.resolve_commit(source, config.harness_commit)
-                           if condition in ("project", "ablated") else None)
+                           if condition in ("project", "ablated", "with_module") else None)
             rec["harness_commit"] = harness_sha
             copy = tmp / "repo"
             start_commit = workspace.prepare_copy(source, base_sha, copy, harness_sha)
             if condition == "ablated":
                 # The piece goes only from the copy, as one more commit.
                 start_commit = config.ablation.apply(copy)
+            elif condition == "with_module":
+                # The module goes only into the copy, as one more commit; its
+                # preparation runs with the agent's environment, no credential.
+                start_commit = config.module.setup(
+                    copy, agent_environment(os.environ, config_dir, home, {}), limits.timeout_s)
         except workspace.WorkspaceError:
             return finish(error_stage="setup")
-        except AblationError as e:
+        except (AblationError, ModuleGainError) as e:
             raise RunnerRefused(str(e)) from None
         if workspace.is_inside(copy, source) or not workspace.is_inside(copy, tmp):
             raise RunnerRefused("a cópia não está no diretório temporário")
-        config_dir, home = tmp / "config", tmp / "home"
-        config_dir.mkdir()
-        home.mkdir()
 
         # --- agent ------------------------------------------------------------
         req = AgentRequest(prompt=case.prompt, max_turns=limits.max_turns, model=config.model)

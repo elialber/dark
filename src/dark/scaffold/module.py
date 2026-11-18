@@ -43,6 +43,10 @@ class Module(ABC):
     reasons: ClassVar[dict[str, str]] = {}
     # Optional, for the plan's printout: what the user does next (goal 043).
     notes: ClassVar[tuple[str, ...]] = ()
+    # Optional (goal 050): commands `python -m dark.evals modulo` runs in the
+    # eval copy after applying the module and before the agent, each one a
+    # tuple of arguments (the first is the executable, looked up on PATH).
+    prepare: ClassVar[tuple[tuple[str, ...], ...]] = ()
 
     def existing(self, repo: Path) -> list[str]:
         """What the plan leaves alone because it is already there (not ours)."""
