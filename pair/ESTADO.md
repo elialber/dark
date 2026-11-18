@@ -58,9 +58,12 @@ Fase 3 em andamento; laço de par disponível
 | [033 — Nomes de configuração do pytest 9](goals/033-runner-config-names.md) | Aceito na [revisão 4 da rodada 002](rodadas/002/revisao-4.md) e incorporado à `main`; fecha a lacuna do goal 030 |
 | [034 — Ablação de uma peça do harness](goals/034-ablation.md) | Aceito na [revisão 4 da rodada 002](rodadas/002/revisao-4.md) e incorporado à `main`; medição real pendente (sem credencial) |
 | [035 — Documento do método e recomendações no README](goals/035-method-doc.md) | Aceito na [revisão 4 da rodada 002](rodadas/002/revisao-4.md) e incorporado à `main`; o texto da ablação precisa do goal 037 |
-| 036 — `dark iniciar` e `dark remover` | Em andamento: [lote 014](entrada/lote-014.md), branch `goal-036` |
-| 037 — Documentos em dia com a ablação | Em andamento: [lote 014b](entrada/lote-014b.md), branch `goal-037` |
-| 038 — Resultados de evals no banco e duas regras | Em andamento: [lote 014c](entrada/lote-014c.md), branch `goal-038` |
+| [036 — `dark iniciar` e `dark remover`](goals/036-init.md) | Aceito na [revisão 5 da rodada 002](rodadas/002/revisao-5.md) e incorporado à `main` |
+| [037 — Documentos em dia com a ablação](goals/037-docs-ablation.md) | Aceito na [revisão 5 da rodada 002](rodadas/002/revisao-5.md) e incorporado à `main` |
+| [038 — Resultados de evals no banco e duas regras](goals/038-evals-in-store.md) | Aceito com correções na [revisão 5 da rodada 002](rodadas/002/revisao-5.md) e incorporado à `main`; `guardar` estoura com inteiro acima de 2^63 (goal 039); só `evals_at_100_percent` foi ligada |
+| 039 — Limites do `guardar` e modelo das sessões | Escrito: [lote 015](entrada/lote-015.md), branch `goal-039` |
+| 040 — Documentos em dia com `iniciar`, `remover` e `guardar` | Escrito: [lote 015b](entrada/lote-015b.md), branch `goal-040` |
+| 041 — `dark coletar --evals` | Escrito: [lote 015c](entrada/lote-015c.md), branch `goal-041` |
 
 ## Decisões pendentes
 
@@ -84,8 +87,7 @@ Fase 3 em andamento; laço de par disponível
 
 ## Próximo passo
 
-Rodada 002, ciclo 4: lotes 014, 014b e 014c escritos (goals 036 a 038).
-Depois: módulos do scaffold (Langfuse, Graphify; item 6), ligar a
-importação de evals ao `dark coletar`, documentar `dark iniciar`;
+Rodada 002, ciclo 5: lotes 015, 015b e 015c escritos (goals 039 a 041).
+Depois: módulos do scaffold (Langfuse, Graphify; item 6);
 calibração dos casos novos e medição real da ablação (pedem credencial);
 piloto (item 9).

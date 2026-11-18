@@ -1512,3 +1512,32 @@ três sem conflito (1093 testes), sondagens próprias
 aninhado e apagado; `ablacao` com tipo `hook`, nome vazio, `--execucoes 0`,
 caso inexistente, `--simular`), números do exemplo do método contra a
 saída real de `dark auditar` e constantes de `recommend.py`.
+
+## Rodada 002, ciclo 5 (goals 036, 037 e 038)
+
+**Goal 036 (`dark iniciar`, `dark remover`):** módulo `base` (versão
+1.0.0, indicador `adherence`) cria só o que falta: `CLAUDE.md` com título
+e seção de regras vazia, `evals/cases/LEIAME.md` e um modelo
+`.toml.modelo`; nada de regras, skills, hooks nem `.gitignore`. Plano sem
+`--aplicar` não escreve. Exige a raiz de um repositório git (subpasta é
+recusada com a raiz indicada: comando que escreve não age em repositório
+que o usuário não nomeou). `remover` de módulo nunca aplicado: saída 0;
+desconhecido: 2; algo mantido por edição do usuário: 1. Tudo **padrão a
+confirmar**.
+
+**Goal 037 (documentos da ablação):** aceito; o teste de deriva agora
+cobre `python -m dark.evals <subcomando>` e as quatro saídas.
+
+**Goal 038 (evals no banco):** esquema 1 → 2, tabela `eval_runs`, chave
+`(started_at, case_name, condition, run_number)`; registro já gravado vence
+na reimportação. Rodada = dia UTC de início; `EVALS_ROUNDS_AT_100 = 3`;
+só a condição `project` conta; `error` desclassifica. Todos **padrão a
+confirmar**. `model_changed_since_last_evals` segue adiada: o banco não
+guarda o modelo das sessões (goal 039). Defeito: tokens acima de 2^63
+estouram em `write_eval_runs` (goal 039).
+
+**Motivo:** merge de ensaio dos três sem conflito (1158 testes, de novo
+depois do merge real); sondagens do revisor (`iniciar` em pasta com
+espaço, `remover` duas vezes, `CLAUDE.md` editado depois, link quebrado;
+`guardar` com linhas inválidas e com `tokens=10**30`; `--inexistente`
+no método falha o teste).

@@ -90,12 +90,17 @@ que descobrir. O porquê do projeto está em `docs/visao.md`.
   credencial) e **documento do método** (goal 035, item 7, com
   recomendações no README).
 
+- **`dark iniciar` e `dark remover`** (goal 036, item 6, módulo `base`
+  sem terceiros), **documentos da ablação** (goal 037) e **resultados de
+  evals no banco** (goal 038: tabela `eval_runs`, `guardar`, regra
+  `evals_at_100_percent`).
+
 ## Em andamento
 
-Rodada 002, ciclo 4: goal 036 (`dark iniciar` e `dark remover`, módulo
-`base` sem terceiros; item 6), goal 037 (documentos em dia com a
-ablação; itens 4 e 7) e goal 038 (resultados de evals no banco e as duas
-regras adiadas do item 5). Branches `goal-036`, `goal-037` e `goal-038`.
+Rodada 002, ciclo 5 (escritos): goal 039 (limites do `guardar`, modelo
+das sessões e a regra `model_changed_since_last_evals`), goal 040
+(documentos de `iniciar`, `remover`, `guardar`) e goal 041 (`dark coletar
+--evals`). Branches `goal-039`, `goal-040` e `goal-041`.
 
 ## Fila, em ordem
 
@@ -178,7 +183,9 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
   - commits sem hash registrado: aplicar a regra do commit sem `-q`.
 - **Depende de:** 2; as regras de ablação dependem de 4.
 - **Situação:** o goal 032 entregou as regras que os dados de hoje
-  sustentam; as adiadas esperam evals no banco e módulos medidos.
+  sustentam; o 038 ligou `evals_at_100_percent`; `model_changed_since_last_evals`
+  espera o modelo das sessões no banco (goal 039); a de módulo de
+  terceiro espera módulos medidos.
 - **Pronto quando:** uma recomendação seguida produz melhora medida
   (critério da Fase 5).
 
@@ -197,6 +204,9 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
   - **Graphify:** grafo do repositório para o agente consultar, com
     skill e hook. Tem de provar ganho neste critério: custo e passos em
     tarefas de exploração de código, com e sem ele.
+- **Situação:** o goal 036 entregou `dark iniciar` e `dark remover` com
+  o módulo `base` (sem terceiros; `dark adicionar` e os módulos Langfuse
+  e Graphify faltam; padrão a confirmar: Langfuse auto-hospedado).
 - **Cuidado:** módulo de terceiro executa código na máquina do usuário.
   Versão fixada, e o que mudou é lido antes de atualizar.
 - **Depende de:** 016 e do inventário; a medição dos módulos depende

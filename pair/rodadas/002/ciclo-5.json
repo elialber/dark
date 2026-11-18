@@ -1,0 +1,23 @@
+{
+  "cycle": 5,
+  "verdicts": [
+    {"goal": "036", "branch": "goal-036", "verdict": "accepted",
+     "reason": "dark iniciar e remover com o módulo base; árvore idêntica depois de remover; sondagens sem traceback."},
+    {"goal": "037", "branch": "goal-037", "verdict": "accepted",
+     "reason": "documentos da ablação em dia; teste de deriva falha com opção inexistente."},
+    {"goal": "038", "branch": "goal-038", "verdict": "accepted_with_fixes",
+     "reason": "banco, guardar e regra evals_at_100_percent corretos; tokens acima de 2^63 estouram com traceback (correção no goal 039); model_changed_since_last_evals segue adiada."}
+  ],
+  "merged": ["goal-036", "goal-037", "goal-038"],
+  "tests_passed": true,
+  "merge_conflict": false,
+  "privacy_violation": false,
+  "pending_decisions": [],
+  "batches": [
+    {"batch": "015", "file": "pair/entrada/lote-015.md", "goal": "039", "branch": "goal-039"},
+    {"batch": "015b", "file": "pair/entrada/lote-015b.md", "goal": "040", "branch": "goal-040"},
+    {"batch": "015c", "file": "pair/entrada/lote-015c.md", "goal": "041", "branch": "goal-041"}
+  ],
+  "stop": false,
+  "stop_reason": ""
+}
