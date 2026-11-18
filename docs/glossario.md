@@ -188,6 +188,20 @@ requisição à API nos registros (`api-request`).
 | hook ausente | missing hook | `hooks.<evento>` sem a entrada do módulo no `.claude/settings.json` |
 | o módulo não foi aplicado | not applied | `dark verificar` antes de qualquer `--aplicar` |
 
+### Acrescentados no goal 056 (goals 052, 054 e 055)
+
+| Português | Inglês | Observação |
+|---|---|---|
+| preparação (do módulo), comandos de preparação | setup, `ModuleSetup.commands` | o que roda na cópia `with_module` antes do agente; no `graphify`, `graphify extract . --code-only` |
+| preparação recusada; arquivo rastreado (conteúdo mudou, apagado, virou diretório, virou link simbólico, permissão de execução mudou) | `SetupFailed`; tracked file | código 1 do `modulo`, nada rodado; os motivos aparecem assim, entre parênteses, depois de cada caminho |
+| commit da preparação | preparation commit | arquivos novos não ignorados que a preparação criou, fora da mudança do agente |
+| esquema 4 (do banco) | `SCHEMA_VERSION` | `eval_runs` com `turns`, `applied_module` e `harness_commit`; aceita a condição `with_module` |
+| cópia do banco antes da migração | backup | sufixo `.v3.bak` (o número é o do esquema antigo) |
+| medição (de um módulo, no banco) | module measurement | `module_history.module_measurements`; vale a mais recente de cada módulo |
+| módulo de terceiro | third-party module | `THIRD_PARTY_MODULES` (`graphify`, `langfuse`); o `base` é do próprio `dark` |
+| sem ganho, piora (decisões que disparam a regra) | `WITHOUT_GAIN` (`no_gain`, `worse`) | regra `third_party_module_without_gain`, que aparece com o nome em inglês |
+| versão aplicada | applied version | a versão do módulo no manifesto; a regra só vale se for a medida |
+
 ## Valores internos e texto impresso
 
 Os valores internos (tipos de intervenção, desfechos de hook, origens,

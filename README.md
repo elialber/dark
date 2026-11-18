@@ -5,12 +5,16 @@ transcrições que o Claude Code grava na sua máquina e mostra, para um
 repositório, como está o harness dele (instruções, skills, subagentes,
 hooks, servidores MCP, permissões): quanto ele pesa em cada pedido, o que
 foi instalado e nunca é usado, quanto as sessões custaram, onde você
-precisou intervir. O objetivo do projeto é também instalar e manter esse
-harness; nesta versão (0.1.0), a ferramenta mede e indica o que mudar,
-com evidência, mas ainda não instala nada. O que ela faz e o que ainda
-não faz está no [registro de mudanças](CHANGELOG.md); tudo o que está
-planejado, com a marca de pronto ou não, está em
-[FUNCIONALIDADES.md](FUNCIONALIDADES.md).
+precisou intervir. Com isso, ela indica o que mudar, por regras fixas e
+com evidência. Também prepara o repositório: aplica, confere e desfaz
+módulos de harness (o esqueleto `base` e os módulos opcionais `langfuse`
+e `graphify`), sem sobrescrever nada, e mede, com os seus casos de eval,
+se um módulo reduz o custo e os passos do agente. Não escreve regras,
+skills nem hooks por você: isso nasce das falhas que você observa. A
+versão 0.1.0 só media e indicava; o scaffold, os módulos e a medição de
+ganho vieram depois e estão em "Não lançado" no
+[registro de mudanças](CHANGELOG.md). Tudo o que está planejado, com a
+marca de pronto ou não, está em [FUNCIONALIDADES.md](FUNCIONALIDADES.md).
 
 ## Instalação
 
@@ -125,7 +129,7 @@ os resultados de uma rodada de evals (a opção pode se repetir, um arquivo
 por vez). Um arquivo que não existe, vazio, binário ou que é um diretório
 faz o comando parar com código 2 antes de coletar: nada é gravado. Sem
 coletar, `python -m dark.evals guardar <arquivo.jsonl>` faz só a
-importação. As duas regras de recomendação sobre evals usam esses dados.
+importação. As três regras de recomendação sobre evals usam esses dados.
 
 ## Preparar o repositório
 
@@ -352,21 +356,27 @@ declara, `graphify extract . --code-only`; por isso o executável
 média de tokens com o módulo fique em no máximo 90% da média sem ele e
 que a média de turnos não suba. A medição real roda o Claude Code e pede
 credencial no ambiente, como `rodar`; ela ainda não foi feita, e o ganho
-do Graphify continua sem número. A explicação completa está em
+do Graphify continua sem número. Guardado no banco (`python -m
+dark.evals guardar` ou `dark coletar --evals`), o resultado entra no
+`dark auditar`: se a medição mais recente de um módulo de terceiro
+aplicado no repositório der `sem ganho` ou `piora`, a recomendação é
+desinstalá-lo com `dark remover`. A explicação completa está em
 [evals/README.md](evals/README.md#ganho-de-um-módulo).
 
 ## Recomendações
 
 O relatório traz uma seção "Recomendações", feita por regras fixas: sem nota
 única e sem texto gerado. Cada linha dá a regra, o número ou o nome que a
-disparou, uma ação que você mesmo faz e como conferir depois. Há sete
+disparou, uma ação que você mesmo faz e como conferir depois. Há oito
 regras: peça sem uso há semanas, arquivo de instruções grande, peso do
 inventário que subiu, bloqueios repetidos de hook, commits sem hash, evals
-sempre em 100% e modelo que mudou desde a última rodada de evals. As
-regras de peça sem uso, de peso do inventário e as duas de evals dependem
-do banco de coleta (`dark coletar`; as de evals, também dos resultados
-importados com `--evals` ou `guardar`); as demais funcionam na leitura
-direta. Os limites (4 semanas, 200 linhas, 3 bloqueios, 3 rodadas) são
+sempre em 100%, modelo que mudou desde a última rodada de evals e módulo
+de terceiro (`graphify` ou `langfuse`) aplicado cuja medição de ganho mais
+recente deu `sem ganho` ou `piora`. As regras de peça sem uso, de peso do
+inventário e as três de evals dependem do banco de coleta (`dark
+coletar`; as de evals, também dos resultados importados com `--evals` ou
+`guardar`; a de módulo, também do manifesto do repositório auditado); as
+demais funcionam na leitura direta. Os limites (4 semanas, 200 linhas, 3 bloqueios, 3 rodadas) são
 padrões a confirmar, constantes em
 `src/dark/recommend.py`. Cada regra, o que fazer e como ler o resto do
 relatório estão em [docs/metodo.md](docs/metodo.md), que também resume o
