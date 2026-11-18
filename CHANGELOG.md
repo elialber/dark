@@ -27,8 +27,22 @@ podem mudar entre versões menores.
   como o `coletar`.
 - **`dark adicionar` e `dark verificar`** (goal 042): aplicam e conferem
   qualquer módulo registrado (`dark iniciar` é `dark adicionar base`);
-  `dark adicionar --listar` mostra os módulos e se estão aplicados. Só o
-  módulo `base` vem registrado.
+  `dark adicionar --listar` mostra os módulos e se estão aplicados. No
+  goal 042, só o módulo `base` vinha registrado.
+- **Módulo `langfuse`** (goal 043): `dark adicionar langfuse` cria o
+  compose oficial do Langfuse 4.82.0 em `.dark/langfuse/` (imagens em
+  etiqueta exata, segredos exigidos do `.dark/langfuse/.env`, sem valor
+  padrão), um `env.exemplo` só com nomes, a linha do `.env` no
+  `.gitignore` e, no `.claude/settings.json`, o plugin oficial
+  `langfuse-observability` fixado em `v1.2.2` e o endereço da instância
+  local; nunca grava chaves. `dark verificar langfuse` confere arquivos,
+  entradas e variáveis sem mostrar valores. O Langfuse guarda o conteúdo
+  das conversas na instância do usuário; o `dark` continua sem guardar.
+- **Documentos em dia** (goals 045 e 046): README, `docs/metodo.md` e
+  `FUNCIONALIDADES.md` passam a cobrir `iniciar`, `adicionar`,
+  `verificar`, `remover`, `guardar`, `coletar --evals` e o módulo
+  `langfuse`; testes falham se o README citar versão, caminho, variável
+  ou comando do módulo diferente do código.
 - **`dark auditar` lê do banco de coleta**, quando ele existe e conhece o
   repositório: sessões, indicadores e ligações de commit vêm do banco
   (inclusive as sessões que o Claude Code já apagou), e o cabeçalho diz a
