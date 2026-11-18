@@ -25,6 +25,8 @@ from pathlib import Path
 
 IS_WINDOWS = os.name == "nt"
 TERM_GRACE_S = 3.0
+# subprocess.CREATE_NEW_PROCESS_GROUP exists only on Windows.
+CREATE_NEW_PROCESS_GROUP = 0x00000200
 
 
 @dataclass
@@ -37,7 +39,7 @@ class ProcessOutcome:
 
 def _popen_kwargs() -> dict:
     if IS_WINDOWS:
-        return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+        return {"creationflags": CREATE_NEW_PROCESS_GROUP}
     return {"start_new_session": True}
 
 
@@ -78,8 +80,11 @@ def kill_tree(proc: subprocess.Popen, grace_s: float = TERM_GRACE_S) -> None:
     """Ends the process and all its descendants. Safe to call more than once."""
     if IS_WINDOWS:
         if proc.poll() is None:
-            subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            try:
+                subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except OSError:
+                pass        # no taskkill: the direct child is still killed below
         try:
             proc.kill()
         except OSError:

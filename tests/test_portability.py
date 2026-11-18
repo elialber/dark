@@ -20,7 +20,7 @@ import pytest
 
 from dark import audit, cli, context_usage, indicators, inventory, reader, report
 from dark.evals import __main__ as evals_main
-from dark.evals import validation
+from dark.evals import process, validation
 from dark.inventory import HarnessItem, Inventory
 from dark.scaffold import cli as scaffold_cli
 
@@ -197,9 +197,11 @@ def test_command_run_as_process_with_cp1252_output(tmp_path):
 # S5.2: timeout ends the whole process tree, on Windows too
 # ==========================================================================
 
-def test_spawn_options_by_system():
-    assert validation._spawn_options(windows=False) == {"start_new_session": True}
-    windows = validation._spawn_options(windows=True)
+def test_spawn_options_by_system(monkeypatch):
+    monkeypatch.setattr(process, "IS_WINDOWS", False)
+    assert process._popen_kwargs() == {"start_new_session": True}
+    monkeypatch.setattr(process, "IS_WINDOWS", True)
+    windows = process._popen_kwargs()
     assert "start_new_session" not in windows
     assert windows["creationflags"] == 0x00000200      # CREATE_NEW_PROCESS_GROUP
 
@@ -213,32 +215,46 @@ class _FakeProc:
     def kill(self):
         self.killed = True
 
+    def poll(self):
+        return None if not self.killed else -9
 
-def test_windows_kill_ends_the_tree_with_taskkill():
+    def wait(self, timeout=None):
+        return -9
+
+
+def test_windows_kill_ends_the_tree_with_taskkill(monkeypatch):
     calls = []
+    monkeypatch.setattr(process, "IS_WINDOWS", True)
+    monkeypatch.setattr(process.subprocess, "run", lambda argv, **kw: calls.append(argv) or
+                        subprocess.CompletedProcess(argv, 0))
     proc = _FakeProc()
-    validation._kill_tree(proc, windows=True,
-                          run=lambda argv, **kw: calls.append(argv) or
-                          subprocess.CompletedProcess(argv, 0))
-    assert calls == [["taskkill", "/T", "/F", "/PID", "4321"]]
+    process.kill_tree(proc)
+    assert calls == [["taskkill", "/PID", "4321", "/T", "/F"]]
     assert proc.killed                # and the direct child, in case taskkill failed
 
 
-def test_windows_kill_without_taskkill_still_kills_the_child():
+def test_windows_kill_without_taskkill_still_kills_the_child(monkeypatch):
     def missing(argv, **kw):
         raise FileNotFoundError("taskkill")
+    monkeypatch.setattr(process, "IS_WINDOWS", True)
+    monkeypatch.setattr(process.subprocess, "run", missing)
     proc = _FakeProc()
-    validation._kill_tree(proc, windows=True, run=missing)
+    process.kill_tree(proc)
     assert proc.killed
 
 
-def test_posix_kill_ends_the_group(monkeypatch):
-    if not hasattr(validation.os, "killpg"):
-        pytest.skip("os.killpg só existe em POSIX")
-    seen = []
-    monkeypatch.setattr(validation.os, "killpg", lambda pid, sig: seen.append((pid, sig)))
-    validation._kill_tree(_FakeProc(), windows=False)
-    assert seen == [(4321, validation.signal.SIGKILL)]
+def test_validation_ends_processes_with_the_runner_function(monkeypatch, tmp_path):
+    """One function ends process trees, on every system (batch 009)."""
+    source = Path(validation.__file__).read_text(encoding="utf-8")
+    assert "killpg" not in source and "taskkill" not in source
+    killed = []
+    real = process.kill_tree
+    monkeypatch.setattr(process, "kill_tree", lambda proc, *a, **kw: killed.append(proc.pid)
+                        or real(proc, *a, **kw))
+    code, _, timed_out, did_not_run, _ = validation.run_acceptance(
+        [sys.executable, "-c", "import time; time.sleep(30)"], tmp_path, 1)
+    assert timed_out and code is None and not did_not_run
+    assert len(killed) == 1
 
 
 def test_temporary_directory_that_cannot_be_removed_becomes_a_warning(tmp_path, monkeypatch):

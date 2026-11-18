@@ -69,6 +69,14 @@ requisição à API nos registros (`api-request`).
 | tempo limite | timeout | no caso de eval, em segundos |
 | execução (do aceite) | run (`AcceptanceRun`) | |
 | motivo (de invalidade, de instrução) | reason | |
+| executor (de evals) | runner | `python -m dark.evals calibrar`, `rodar`; não confundir com o executor do laço de par |
+| rodada (de evals) | round | casos × condições × execuções |
+| calibração, calibrar | calibration, `calibrar` | rodada com uma execução por caso e condição |
+| execução (do agente sobre um caso) | run | um registro no arquivo JSON Lines |
+| registro (de execução) | run record | esquema `dark.eval_run/1` |
+| condição: sem harness, com o harness do projeto | condition: `bare`, `project` | valores internos; aparecem assim na saída |
+| motivo de término: concluiu, tempo, orçamento, turnos, erro | end reason: `completed`, `time`, `budget`, `turns`, `error` | |
+| etapa do erro: preparação, agente, aceite | error stage: `setup`, `agent`, `acceptance` | |
 | regra | rule | as regras de "O que chama atenção" |
 | seção, apêndice, cabeçalho | section, appendix, header | |
 | resumo; mediana, mínimo, máximo | summary; median, minimum, maximum | |
@@ -140,6 +148,7 @@ de apresentação:
 | repartição do contexto (`python -m dark.context_usage`) | `KIND_LABELS` |
 | mineração (`python -m dark.evals minerar`) | `KIND_LABELS` em `evals/__main__.py` |
 | validação (`python -m dark.evals validar`) | `REASON_TEXT` em `evals/validation.py` |
+| executor (`python -m dark.evals calibrar`, `rodar`, `resumir`) | `REASON_LABELS` em `evals/rounds.py` |
 
 ## Nomes antigos e novos
 

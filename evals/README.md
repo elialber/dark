@@ -4,13 +4,15 @@ Um caso de eval é uma tarefa reproduzível: um estado do repositório, um
 pedido ao agente e um comando que decide se a tarefa foi resolvida.
 
 Este diretório guarda os casos deste repositório, um arquivo por caso em
-`cases/<id>.toml`. O código está em `src/dark/evals/`. Por enquanto há o
-formato, a validação e a mineração; o executor, que roda o agente sobre
-os casos, ainda não existe.
+`cases/<id>.toml`. O código está em `src/dark/evals/`: o formato, a
+validação, a mineração e o executor, que roda o agente sobre os casos.
+Todos os comandos ficam em `python -m dark.evals`.
 
 > **Atenção.** A validação executa o comando de aceite, isto é, código do
-> repositório avaliado, em cada commit indicado. Use-a só em repositórios
-> seus, nos quais você confiaria para rodar os testes à mão.
+> repositório avaliado, em cada commit indicado. O executor vai além: roda
+> um agente que edita arquivos e executa comandos, e depois o comando de
+> aceite. Use os dois só em repositórios seus, nos quais você confiaria
+> para rodar os testes à mão.
 
 ## Formato
 
@@ -34,9 +36,9 @@ Tabela `[acceptance]`:
 | `files_from` | não | Commit de onde vêm os `files`. Omitido, vale `solution_commit`. |
 | `timeout` | não | Segundos por execução do comando. Padrão: 300. |
 
-Previsto para o executor, que ainda não existe: trazer os `files`
-também depois que o agente terminar, para que ele não vença alterando os
-testes.
+O executor traz os `files` depois que o agente termina, por cima do que
+ele tiver feito, para que ele não vença alterando os testes; o registro
+diz se ele mexeu neles.
 
 Exemplo:
 
@@ -103,3 +105,40 @@ Cada candidato vira um rascunho com o pedido **em branco** e o assunto do
 commit nas notas. A mineração não inventa o pedido: uma pessoa o escreve,
 confere o comando de aceite, valida e move o arquivo para `cases/`.
 Gravar não sobrescreve rascunho existente.
+
+## Executor
+
+Roda o agente (Claude Code em modo não interativo) sobre cada caso, numa
+cópia limpa do repositório, e grava o resultado de cada execução.
+
+```bash
+python -m dark.evals calibrar --repo . --saida /tmp/evals/calibracao.jsonl evals/cases/*.toml
+python -m dark.evals rodar --repo . --saida /tmp/evals/rodada.jsonl --execucoes 3 evals/cases/*.toml
+python -m dark.evals resumir /tmp/evals/rodada.jsonl
+python -m dark.evals esquema
+```
+
+- **Cópia:** `git init` e fetch só do `base_commit`. A cópia não tem o
+  commit de solução nem nada posterior à base.
+- **Condições** (`--condicoes`, padrão `bare,project`): `bare` retira da
+  cópia todo `CLAUDE.md`, `CLAUDE.local.md`, `.claude/` e `.mcp.json`;
+  `project` põe o harness do commit `--harness` (padrão `HEAD`). A
+  condição entra como um commit na cópia.
+- **Limites por execução:** 150 turnos, 3600 s e 5 milhões de tokens
+  (`--max-turnos`, `--tempo`, `--tokens`); 100 milhões por rodada
+  (`--teto-rodada`). `calibrar` é a rodada com uma execução por caso e
+  condição.
+- **Autenticação:** pelo ambiente, nunca pelo seu login.
+  `CLAUDE_CODE_OAUTH_TOKEN` (gerado por `claude setup-token`) ou
+  `ANTHROPIC_API_KEY`. Sem nenhuma, o comando para como bloqueado
+  (código 3). A credencial é lida uma vez, sai do ambiente do processo e
+  vai só para o agente, que roda com diretório de configuração e `HOME`
+  descartáveis. Os comandos do agente podem lê-la: use um token dedicado
+  às evals e revogue-o depois.
+- **Registro:** JSON Lines, um objeto por execução, esquema
+  `dark.eval_run/1` (`esquema` imprime). Só números e identificadores;
+  nenhum texto da conversa. O arquivo de saída fica fora do repositório.
+- **Término:** concluiu, tempo, orçamento, turnos ou erro. Uma execução
+  passa quando o agente conclui e o aceite sai com código 0.
+- **Windows:** comando de aceite em texto roda por `sh -c`, que vem com
+  o Git for Windows; sem ele, escreva o comando em lista.

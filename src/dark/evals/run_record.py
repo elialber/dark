@@ -2,7 +2,7 @@
 
 Each record is a JSON object, one per line (JSON Lines), with the schema
 below (JSON Schema 2020-12). No text of the conversation, of commands or of
-code goes in. `python -m dark.evals.runner_cli esquema` prints the schema.
+code goes in. `python -m dark.evals esquema` prints the schema.
 """
 
 from __future__ import annotations

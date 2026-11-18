@@ -14,7 +14,6 @@ import contextlib
 import enum
 import os
 import shutil
-import signal
 import subprocess
 import sys
 import tempfile
@@ -23,6 +22,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import process
 from .case import Case
 from .git import GitError, Executor, Git, default_executor
 
@@ -30,7 +30,6 @@ from .git import GitError, Executor, Git, default_executor
 _SHELL_DID_NOT_RUN = {126, 127}
 _SAVED_OUTPUT = 4000
 _WINDOWS = sys.platform == "win32"
-_CREATE_NEW_PROCESS_GROUP = 0x00000200      # subprocess.CREATE_NEW_PROCESS_GROUP, Windows only
 
 # Decision of goal 019 (docs/decisoes.md): a command in text still runs with
 # `sh -c`; on Windows the `sh` of Git for Windows is found even when only
@@ -100,37 +99,6 @@ def _shell_argv(*, windows: bool = _WINDOWS,
     return None
 
 
-def _spawn_options(*, windows: bool = _WINDOWS) -> dict:
-    """The process gets its own group, so that a timeout reaches its children."""
-    if windows:
-        return {"creationflags": _CREATE_NEW_PROCESS_GROUP}
-    return {"start_new_session": True}
-
-
-def _kill_tree(proc, *, windows: bool = _WINDOWS,
-               run: Callable[..., object] = subprocess.run) -> None:
-    """Ends the process and its children.
-
-    POSIX: SIGKILL to the group. Windows has no process groups to signal:
-    `taskkill /T` ends the tree, and the direct child is killed in any case.
-    """
-    if not windows:
-        try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        return
-    try:
-        run(["taskkill", "/T", "/F", "/PID", str(proc.pid)],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    except OSError:
-        pass
-    try:
-        proc.kill()
-    except OSError:
-        pass
-
-
 def _remove_dir(path: Path) -> bool:
     """Removes the directory; on Windows, retries while a file is still in use."""
     for attempt in range(5):
@@ -166,7 +134,7 @@ def run_acceptance(command: str | list[str], cwd: Path, timeout_s: int) -> tuple
     """Runs the command; returns (code, duration, timed_out, did_not_run, output).
 
     The process runs in its own group, so that a timeout also kills its
-    children.
+    children, with the runner's function (`process.kill_tree`), on every system.
     """
     if isinstance(command, str):
         if not command.strip():
@@ -183,7 +151,7 @@ def run_acceptance(command: str | list[str], cwd: Path, timeout_s: int) -> tuple
     try:
         proc = subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-                                **_spawn_options())
+                                **process._popen_kwargs())
     except FileNotFoundError as e:
         shell_missing = isinstance(command, str) and e.filename in (argv[0], None)
         return None, time.monotonic() - start, False, True, NO_SHELL if shell_missing else str(e)
@@ -192,7 +160,7 @@ def run_acceptance(command: str | list[str], cwd: Path, timeout_s: int) -> tuple
     try:
         raw, _ = proc.communicate(timeout=timeout_s)
     except subprocess.TimeoutExpired:
-        _kill_tree(proc)
+        process.kill_tree(proc)
         raw, _ = proc.communicate()
         return None, time.monotonic() - start, True, False, _final(raw)
     duration = time.monotonic() - start

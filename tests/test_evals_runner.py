@@ -16,8 +16,11 @@ from pathlib import Path
 import pytest
 
 from dark.evals import case as m_case
-from dark.evals import agent_stream, process, rounds, run_record, runner, runner_cli, workspace
+from dark.evals import __main__ as evals_main
+from dark.evals import agent_stream, process, rounds, run_record, runner, workspace
 from dark.evals.case import Acceptance, Case
+
+ROOT = Path(__file__).resolve().parent.parent
 
 GIT_TEST_ENV = {
     **os.environ,
@@ -641,8 +644,16 @@ def test_schema_rejects_extra_and_wrong_types():
 
 # --- CLI ------------------------------------------------------------------------------
 
+def test_evals_command_lists_the_runner_subcommands():
+    r = subprocess.run([sys.executable, "-m", "dark.evals", "--help"], capture_output=True,
+                       text=True, encoding="utf-8", cwd=ROOT,
+                       env={**os.environ, "PYTHONPATH": str(ROOT / "src")})
+    assert r.returncode == 0
+    for name in ("minerar", "validar", "calibrar", "rodar", "resumir", "esquema"):
+        assert name in r.stdout
+
 def test_cli_prints_schema(capsys):
-    assert runner_cli.main(["esquema"]) == 0
+    assert evals_main.main(["esquema"]) == 0
     schema = json.loads(capsys.readouterr().out)
     assert schema["properties"]["schema"]["const"] == run_record.SCHEMA_ID
 
@@ -650,7 +661,7 @@ def test_cli_prints_schema(capsys):
 def test_cli_summary(tmp_path, capsys):
     f = tmp_path / "runs.jsonl"
     f.write_text("\n".join(json.dumps(_rec("a", "bare", i, i != 2, 100)) for i in (1, 2, 3)) + "\n")
-    assert runner_cli.main(["resumir", str(f)]) == 0
+    assert evals_main.main(["resumir", str(f)]) == 0
     assert "2/3" in capsys.readouterr().out
 
 
@@ -660,7 +671,7 @@ def test_cli_without_credentials_is_blocked(repo, monkeypatch, capsys):
     case_file = repo["tmp"] / "calc.toml"
     case_file.write_text(m_case.to_toml(repo["case"]), encoding="utf-8")
     out = repo["tmp"] / "out" / "runs.jsonl"
-    code = runner_cli.main(["calibrar", "--repo", str(repo["src"]), "--saida", str(out),
+    code = evals_main.main(["calibrar", "--repo", str(repo["src"]), "--saida", str(out),
                             str(case_file)])
     assert code == 3
     assert "bloqueado" in capsys.readouterr().out
