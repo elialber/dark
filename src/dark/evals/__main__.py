@@ -4,6 +4,7 @@
     python -m dark.evals validar [--repo .] [--dir-trabalho D] CASO.toml ...
     python -m dark.evals calibrar --repo . --saida ARQ.jsonl CASO.toml ...
     python -m dark.evals rodar --repo . --saida ARQ.jsonl [--execucoes 3] CASO.toml ...
+    python -m dark.evals ablacao --tipo T --nome N --saida ARQ.jsonl [--simular] CASO.toml ...
     python -m dark.evals resumir ARQ.jsonl
     python -m dark.evals esquema
 
@@ -18,7 +19,13 @@ environment (CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY); without it the
 command stops as blocked (exit code 3). The credential is read once,
 removed from this process's environment and handed only to the agent.
 
-WARNING: `calibrar` and `rodar` run an agent that edits files and runs
+`ablacao` (goal 034) runs the cases with the project harness and with the same
+harness minus one piece (a skill, subagent or instruction file), and prints
+one of four answers: pode remover, mantenha, inconclusivo, não discrimina.
+`--simular` prints the number of runs and the most tokens the round can
+spend, and runs nothing. It needs the same credential as `rodar`.
+
+WARNING: `calibrar`, `rodar` and `ablacao` run an agent that edits files and runs
 commands, and then the acceptance command of the evaluated repository. Use
 them only on your own repositories.
 """
@@ -35,7 +42,7 @@ from pathlib import Path
 from dark import console
 
 from . import case as m_case
-from . import mining, rounds, run_record, runner, validation
+from . import ablation, mining, rounds, run_record, runner, validation
 
 EXIT_INPUT = 2
 EXIT_BLOCKED = 3
@@ -66,6 +73,13 @@ def main(argv: list[str] | None = None) -> int:
     _add_run_args(sub.add_parser("calibrar", help="roda o agente uma vez por caso e condição"),
                   None)
     _add_run_args(sub.add_parser("rodar", help="rodada completa: casos × condições × N"), 3)
+    ab = sub.add_parser("ablacao", help="retira uma peça do harness numa cópia e decide")
+    _add_run_args(ab, 3, ablation=True)
+    ab.add_argument("--tipo", dest="kind", required=True,
+                    help=f"tipo da peça: {', '.join(ablation.SUPPORTED_KINDS)}")
+    ab.add_argument("--nome", dest="name", required=True, help="nome da peça, como o inventário")
+    ab.add_argument("--simular", dest="simulate", action="store_true",
+                    help="só mostra o custo máximo; não roda nada")
     r = sub.add_parser("resumir", help="resume um arquivo de registros")
     r.add_argument("records", metavar="registros", type=Path)
     sub.add_parser("esquema", help="imprime o esquema do registro de execução")
@@ -75,6 +89,8 @@ def main(argv: list[str] | None = None) -> int:
         return _mine(a)
     if a.action == "validar":
         return _validate(a)
+    if a.action == "ablacao":
+        return _ablate(a)
     if a.action == "esquema":
         print(json.dumps(run_record.RECORD_SCHEMA, ensure_ascii=False, indent=2))
         return 0
@@ -148,12 +164,14 @@ def _validate(a) -> int:
     return 0 if all_valid else 1
 
 
-def _add_run_args(p: argparse.ArgumentParser, default_runs: int | None) -> None:
+def _add_run_args(p: argparse.ArgumentParser, default_runs: int | None, *,
+                  ablation: bool = False) -> None:
     p.add_argument("--repo", type=Path, default=Path("."))
     p.add_argument("--saida", dest="output", type=Path, required=True,
                    help="arquivo JSON Lines dos registros, fora do repositório")
-    p.add_argument("--condicoes", dest="conditions", default="bare,project",
-                   help="condições separadas por vírgula (bare, project)")
+    if not ablation:
+        p.add_argument("--condicoes", dest="conditions", default="bare,project",
+                       help="condições separadas por vírgula (bare, project)")
     if default_runs is not None:
         p.add_argument("--execucoes", dest="runs", type=int, default=default_runs)
     p.add_argument("--harness", dest="harness", default="HEAD",
@@ -171,28 +189,76 @@ def _add_run_args(p: argparse.ArgumentParser, default_runs: int | None) -> None:
     p.add_argument("cases", metavar="casos", nargs="+", type=Path)
 
 
-def _run(a, runs: int) -> int:
-    conditions = [c.strip() for c in a.conditions.split(",") if c.strip()]
-    for c in conditions:
-        if c not in run_record.CONDITIONS:
-            print(f"condição desconhecida: {c}")
-            return 2
+def _load_cases(paths) -> tuple[list[m_case.Case] | None, int]:
     cases = []
-    for path in a.cases:
+    for path in paths:
         c, error = _load_case(path)
         if c is None:
             print(error)
-            return EXIT_INPUT
+            return None, EXIT_INPUT
         if not c.prompt.strip():
             print(f"{path}: caso sem pedido")
-            return EXIT_INPUT
+            return None, EXIT_INPUT
         cases.append(c)
+    return cases, 0
 
+
+def _run(a, runs: int) -> int:
+    conditions = [c.strip() for c in a.conditions.split(",") if c.strip()]
+    for c in conditions:
+        if c == "ablated":
+            print("a condição ablated só existe no comando ablacao")
+            return 2
+        if c not in run_record.CONDITIONS:
+            print(f"condição desconhecida: {c}")
+            return 2
+    cases, code = _load_cases(a.cases)
+    if cases is None:
+        return code
+    return _execute(a, cases, conditions, runs)[0]
+
+
+def _ablate(a) -> int:
+    cases, code = _load_cases(a.cases)
+    if cases is None:
+        return code
+    if a.runs < 1:
+        print("--execucoes precisa ser pelo menos 1")
+        return 2
+    try:
+        piece = ablation.locate(a.repo, a.harness, a.kind, a.name)
+    except ablation.AblationError as e:
+        print(e)
+        return 2
+    worst = ablation.worst_case(len(cases), a.runs, a.max_tokens, a.round_cap)
+    print(f"peça: {piece.label}; arquivos retirados da cópia: {len(piece.paths)}")
+    for path in piece.paths:
+        print(f"  {path}")
+    print(f"{worst.runs} execuções ({len(cases)} caso(s) × {a.runs} × 2 condições); "
+          f"no máximo {rounds._fmt_tokens(worst.tokens)} tokens "
+          f"(por execução {rounds._fmt_tokens(a.max_tokens)}, "
+          f"por rodada {rounds._fmt_tokens(a.round_cap)})")
+    per_condition = len(cases) * a.runs
+    if per_condition < ablation.MIN_RUNS:
+        print(f"com {per_condition} execuções por condição (menos de {ablation.MIN_RUNS}) a "
+              "regra só pode dar inconclusivo")
+    if a.simulate:
+        print("simulação: nada foi rodado")
+        return 0
+    code, res = _execute(a, cases, ["project", "ablated"], a.runs, piece=piece)
+    if res is not None:
+        print()
+        print(ablation.describe(ablation.decide_from_records(res.records)))
+    return code
+
+
+def _execute(a, cases, conditions, runs, piece=None):
+    """Runs the round; returns (exit code, the round's result or None)."""
     try:
         launcher = runner.ClaudeLauncher.from_environ(os.environ, executable=a.claude)
     except runner.AuthUnavailable as e:
         print(f"bloqueado: {e}")
-        return EXIT_BLOCKED
+        return EXIT_BLOCKED, None
     # The acceptance command and anything else this process starts must not
     # inherit the credential.
     for var in runner.CREDENTIAL_VARS:
@@ -201,7 +267,8 @@ def _run(a, runs: int) -> int:
     config = runner.RunConfig(
         source_repo=a.repo, harness_commit=a.harness, workdir=a.workdir, model=a.model,
         limits=runner.RunLimits(max_turns=a.max_turns, timeout_s=a.timeout,
-                                max_tokens=a.max_tokens))
+                                max_tokens=a.max_tokens),
+        ablation=piece)
 
     def on_record(d: dict) -> None:
         state = "PASSOU" if d["passed"] else "não passou"
@@ -220,10 +287,10 @@ def _run(a, runs: int) -> int:
                                round_token_cap=a.round_cap, on_record=on_record)
     except runner.RunnerRefused as e:
         print(f"recusado: {e}")
-        return 2
+        return 2, None
     except KeyboardInterrupt:
         print(f"interrompido; registros parciais em {a.output}")
-        return 130
+        return 130, None
     finally:
         if previous is not None:
             signal.signal(signal.SIGTERM, previous)
@@ -233,7 +300,7 @@ def _run(a, runs: int) -> int:
     print()
     print(rounds.describe_summary(rounds.summarize(res.records)))
     print(f"\nregistros: {a.output}")
-    return 0
+    return 0, res
 
 
 if __name__ == "__main__":

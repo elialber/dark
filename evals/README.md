@@ -164,6 +164,61 @@ python -m dark.evals esquema
 - **Windows:** comando de aceite em texto roda por `sh -c`, que vem com
   o Git for Windows; sem ele, escreva o comando em lista.
 
+## Ablação
+
+Transforma "candidata à ablação" em uma de quatro respostas, com números.
+Regra e orçamento declarados no [goal 034](../pair/goals/034-ablation.md)
+antes de qualquer medida.
+
+```bash
+python -m dark.evals ablacao --repo . --tipo subagent --nome pair-reviewer \
+  --saida /tmp/evals/ablacao.jsonl --execucoes 3 --simular evals/cases/*.toml
+```
+
+Sem `--simular`, o comando roda os casos em duas condições, as mesmas
+repetições em cada: `project` (harness completo do commit `--harness`) e
+`ablated` (a mesma cópia sem a peça). A peça sai só na cópia, num commit
+próprio; o repositório de origem é só lido. Exige a mesma credencial do
+`rodar` (sem ela, código 3). O registro de cada execução ganha o campo
+`ablated_piece` (`tipo:nome`, nulo nas outras condições).
+
+Peças suportadas (`--tipo`): `skill` (a pasta inteira), `subagent` (o
+arquivo) e `instruction` (um arquivo de instrução inteiro, como aparece no
+inventário: `CLAUDE.md`, `rules/estilo.md`). `hook`, `mcp` e `permission`
+são recusados: vivem em `settings.json` ou `.mcp.json`, compartilhados com
+outras peças. O nome tem de bater exatamente com o do inventário, no
+escopo do projeto; nome parecido, ausente ou repetido dá uma mensagem
+(código 2), com sugestões.
+
+### Regra de decisão
+
+Por condição, `n` são as execuções válidas e `p` as que passaram; execução
+que termina em `erro` não mede nada e sai da conta (tempo, orçamento e
+turnos contam como falha, E17). A queda é `p(project) − p(ablated)`.
+
+| Saída | Quando |
+|---|---|
+| `inconclusivo` | menos de 15 execuções válidas em uma condição, ou números diferentes entre elas |
+| `mantenha` | a queda passa da tolerância: `queda × 15 > 4 × n` (4 em 15, a tolerância de "Primeira rodada"; a mesma proporção para outro `n`) |
+| `não discrimina` | queda dentro da tolerância, mas as duas condições em 100% (efeito teto) ou as duas em 0% (efeito piso) |
+| `pode remover` | queda dentro da tolerância (inclusive negativa) e fora do teto e do piso |
+
+Com 15 execuções por condição, queda de 4 está dentro da tolerância e a de
+5 passa dela. Sem perda medida no teto nunca vira "pode remover": o caso
+não separa as condições.
+
+### Orçamento
+
+Os limites da E17 valem (150 turnos, 3600 s e 5 milhões de tokens por
+execução; 100 milhões por rodada; `--max-turnos`, `--tempo`, `--tokens`,
+`--teto-rodada`). Uma ablação são `casos × execuções × 2` execuções;
+`--simular` imprime esse número e o máximo de tokens que a rodada pode
+gastar (o menor entre todas as execuções no teto e o teto da rodada mais
+uma execução), sem rodar nada e sem credencial. Para uma resposta que não
+seja `inconclusivo`, são 15 execuções por condição (5 casos × 3). Um
+limite estourado no meio deixa os registros parciais no arquivo de saída e
+a resposta sai `inconclusivo`.
+
 ## Primeira rodada
 
 Conjunto e tolerância declarados no goal 022, antes de qualquer medida
