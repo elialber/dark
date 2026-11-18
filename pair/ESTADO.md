@@ -73,8 +73,8 @@ Fase 3 em andamento; laço de par disponível
 | [048 — Correções do motor do scaffold](goals/048-scaffold-fixes.md) | Aceito na [revisão 4 da rodada 004](rodadas/004/revisao-4.md) e incorporado à `main`; README ainda diz que a linha do `.env` sai do `.gitignore` (goal 049) |
 | [049 — Documentos em dia com o 048 e testes de deriva](goals/049-docs-048.md) | Aceito na [revisão 5 da rodada 004](rodadas/004/revisao-5.md) e incorporado à `main`; ida e volta com módulo de terceiro marcada ✅ |
 | [050 — Medir o ganho de um módulo](goals/050-module-gain.md) | Aceito com correções na [revisão 5 da rodada 004](rodadas/004/revisao-5.md) e incorporado à `main`; preparação que altera arquivo rastreado passa calada (goal 052); documentos no goal 051 |
-| 051 — Documentos da medição de ganho | Planejado ([lote 021](entrada/lote-021.md)) |
-| 052 — Correções da medição de ganho | Planejado ([lote 021b](entrada/lote-021b.md)) |
+| [051 — Documentos da medição de ganho](goals/051-module-gain-docs.md) | Aceito na [revisão de fechamento da rodada 004](rodadas/004/revisao-fechamento.md) e incorporado à `main`; achou que `dark coletar --evals` descarta registros `with_module` sem aviso |
+| [052 — Correções da medição de ganho](goals/052-module-gain-fixes.md) | Aceito na [revisão de fechamento da rodada 004](rodadas/004/revisao-fechamento.md) e incorporado à `main`; documentos da recusa na próxima rodada |
 
 ## Decisões pendentes
 
@@ -102,13 +102,10 @@ Fase 3 em andamento; laço de par disponível
 
 Lista de funcionalidades com situação de cada item: [FUNCIONALIDADES.md](../FUNCIONALIDADES.md).
 
-Rodada 004, ciclo 5: goals 049 (README e CHANGELOG em dia com o 048,
-testes de deriva que pegam versão no fim de frase, ida e volta com
-módulo de terceiro ✅) e 050 (`python -m dark.evals modulo`, condição
-`with_module`, regra de ganho em custo e passos, testado com agente
-falso) juntados; 1388 testes. Lotes 021 (goal 051: documentos do 050) e
-021b (goal 052: recusar preparação que altera arquivo rastreado; linha
-do acerto maior), em paralelo, para o próximo ciclo. Depois:
-`with_module` no banco (esquema 4); medição real dos módulos e da
-ablação e calibração dos casos novos (pedem credencial); piloto (item
-9).
+Rodada 004 fechada ([relatório](rodadas/004.md)): goals 051 (documentos
+da medição de ganho, com teste de deriva) e 052 (preparação de módulo que
+altera arquivo rastreado é recusada; linha do acerto maior) juntados;
+1419 testes. Próxima rodada: documentos do 052 e a recusa de
+`with_module` no `dark coletar --evals`; `with_module` no banco (esquema
+4); medição real dos módulos e da ablação e calibração dos casos novos
+(pedem credencial); piloto (item 9).

@@ -1821,3 +1821,44 @@ revisor: `version_problems` com versão seguida de `.`, `,`, `)`, `...`,
 que reescreve um arquivo rastreado (defeito acima); `--nome langfuse`
 (recusa no `verify`); `--nome base --simular` (aviso do indicador
 `adherence`); `rodar --condicoes with_module` (código 2).
+
+## Rodada 004, fechamento (goals 051 e 052)
+
+**Goal 051 aceito; goal 052 aceito.** Padrões dos executores confirmados
+como padrão a confirmar. Do 051: frase do Langfuse no README em parágrafo
+próprio ("ainda não pode ser medido sem as variáveis no ambiente"); o
+parágrafo do README cita os números da regra; toda porcentagem da seção
+nova do `evals/README.md` tem de ser a razão de tokens; rótulo parecido
+acusado por `difflib` (corte 0,75); `graph_command_problems` do teste do
+Graphify deduplicado. Do 052: o bit de execução conta como mudança; `HEAD`
+que muda é recusado; o resto do `.git` da cópia não é conferido;
+conferência por SHA-256 de cada arquivo rastreado, lida do disco e não do
+`git status` (o executor mostrou que `git commit -a` ou
+`--assume-unchanged` na preparação escondiam a mudança do `git status`);
+submódulos fora; renomear aparece como "apagado".
+
+**Limitações conhecidas da conferência da preparação**, padrão a
+confirmar, sem goal por ora: (1) um diretório rastreado trocado por link
+simbólico para uma cópia idêntica fora da cópia passa, e o commit da
+preparação registra a troca (sondagem do revisor; o conteúdo lido é o
+mesmo, então o agente não ganha nada); (2) em sistema de arquivos que não
+diferencia maiúsculas, `git mv calc.py CALC.py` passa e o commit da
+preparação leva o renome (conteúdo igual). Nenhuma das duas faz o trabalho
+do agente.
+
+**Achado do executor do 051, confirmado pelo revisor:** `dark coletar
+--evals` usa `rounds.plan_import`, que separa as linhas `with_module` em
+`plan.with_module`, mas `cli.py` só olha `plan.runs` e `plan.refused`: as
+linhas `with_module` somem sem aviso e as `project` do mesmo arquivo são
+gravadas, enquanto `python -m dark.evals guardar` recusa o arquivo. Vai
+para a próxima rodada (mesma recusa no `coletar --evals`, ou resolvido de
+vez com o esquema 4).
+
+**Motivo:** merge de ensaio `main` + 051 + 052 sem conflito, 1419 testes
+(1388 + 12 + 19); depois da junção real, 1419. Sondagens do revisor: no
+teste de deriva do 051, README com 80% no lugar de 90% e `evals/README.md`
+com "16 execuções válidas" (os dois acusados); no 052, `ModuleSetup.prepare`
+direto com `graphify` falso: arquivo rastreado e ignorado reescrito
+(recusado), `git add` da correção seguido de restauração parcial
+(recusado), regravar o mesmo conteúdo (aceito, correto), troca de
+maiúsculas e diretório trocado por link (aceitos, limitações acima).

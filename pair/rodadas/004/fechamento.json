@@ -1,0 +1,20 @@
+{
+  "cycle": 5,
+  "verdicts": [
+    {"goal": "051", "branch": "goal-051", "verdict": "accepted",
+     "reason": "Documentos da medição de ganho (evals/README.md, README, método, glossário, CHANGELOG, FUNCIONALIDADES) feitos dentro do lote; o teste de deriva lê as constantes do código e acusou as duas adulterações do revisor (80% no lugar de 90%, mínimo 16); 1419 testes no merge de ensaio. A recusa do 052 fica para a próxima rodada, como o lote previa."},
+    {"goal": "052", "branch": "goal-052", "verdict": "accepted",
+     "reason": "Preparação que muda, apaga ou troca arquivo rastreado, ou move o HEAD, é recusada por leitura do disco (mais forte que o git status: pega commit -a e assume-unchanged); sondagem 1 do revisor agora dá recusa com código 1 e nenhum registro; linha do acerto maior sem número negativo; sondagens do revisor (arquivo rastreado e ignorado, correção via índice) recusadas, duas limitações conhecidas sem efeito no resultado."}
+  ],
+  "merged": ["goal-051", "goal-052"],
+  "tests_passed": true,
+  "merge_conflict": false,
+  "privacy_violation": false,
+  "pending_decisions": [
+    {"id": "D1", "question": "Apagar a branch goal-040 (local, em origin e o worktree ../dark-goal-040)? O goal 045 a substituiu e ela não foi nem será juntada.",
+     "options": ["a) apagar", "b) manter como registro"], "recommendation": "a", "blocks": []}
+  ],
+  "batches": [],
+  "stop": false,
+  "stop_reason": ""
+}

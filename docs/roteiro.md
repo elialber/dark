@@ -132,21 +132,27 @@ que descobrir. O porquê do projeto está em `docs/visao.md`.
   ganho em custo e passos, testada com agente e `graphify` falsos; o
   banco ainda não guarda `with_module`. Parte dos itens 5, 6 e 7.
 
+- **Documentos e correções da medição de ganho** (goals 051 e 052,
+  rodada 004): seção "Ganho de um módulo" no `evals/README.md`, parágrafo
+  no README, método, glossário e CHANGELOG, com teste de deriva contra as
+  constantes da regra; a preparação de um módulo que muda, apaga ou troca
+  arquivo rastreado da cópia, ou move o `HEAD`, é recusada (código 1,
+  nada rodado), e a saída diz quando o acerto sobe com o módulo. Parte
+  dos itens 6 e 7.
+
 ## Em andamento
 
-Próximo ciclo (lotes 021 e 021b), escritos na rodada 004, ciclo 5:
+Nada em execução: a rodada 004 fechou com os goals 051 e 052 juntados.
+Para a próxima rodada, nesta ordem:
 
-- goal 051, documentos da medição de ganho (`evals/README.md`, README,
-  método, glossário, CHANGELOG, `FUNCIONALIDADES.md`) com teste de
-  deriva contra as constantes da regra (itens 6 e 7), lote principal;
-- goal 052, correções do 050: preparação que muda, apaga ou troca
-  arquivo rastreado da cópia é recusada; a saída diz quando o acerto
-  sobe com o módulo (item 6), em paralelo.
-
-Depois: guardar `with_module` no banco (esquema 4) e ligar a regra
-`third_party_module_without_gain`; medição real dos módulos e da
-ablação e calibração dos casos novos (pedem credencial); piloto (item
-9).
+- documentos do 052 (frase da recusa e linha do acerto no
+  `evals/README.md`, proposta no diário 052) e a mesma recusa de
+  registros `with_module` no `dark coletar --evals` (hoje somem sem
+  aviso; achado do diário 051);
+- guardar `with_module` no banco (esquema 4) e ligar a regra
+  `third_party_module_without_gain`;
+- medição real dos módulos e da ablação e calibração dos casos novos
+  (pedem credencial); piloto (item 9).
 
 ## Fila, em ordem
 
@@ -261,8 +267,8 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
   nos testes, também os dois juntos e com o `.env` ou o grafo do usuário
   no lugar (goal 048): o critério "idêntico ao inicial" está cumprido
   nos testes (goal 049). O "medir" do contrato está no goal 050
-  (`python -m dark.evals modulo`), com correções e documentos nos goals
-  051 e 052. Falta a medição real de ganho (pede credencial); o
+  (`python -m dark.evals modulo`), documentado no goal 051 e corrigido
+  no goal 052 (preparação só cria arquivos). Falta a medição real de ganho (pede credencial); o
   Langfuse só pode ser medido com as variáveis do `.env` na cópia.
 - **Cuidado:** módulo de terceiro executa código na máquina do usuário.
   Versão fixada, e o que mudou é lido antes de atualizar.
