@@ -102,15 +102,24 @@ que descobrir. O porquê do projeto está em `docs/visao.md`.
   segue adiada); `dark coletar --evals` e a recusa de banco dentro de
   repositório git também no `guardar`.
 
+- **Módulo Langfuse e documentos de 036 a 042** (goals 043 e 045, rodada
+  004): `dark adicionar langfuse` com o compose oficial da v4.82.0
+  (imagens fixas, segredos por variável) e o plugin oficial fixado em
+  v1.2.2; README, método, CHANGELOG, skill `coletar` e
+  `FUNCIONALIDADES.md` em dia com 036 a 042. Parte do item 6.
+
 ## Em andamento
 
-Rodada 004, ciclo 1 (lotes 017, 017b e 017c):
+Rodada 004, ciclo 2 (lotes 018 e 018b):
 
-- goal 043, módulo Langfuse (item 6), lote principal;
-- goal 044, módulo Graphify (item 6), em paralelo;
-- goal 045, documentos em dia com 036 a 042 (itens 7 e 8), em paralelo.
-  Substitui a junção do goal 040, que fica só como material de partida
-  (resposta do usuário à rodada 003, opção a).
+- goal 046, documentos do módulo Langfuse (itens 6 e 7), lote principal;
+- correções do goal 044, módulo Graphify (item 6), na mesma branch
+  `goal-044` (lote 018b): juntar a `main` e resolver o conflito com o
+  043 (campo `notes`, registro, notas impressas uma vez).
+
+Depois: documentos do Graphify; o rótulo `[aplicado]` que `dark
+adicionar` mostra quando há conflito e nada foi aplicado (diários 043 e
+044); medição dos módulos (pede credencial).
 
 ## Fila, em ordem
 
@@ -220,9 +229,11 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
   usuário: Langfuse auto-hospedado, embarcado como Docker Compose; origem,
   a edição community oficial de cada projeto; versão, a mais recente
   publicada quando o goal for feito, fixada.
-- **Próximo:** goals 043 (Langfuse) e 044 (Graphify), em paralelo, na
-  rodada 004. Depois: documentos dos dois módulos e a medição de ganho
-  (pede credencial para os evals).
+- **Próximo:** o Langfuse entrou no goal 043. O Graphify (goal 044) foi
+  aceito com correções e entra depois do lote 018b. Depois: documentos do
+  Graphify e a medição de ganho dos dois (pede credencial para os
+  evals). Instalar e desinstalar deixam o repositório idêntico, com os
+  dois módulos, nos testes de cada um.
 - **Cuidado:** módulo de terceiro executa código na máquina do usuário.
   Versão fixada, e o que mudou é lido antes de atualizar.
 - **Depende de:** 016 e do inventário; a medição dos módulos depende

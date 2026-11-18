@@ -1,0 +1,28 @@
+{
+  "cycle": 2,
+  "verdicts": [
+    {"goal": "043", "branch": "goal-043", "verdict": "accepted",
+     "reason": "Critérios conferidos; versão 4.82.0 igual no GitHub e no Docker Hub (refeito pelo revisor); compose embarcado difere do original só nas imagens fixadas e nos segredos por variável; 1255 testes; sondagens do revisor (settings com enabledPlugins em lista, .env com valor vazio e export) sem falha."},
+    {"goal": "044", "branch": "goal-044", "verdict": "accepted_with_fixes",
+     "reason": "Módulo correto: sha256 de cinco arquivos conferidos contra a etiqueta v0.9.112, 0.9.112 no PyPI, 1250 testes, sondagem de remoção com hook do usuário sem falha. Não juntado: o merge de ensaio sobre a main com o 043 conflita em module.py (campo notes duplicado) e registry.py, e cli.py imprimiria as notas duas vezes; correções no lote 018b, na mesma branch."},
+    {"goal": "045", "branch": "goal-045", "verdict": "accepted",
+     "reason": "Critérios conferidos; parágrafo do usuário intacto; opções citadas conferem com o --help; testes novos pegam opção inexistente e resumo errado; 1234 testes."}
+  ],
+  "merged": ["goal-043", "goal-045"],
+  "tests_passed": true,
+  "merge_conflict": false,
+  "privacy_violation": false,
+  "pending_decisions": [
+    {"id": "D1",
+     "question": "Apagar a branch goal-040 (local, em origin e o worktree ../dark-goal-040)? O goal 045 a substituiu e ela não foi nem será juntada.",
+     "options": ["a) apagar a branch e o worktree", "b) manter como registro"],
+     "recommendation": "a",
+     "blocks": []}
+  ],
+  "batches": [
+    {"batch": "018", "file": "pair/entrada/lote-018.md", "goal": "046", "branch": "goal-046"},
+    {"batch": "018b", "file": "pair/entrada/lote-018b.md", "goal": "044", "branch": "goal-044"}
+  ],
+  "stop": false,
+  "stop_reason": ""
+}

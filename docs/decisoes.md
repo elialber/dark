@@ -1615,3 +1615,62 @@ como material de partida.
 contrato do motor (goal 016) e a regra de não gerar conteúdo (`docs/visao.md`).
 O registro dos dois módulos em `registry.py` conflita por construção; o
 revisor resolve na junção (duas linhas).
+
+## Rodada 004, ciclo 2 (goals 043, 044 e 045)
+
+**Goal 043:** aceito e juntado. Módulo `langfuse` 4.82.0 (versão igual
+nas releases do GitHub e no Docker Hub, conferida também pelo revisor),
+compose oficial com imagens fixas e segredos por `${NOME:?…}`, plugin
+oficial `langfuse-observability` fixado em `v1.2.2`. Padrões do executor
+confirmados, todos **padrão a confirmar**: o plugin, não o gancho manual
+(o gancho exige escrever em `~/.claude`); chaves só no ambiente, nunca no
+`.claude/settings.json`, nem como `${NOME}`; MinIO fixado por digest (a
+Chainguard só publica `latest`); os três segredos do S3 derivados de
+`MINIO_ROOT_PASSWORD` e a senha de `DATABASE_URL` de `POSTGRES_PASSWORD`
+(sete variáveis no `.env`); o resto do compose igual ao original,
+inclusive a telemetria anônima ligada por padrão (o goal 046 a documenta
+e diz como desligar); `verify` aceita as variáveis do compose no ambiente
+ou no `.dark/langfuse/.env`, e as do plugin só no ambiente; campo
+opcional `notes` no contrato de módulo, impresso depois das operações
+quando não há conflito.
+
+**Goal 044:** aceito com correções, **não juntado**. O módulo está
+certo (resumos `sha256` da skill, de três referências, do `LICENSE` e
+do `NOTICE` conferidos pelo revisor contra a etiqueta `v0.9.112`; 0.9.112
+no PyPI), mas conflita com o 043 em `module.py` e `registry.py`, e o
+`cli.py` dos dois imprimiria as notas duas vezes. A correção vai num lote
+novo na mesma branch (lote 018b), pela regra do roteiro. Padrões do
+executor confirmados, todos **padrão a confirmar**: sem `CLAUDE.md` e sem
+`.claude/CLAUDE.md` (a instalação oficial escreve os dois); `LICENSE` e
+`NOTICE` copiados ao lado da skill (Apache-2.0, §4); `ORIGEM.md` ao lado,
+não no topo do `SKILL.md`; `.graphify_version` incluído; `graphify-out/`
+no `.gitignore`; conflito só por arquivo.
+
+**Nome de autor de terceiro em texto copiado:** o `NOTICE` e o `SKILL.md`
+do Graphify trazem o nome e o link de patrocínio do autor do projeto. Não
+é violação de "Privacidade" (`docs/visao.md`): a regra protege o usuário
+e os repositórios dele; atribuição de terceiro exigida pela licença do
+original fica. **Padrão a confirmar.**
+
+**Goal 045:** aceito e juntado. Padrões do executor confirmados, todos
+**padrão a confirmar**: seção "Preparar o repositório" no README; teste
+de opções do README exclui "Desenvolvimento"; "documentos em dia" ✅. A
+frase do usuário "mas ainda não instala nada" no README fica como está
+(texto do usuário; vale para a versão 0.1.0 que ela cita).
+
+**Conflito previsto no lote 017:** o revisor do ciclo 1 escreveu que
+resolveria o conflito do `registry.py` na junção. Isso contraria a
+definição do revisor (não escreve código de produto; merge que conflita
+é abortado). A correção vai para o executor, no lote 018b. Daqui em
+diante, lotes paralelos não compartilham arquivo de código, nem com
+"conflito previsto".
+
+**Motivo:** testes de cada branch (1255, 1250, 1234); merge de ensaio
+`main` + 043 + 045 sem conflito, 1268 testes; 044 por cima conflita em
+`module.py` e `registry.py`. Sondagens do revisor: `langfuse` com
+`enabledPlugins` em lista e `LANGFUSE_BASE_URL` já existente (conflito,
+nada escrito); `verificar langfuse` com `.env` de valor vazio, linha
+comentada e `export` (acusa só os ausentes); `graphify` aplicado, o
+usuário acrescenta um hook e `model` ao settings, `remover` mantém os
+dele e tira só os do Graphify; diff do compose embarcado contra o
+original da `v4.82.0`: só imagens, segredos e dois comentários.

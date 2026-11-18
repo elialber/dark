@@ -65,9 +65,10 @@ Fase 3 em andamento; laço de par disponível
 | 040 — Documentos em dia com `iniciar`, `remover` e `guardar` | Aceito na [revisão 1 da rodada 003](rodadas/003/revisao-1.md), **não junto**; substituído pelo goal 045 (decisão do usuário, opção a); a branch `goal-040` é só material de partida |
 | [041 — `dark coletar --evals`](goals/041-collect-evals.md) | Aceito na [revisão 1 da rodada 003](rodadas/003/revisao-1.md) e incorporado à `main`; skill `coletar` do plugin e documentos ainda não citam `--evals` |
 | [042 — `dark adicionar`, `dark verificar` e registro de módulos](goals/042-add-modules.md) | Aceito na [revisão de fechamento da rodada 003](rodadas/003/revisao-fechamento.md) e incorporado à `main` |
-| 043 — Módulo Langfuse | Em execução ([lote 017](entrada/lote-017.md)) |
-| 044 — Módulo Graphify | Em execução ([lote 017b](entrada/lote-017b.md)) |
-| 045 — Documentos em dia com 036 a 042 | Em execução ([lote 017c](entrada/lote-017c.md)) |
+| [043 — Módulo Langfuse](goals/043-langfuse-module.md) | Aceito na [revisão 2 da rodada 004](rodadas/004/revisao-2.md) e incorporado à `main`; documentos no goal 046 |
+| 044 — Módulo Graphify | Aceito com correções na [revisão 2 da rodada 004](rodadas/004/revisao-2.md), **não junto** (conflito com o 043); correções no [lote 018b](entrada/lote-018b.md), na mesma branch |
+| [045 — Documentos em dia com 036 a 042](goals/045-docs-catch-up.md) | Aceito na [revisão 2 da rodada 004](rodadas/004/revisao-2.md) e incorporado à `main` |
+| 046 — Documentos do módulo Langfuse | Em execução ([lote 018](entrada/lote-018.md)) |
 
 ## Decisões pendentes
 
@@ -86,14 +87,18 @@ Fase 3 em andamento; laço de par disponível
 - Escolher a licença do repositório (o manifesto do plugin não a traz).
 - Etiqueta `v0.1.0` na `main`, se quiser a instalação fixada que o
   README cita.
+- Apagar a branch `goal-040` (local, em `origin` e o worktree): o goal
+  045 a substituiu e ela não tem mais uso (D1 da revisão 2 da rodada 004).
 - Revogar o token dedicado às evals quando a rodada completa acabar
   (os comandos do agente podem lê-lo).
 
 ## Próximo passo
 
-Lista de funcionalidades com situação de cada item: [FUNCIONALIDADES.md](../FUNCIONALIDADES.md) ([diário](diario/042-funcionalidades.md)); o goal 045 a põe em dia.
+Lista de funcionalidades com situação de cada item: [FUNCIONALIDADES.md](../FUNCIONALIDADES.md).
 
-Rodada 004, ciclo 1: D1 respondida pelo usuário; lotes 017 (goal 043,
-Langfuse), 017b (goal 044, Graphify) e 017c (goal 045, documentos), em
-paralelo. Depois: documentos dos módulos; calibração dos casos novos e
-medição real da ablação e dos módulos (pedem credencial); piloto (item 9).
+Rodada 004, ciclo 2: goals 043 (Langfuse) e 045 (documentos) juntados;
+044 (Graphify) aceito com correções. Lotes 018 (goal 046, documentos do
+Langfuse) e 018b (correções do 044 na mesma branch), em paralelo.
+Depois: juntar o 044, documentos do Graphify, rótulo `[aplicado]` com
+conflito; calibração dos casos novos e medição real da ablação e dos
+módulos (pedem credencial); piloto (item 9).
