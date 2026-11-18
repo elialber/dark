@@ -484,3 +484,59 @@ def test_cli_validar_returns_code_from_result(repo_calc, tmp_path):
     bad.write_text(m_case.to_toml(_calc_case(c2, c2)))
     assert main(["validar", "--repo", str(repo), str(good_case)]) == 0
     assert main(["validar", "--repo", str(repo), str(bad)]) == 1
+
+
+# --- CLI errors without traceback ---------------------------------------------------
+
+def test_cli_validar_missing_case_file_is_a_message(repo_calc, tmp_path, capsys):
+    from dark.evals.__main__ import main
+    repo, *_ = repo_calc
+    missing = tmp_path / "nao-existe.toml"
+    assert main(["validar", "--repo", str(repo), str(missing)]) == 2
+    out = capsys.readouterr().out
+    assert "nao-existe.toml" in out and "não encontrado" in out
+    assert "Traceback" not in out
+
+
+def test_cli_validar_malformed_case_is_a_message_with_code_2(repo_calc, tmp_path, capsys):
+    from dark.evals.__main__ import main
+    repo, c1, c2, _ = repo_calc
+    good_case = tmp_path / "calc.toml"
+    good_case.write_text(m_case.to_toml(_calc_case(c1, c2)))
+    bad = tmp_path / "quebrado.toml"
+    bad.write_text('id = "x\n', encoding="utf-8")
+    # The good case is still validated; the bad file decides the exit code.
+    assert main(["validar", "--repo", str(repo), str(bad), str(good_case)]) == 2
+    out = capsys.readouterr().out
+    assert "quebrado.toml" in out and "formato inválido" in out
+    assert out.count("quebrado.toml") == 1          # the path is not repeated
+    assert "VÁLIDO" in out
+
+
+def test_cli_validar_case_file_that_is_not_utf8(repo_calc, tmp_path, capsys):
+    from dark.evals.__main__ import main
+    repo, *_ = repo_calc
+    bad = tmp_path / "latin1.toml"
+    bad.write_bytes('prompt = "ação"\n'.encode("latin-1"))
+    assert main(["validar", "--repo", str(repo), str(bad)]) == 2
+    assert "latin1.toml" in capsys.readouterr().out
+
+
+@pytest.mark.skipif(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+                    reason="directory permissions do not stop writes on Windows or as root")
+def test_cli_minerar_unwritable_directory_is_a_message(tmp_path, capsys):
+    from dark.evals.__main__ import main
+    repo = new_repo(tmp_path / "repo")
+    make_commit(repo, {"README": "x\n"}, "initial")
+    make_commit(repo, {"calc.py": "x = 1\n", "tests/test_calc.py": "def test(): pass\n"},
+                "add calc")
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    locked.chmod(0o555)
+    try:
+        for target in (locked, locked / "sub"):
+            assert main(["minerar", "--repo", str(repo), "--gravar", str(target)]) == 2
+            out = capsys.readouterr().out
+            assert "não foi possível gravar" in out and str(locked) in out
+    finally:
+        locked.chmod(0o755)

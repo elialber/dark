@@ -687,3 +687,82 @@ def test_cli_without_credentials_is_blocked(repo, monkeypatch, capsys):
     assert code == 3
     assert "bloqueado" in capsys.readouterr().out
     assert not out.exists()
+
+
+# --- CLI errors without traceback ---------------------------------------------------
+
+def test_cli_summary_line_that_is_not_json(tmp_path, capsys):
+    f = tmp_path / "runs.jsonl"
+    f.write_text(json.dumps(_rec("a", "bare", 1, True, 100)) + "\nnot json\n", encoding="utf-8")
+    assert evals_main.main(["resumir", str(f)]) == 2
+    out = capsys.readouterr().out
+    assert "runs.jsonl" in out and "linha 2" in out
+
+
+def test_cli_summary_line_that_is_not_an_object(tmp_path, capsys):
+    f = tmp_path / "runs.jsonl"
+    f.write_text("[1, 2]\n", encoding="utf-8")
+    assert evals_main.main(["resumir", str(f)]) == 2
+    assert "linha 1" in capsys.readouterr().out
+
+
+def test_cli_summary_missing_file(tmp_path, capsys):
+    assert evals_main.main(["resumir", str(tmp_path / "nada.jsonl")]) == 2
+    out = capsys.readouterr().out
+    assert "nada.jsonl" in out and "não encontrado" in out
+
+
+def test_load_records_reports_line_number(tmp_path):
+    f = tmp_path / "runs.jsonl"
+    f.write_text('{"a": 1}\n\n{broken\n', encoding="utf-8")
+    with pytest.raises(rounds.RecordsFileError, match="linha 3"):
+        rounds.load_records(f)
+
+
+@pytest.mark.parametrize("action", ["calibrar", "rodar"])
+def test_cli_run_missing_case_file(repo, action, capsys):
+    out = repo["tmp"] / "out" / "runs.jsonl"
+    code = evals_main.main([action, "--repo", str(repo["src"]), "--saida", str(out),
+                            str(repo["tmp"] / "nao-existe.toml")])
+    assert code == 2
+    assert "nao-existe.toml" in capsys.readouterr().out
+    assert not out.exists()
+
+
+@pytest.mark.parametrize("action", ["calibrar", "rodar"])
+def test_cli_run_malformed_case_file(repo, action, capsys):
+    bad = repo["tmp"] / "quebrado.toml"
+    bad.write_text('id = "x\n', encoding="utf-8")
+    out = repo["tmp"] / "out" / "runs.jsonl"
+    code = evals_main.main([action, "--repo", str(repo["src"]), "--saida", str(out), str(bad)])
+    assert code == 2
+    text = capsys.readouterr().out
+    assert "formato inválido" in text and text.count("quebrado.toml") == 1
+
+
+@pytest.mark.skipif(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+                    reason="directory permissions do not stop writes on Windows or as root")
+@pytest.mark.parametrize("sub", ["", "sub"])
+def test_cli_run_unwritable_output_is_refused_before_any_run(repo, fake, monkeypatch, capsys,
+                                                             sub):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key")
+    case_file = repo["tmp"] / "calc.toml"
+    case_file.write_text(m_case.to_toml(repo["case"]), encoding="utf-8")
+    locked = repo["tmp"] / "locked"
+    locked.mkdir()
+    locked.chmod(0o555)
+    # An executable that would leave a mark if the round started.
+    marker = repo["tmp"] / "agent-started"
+    agent = repo["tmp"] / "agent.sh"
+    agent.write_text(f"#!/bin/sh\ntouch '{marker}'\n", encoding="utf-8")
+    agent.chmod(0o755)
+    out = (locked / sub / "runs.jsonl") if sub else (locked / "runs.jsonl")
+    try:
+        code = evals_main.main(["calibrar", "--repo", str(repo["src"]), "--saida", str(out),
+                                "--claude", str(agent), str(case_file)])
+    finally:
+        locked.chmod(0o755)
+    assert code == 2
+    text = capsys.readouterr().out
+    assert "arquivo de saída" in text and "runs.jsonl" in text
+    assert not marker.exists()
