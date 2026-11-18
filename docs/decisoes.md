@@ -1475,3 +1475,40 @@ lote, mas é o ajuste do esperado que o lote previa: aceito.
 conflito, 981 testes, sondagens próprias (teto de 200 e 201 linhas pela
 CLI; `.pytest.ini`, `pytest.toml` e `.pytest.toml` no pytest 9.2.0 à
 mão), `claude plugin validate`.
+
+## Rodada 002, ciclo 4 (goals 033, 034 e 035)
+
+**Goal 033 (nomes de configuração do pytest 9):** `.pytest.ini`,
+`pytest.toml` e `.pytest.toml` entram em `PYTEST_CONFIG_NAMES`; só o
+`pyproject.toml` segue parcial (árvore `tool.pytest*`), os demais valem
+como arquivo inteiro. Lista conservadora: nome que uma versão futura do
+pytest deixe de ler continua restaurado, o que é inofensivo e fica
+registrado em `acceptance_config_changed`. Teste que acompanha o pytest
+instalado, pela linha `configfile:` do cabeçalho (saída pública), sobre
+48 grafias plausíveis; **não pega** nome fora dessa grade nem ponto de
+extensão novo que não seja arquivo por nome. Fonte da lista:
+`_pytest/config/findpaths.py`, pytest 9.2.0.
+
+**Goal 034 (ablação):** peças suportadas: skill (pasta inteira),
+subagente e arquivo de instrução inteiro, só do escopo do projeto;
+`hook`, `mcp` e `permission` recusados (moram em JSON compartilhado).
+Condição `ablated` e campo `ablated_piece` (opcional no esquema). Regra
+de decisão, todas **padrão a confirmar**: mínimo de 15 execuções válidas
+por condição e em número igual, senão `inconclusivo`; queda acima de 4 em
+15 (proporcional para `n` maior: `queda × 15 > 4 × n`) é `mantenha`;
+dentro da tolerância, as duas condições em 100% ou em 0% é `não
+discrimina`, senão `pode remover`; execução que termina em `erro` sai da
+conta. Sem credencial no laço, nenhuma ablação real foi medida.
+
+**Goal 035 (método):** `docs/metodo.md` resume e remete a `visao.md` e
+`especificacao.md` sem regra nova; teste de deriva contra `--help`, as
+constantes de `recommend.py` e os links. Opção solta (sem `dark ...` na
+mesma peça) é conferida contra a união dos `--help`. O trecho da ablação
+ficou como "em construção" e é atualizado no goal 037.
+
+**Motivo:** conferência do revisor em cópias limpas: merge de ensaio dos
+três sem conflito (1093 testes), sondagens próprias
+(`.pytest.ini` como diretório, `pytest.toml` inválido, link simbólico,
+aninhado e apagado; `ablacao` com tipo `hook`, nome vazio, `--execucoes 0`,
+caso inexistente, `--simular`), números do exemplo do método contra a
+saída real de `dark auditar` e constantes de `recommend.py`.

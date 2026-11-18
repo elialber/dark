@@ -55,18 +55,25 @@ Fase 3 em andamento; laço de par disponível
 | [030 — Aceite do executor à prova de configuração do pytest](goals/030-runner-acceptance-hardening.md) | Aceito com correções na [revisão 3 da rodada 002](rodadas/002/revisao-3.md) e incorporado à `main`; faltam `.pytest.ini`, `pytest.toml` e `.pytest.toml` (goal 033) |
 | [031 — Plugin ligado ao README e ao comando](goals/031-plugin-wiring.md) | Aceito na [revisão 3 da rodada 002](rodadas/002/revisao-3.md) e incorporado à `main`; sessão real pendente (sem credencial) |
 | [032 — Recomendações por regras fixas](goals/032-recommendations.md) | Aceito na [revisão 3 da rodada 002](rodadas/002/revisao-3.md) e incorporado à `main` |
-| 033 — Nomes de configuração do pytest 9 | Em andamento: [lote 013](entrada/lote-013.md), branch `goal-033` |
-| 034 — Ablação de uma peça do harness | Em andamento: [lote 013b](entrada/lote-013b.md), branch `goal-034` |
-| 035 — Documento do método e recomendações no README | Em andamento: [lote 013c](entrada/lote-013c.md), branch `goal-035` |
+| [033 — Nomes de configuração do pytest 9](goals/033-runner-config-names.md) | Aceito na [revisão 4 da rodada 002](rodadas/002/revisao-4.md) e incorporado à `main`; fecha a lacuna do goal 030 |
+| [034 — Ablação de uma peça do harness](goals/034-ablation.md) | Aceito na [revisão 4 da rodada 002](rodadas/002/revisao-4.md) e incorporado à `main`; medição real pendente (sem credencial) |
+| [035 — Documento do método e recomendações no README](goals/035-method-doc.md) | Aceito na [revisão 4 da rodada 002](rodadas/002/revisao-4.md) e incorporado à `main`; o texto da ablação precisa do goal 037 |
+| 036 — `dark iniciar` e `dark remover` | Em andamento: [lote 014](entrada/lote-014.md), branch `goal-036` |
+| 037 — Documentos em dia com a ablação | Em andamento: [lote 014b](entrada/lote-014b.md), branch `goal-037` |
+| 038 — Resultados de evals no banco e duas regras | Em andamento: [lote 014c](entrada/lote-014c.md), branch `goal-038` |
 
 ## Decisões pendentes
 
 - Casos de eval que o agente às vezes falhe: os cinco casos novos do
   goal 029 ainda não foram rodados (falta credencial no laço).
+- Padrões a confirmar da ablação (diário 034): mínimo de 15 execuções
+  válidas por condição, tolerância proporcional acima de 15, erro fora da
+  conta, peças suportadas (skill, subagente, instrução inteira).
 
 ## Pedidos ao usuário
 
-- Rodar a calibração dos casos novos, com o token no ambiente (comando
+- Rodar a ablação real de uma peça (comando no diário 034) junto com a
+  calibração dos casos novos, com o token no ambiente (comando
   em `evals/README.md`, "Segunda rodada"; estimativa de 6 a 8 milhões de
   tokens, US$ 4 a 6), e a sessão real do plugin (diário 028).
 - Escolher a licença do repositório (o manifesto do plugin não a traz).
@@ -77,6 +84,8 @@ Fase 3 em andamento; laço de par disponível
 
 ## Próximo passo
 
-Rodada 002, ciclo 3: lotes 013, 013b e 013c escritos (goals 033 a 035).
-Depois: calibração dos casos novos e medição real da ablação (pedem
-credencial); módulos do scaffold (item 6) e piloto (item 9).
+Rodada 002, ciclo 4: lotes 014, 014b e 014c escritos (goals 036 a 038).
+Depois: módulos do scaffold (Langfuse, Graphify; item 6), ligar a
+importação de evals ao `dark coletar`, documentar `dark iniciar`;
+calibração dos casos novos e medição real da ablação (pedem credencial);
+piloto (item 9).

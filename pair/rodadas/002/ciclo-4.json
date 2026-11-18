@@ -1,0 +1,23 @@
+{
+  "cycle": 4,
+  "verdicts": [
+    {"goal": "033", "branch": "goal-033", "verdict": "accepted",
+     "reason": "Os três nomes de configuração do pytest 9 protegidos; teste acompanha o pytest instalado; sondagens (diretório, TOML inválido, link simbólico) sem traceback; 16 casos válidos."},
+    {"goal": "034", "branch": "goal-034", "verdict": "accepted",
+     "reason": "Comando de ablação de ponta a ponta com o agente falso, quatro saídas com limites exatos, recusas em português; medição real pendente por falta de credencial."},
+    {"goal": "035", "branch": "goal-035", "verdict": "accepted",
+     "reason": "docs/metodo.md com teste de deriva; números do exemplo conferem com a saída real e as constantes; sem contradição com visao.md; trecho da ablação a atualizar no goal 037."}
+  ],
+  "merged": ["goal-033", "goal-034", "goal-035"],
+  "tests_passed": true,
+  "merge_conflict": false,
+  "privacy_violation": false,
+  "pending_decisions": [],
+  "batches": [
+    {"batch": "014", "file": "pair/entrada/lote-014.md", "goal": "036", "branch": "goal-036"},
+    {"batch": "014b", "file": "pair/entrada/lote-014b.md", "goal": "037", "branch": "goal-037"},
+    {"batch": "014c", "file": "pair/entrada/lote-014c.md", "goal": "038", "branch": "goal-038"}
+  ],
+  "stop": false,
+  "stop_reason": ""
+}

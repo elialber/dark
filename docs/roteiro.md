@@ -84,12 +84,18 @@ que descobrir. O porquê do projeto está em `docs/visao.md`.
   CHANGELOG (goal 035); a recomendação "uma seguida produz melhora
   medida" depende da ablação.
 
+- **Nomes de configuração do pytest 9** (goal 033), **ablação de uma
+  peça** (goal 034, item 4: comando `python -m dark.evals ablacao`,
+  quatro saídas, testado só com o agente falso; a medição real espera
+  credencial) e **documento do método** (goal 035, item 7, com
+  recomendações no README).
+
 ## Em andamento
 
-Rodada 002, ciclo 3: goal 033 (nomes de configuração do pytest 9 que o
-goal 030 não cobre; item 3), goal 034 (ablação de uma peça, com o agente
-falso; item 4) e goal 035 (`docs/metodo.md` e recomendações no README;
-item 7). Branches `goal-033`, `goal-034` e `goal-035`.
+Rodada 002, ciclo 4: goal 036 (`dark iniciar` e `dark remover`, módulo
+`base` sem terceiros; item 6), goal 037 (documentos em dia com a
+ablação; itens 4 e 7) e goal 038 (resultados de evals no banco e as duas
+regras adiadas do item 5). Branches `goal-036`, `goal-037` e `goal-038`.
 
 ## Fila, em ordem
 
@@ -148,6 +154,10 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
 - **Depende de:** 3.
 - **Pronto quando:** aplicado a este repositório, classifica pelo menos
   uma peça como removível sem perda, com os números.
+- **Situação:** comando entregue no goal 034 (peças: skill, subagente,
+  instrução inteira; mínimo de 15 execuções por condição). Falta a
+  medição real, que pede credencial e casos que discriminem (pedido ao
+  usuário).
 
 ### 5. Recomendações do cockpit
 
@@ -201,6 +211,9 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
   como ler o relatório. Em anexo datado, o catálogo de ferramentas por
   tema.
 - **Depende de:** nada; fica melhor depois de 3 e 4, com exemplos reais.
+- **Situação:** entregue no goal 035; o goal 037 atualiza o trecho da
+  ablação. Falta o teste com uma pessoa de fora e um ciclo de derivação
+  real.
 - **Pronto quando:** uma pessoa que não participou do projeto consegue,
   só com ele e o README, auditar um repositório e fazer um ciclo de
   derivação.
