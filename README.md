@@ -1,31 +1,134 @@
 # dark
 
-Ferramenta que instala e mantém o harness do Claude Code em um repositório, mede a saúde dele e indica o que mudar, com evidência.
+Ferramenta de linha de comando para quem usa o Claude Code. Ela lê as
+transcrições que o Claude Code grava na sua máquina e mostra, para um
+repositório, como está o harness dele (instruções, skills, subagentes,
+hooks, servidores MCP, permissões): quanto ele pesa em cada pedido, o que
+foi instalado e nunca é usado, quanto as sessões custaram, onde você
+precisou intervir. O objetivo do projeto é também instalar e manter esse
+harness; nesta versão (0.1.0), a ferramenta mede e indica o que mudar,
+com evidência, mas ainda não instala nada. O que ela faz e o que ainda
+não faz está no [registro de mudanças](CHANGELOG.md).
 
-Fase atual: Fase 2 concluída; Fase 3 (evals) iniciada. A primeira entrega de uso é o comando de auditoria.
+## Instalação
 
-## Auditoria
+Um comando, sem dependência além do Python:
 
 ```bash
-.venv/bin/pip install -e .
-dark auditar                                   # o repositório do diretório atual
-dark auditar <caminho-do-repositório>          # ou: python -m dark auditar <caminho>
-dark auditar <caminho> --dias 7 --saida local/auditoria.md
+python -m pip install "git+<URL do repositório>"
 ```
 
-Lê as transcrições do Claude Code (`CLAUDE_CONFIG_DIR` ou `~/.claude`), junta as sessões do repositório (por diretório e pelo commit inicial) e imprime um relatório em Markdown: o que chama atenção, peso fixo (com a repartição estimada entre plataforma, harness e pedido), peso morto (com a origem de cada peça: projeto, usuário, plugin ou plataforma), o que está instalado, custo, intervenções, hooks e commits (ligados aos commits do repositório por hash ou por janela de horário), e um apêndice com as listas completas. Não escreve nada no repositório auditado; o git é usado só para leitura.
+Se você usa `pipx` ou `uv`, eles instalam o comando num ambiente
+isolado, com a mesma URL (nenhum dos dois é necessário):
 
-O relatório traz nomes reais de skills, ferramentas e servidores. Ele é para ficar na máquina: se `--saida` cair dentro de um repositório git sem estar ignorado, o comando avisa antes de gravar.
+```bash
+pipx install "git+<URL do repositório>"
+uv tool install "git+<URL do repositório>"
+```
 
-Opções: `--dias N` (sessões iniciadas nos últimos N dias), `--ate <instante>` (corte), `--todos` (todas as sessões, de qualquer repositório), `--saida <arquivo>`, `--sem-git` (não consulta o histórico git; a ligação dos commits pode levar minutos em disco montado, como o do Windows no WSL). Para conferência: `--config <dir>`, `--gerenciado <dir>` e `--excluir-pasta <texto>`.
+Para fixar uma versão, acrescente a etiqueta ao fim da URL
+(`git+<URL do repositório>@v0.1.0`), quando ela existir. Para conferir a
+versão instalada: `python -m pip show dark`.
 
-O estado do projeto, os goals e o diário estão em [pair/ESTADO.md](pair/ESTADO.md).
+Se o comando `dark` não ficar no `PATH` (acontece com `pip install
+--user` no Windows), `python -m dark` faz o mesmo.
+
+## Primeiro uso
+
+Dentro do repositório que você quer auditar:
+
+```bash
+dark auditar
+```
+
+Ou apontando para ele, e gravando o relatório num arquivo:
+
+```bash
+dark auditar <caminho-do-repositório> --saida <arquivo-fora-do-repositório>.md
+```
+
+O comando lê as transcrições do Claude Code (de `CLAUDE_CONFIG_DIR`, ou de
+`~/.claude` se a variável não existir), junta as sessões que rodaram
+naquele repositório e imprime um relatório em Markdown:
+
+- **cabeçalho:** período coberto, número de sessões e de pedidos,
+  versões do Claude Code;
+- **o que chama atenção:** os pontos que mais pesam, primeiro;
+- **peso fixo:** quanto do contexto cada pedido já começa ocupando, com a
+  repartição estimada entre plataforma, harness e o pedido em si;
+- **peso morto:** peças do harness carregadas e nunca usadas, com a
+  origem de cada uma (projeto, usuário, plugin ou plataforma);
+- **o que está instalado**, **custo**, **intervenções** (interrupções,
+  rejeições), **hooks** e **commits** ligados às sessões;
+- **apêndice** com as listas completas.
+
+Num repositório sem sessões, o relatório diz isso e para: é um estado
+normal, os números aparecem depois das primeiras sessões. O Claude Code
+apaga transcrições com mais de 30 dias, por padrão; o relatório só
+enxerga o que ainda está no disco.
+
+O comando só lê. Não escreve no repositório auditado, e o git é usado só
+para leitura. A ligação dos commits pode demorar em discos lentos (como
+o do Windows montado no WSL); `--sem-git` a desliga.
+
+Opções:
+
+| Opção | O que faz |
+|---|---|
+| `--dias N` | só sessões iniciadas nos últimos N dias |
+| `--ate <instante>` | ignora registros depois deste instante (ISO 8601) |
+| `--todos` | todas as sessões, de qualquer repositório |
+| `--saida <arquivo>` | grava o relatório no arquivo em vez de imprimir |
+| `--sem-git` | não consulta o histórico git |
+| `--config <dir>` | lê outro diretório de configuração do Claude Code |
+
+`dark auditar --help` lista todas, inclusive as de conferência
+(`--gerenciado`, `--excluir-pasta`).
+
+## Requisitos
+
+- Python 3.12 ou mais recente.
+- git 2.36 ou mais recente (para a ligação dos commits; sem git, use
+  `--sem-git`).
+- Claude Code instalado e usado na máquina: é dele que vêm as
+  transcrições.
+- Sistemas testados a cada mudança: Linux, macOS e Windows (Python 3.12
+  e 3.13), e a instalação pelo pacote nos três. O que ainda funciona com
+  limite em algum ambiente está em
+  [docs/portabilidade.md](docs/portabilidade.md).
+
+## Privacidade
+
+O relatório traz nomes reais: de skills, ferramentas, servidores MCP,
+arquivos e caminhos da sua máquina. Ele é para ficar com você. Nada é
+enviado para fora: `dark auditar` não usa rede. Se `--saida` cair dentro
+de um repositório git sem estar ignorado, o comando avisa antes de
+gravar, para o relatório não ir parar num commit.
+
+## Evals
+
+`python -m dark.evals` monta casos de avaliação a partir do histórico git
+de um repositório (`minerar`), confere cada caso (`validar`) e roda o
+agente sobre eles (`calibrar`, `rodar`, `resumir`). O formato dos casos
+está em [evals/README.md](evals/README.md).
+
+> **Atenção.** `validar`, `calibrar` e `rodar` executam o comando de
+> aceite do repositório avaliado, e os dois últimos rodam um agente que
+> edita arquivos e executa comandos. Use só em repositórios seus.
 
 ## Desenvolvimento
 
-O código, os testes e as mensagens de commit são em inglês; a interface (relatório, mensagens, ajuda, nomes de comandos e opções) e a documentação são em português (E18). O [glossário](docs/glossario.md) traz as traduções e o mapa dos nomes antigos, usados nos diários até o goal 013.
+Esta seção é para quem trabalha no próprio `dark`.
 
-Requer Python 3.12 ou mais recente e git 2.36 ou mais recente.
+O código, os testes e as mensagens de commit são em inglês; a interface
+(relatório, mensagens, ajuda, nomes de comandos e opções) e a
+documentação são em português (E18). O [glossário](docs/glossario.md)
+traz as traduções e o mapa dos nomes antigos, usados nos diários até o
+goal 013. O estado do projeto, os goals e o diário estão em
+[pair/ESTADO.md](pair/ESTADO.md); o laço de par (revisor e executor em
+sessões separadas) está em [docs/laco-de-par.md](docs/laco-de-par.md).
+
+### Ambiente e testes
 
 ```bash
 python -m venv .venv
@@ -33,40 +136,69 @@ python -m venv .venv
 .venv/bin/pytest
 ```
 
-O leitor (`src/dark/reader.py`) tem um comando mínimo de conferência, que só lê:
+O workflow `.github/workflows/tests.yml` roda os testes em Linux, macOS e
+Windows e, num job separado, gera o wheel, instala-o num venv fora do
+checkout e roda `dark` de um diretório temporário, como um usuário.
+
+### Comandos de conferência
+
+O leitor (`src/dark/reader.py`) tem um comando mínimo de conferência, que
+só lê:
 
 ```bash
 .venv/bin/python -m dark.reader            # usa CLAUDE_CONFIG_DIR ou ~/.claude
 .venv/bin/python -m dark.reader --config tests/fixtures/config
 ```
 
-Os indicadores (`src/dark/indicators.py`) são funções puras sobre o que o leitor devolve. O comando de conferência imprime só contagens; com `--nomes`, imprime também nomes de skills e ferramentas, e essa saída não deve ser publicada.
+Os indicadores (`src/dark/indicators.py`) são funções puras sobre o que o
+leitor devolve. O comando de conferência imprime só contagens; com
+`--nomes`, imprime também nomes de skills e ferramentas, e essa saída não
+deve ser publicada.
 
 ```bash
 .venv/bin/python -m dark.indicators --config tests/fixtures/config
 ```
 
-O inventário (`src/dark/inventory.py`) lista o harness instalado (instruções, skills, subagentes, hooks, servidores MCP e permissões) por escopo, só lendo arquivos. Sem `--nomes`, imprime só a tabela de contagens; com `--nomes`, imprime nomes e falhas, e essa saída não deve ser publicada.
+O inventário (`src/dark/inventory.py`) lista o harness instalado
+(instruções, skills, subagentes, hooks, servidores MCP e permissões) por
+escopo, só lendo arquivos. Sem `--nomes`, imprime só a tabela de
+contagens; com `--nomes`, imprime nomes e falhas, e essa saída não deve
+ser publicada.
 
 ```bash
 .venv/bin/python -m dark.inventory <repo> [--config DIR] [--gerenciado DIR] [--nomes]
 ```
 
-A repartição do contexto (`src/dark/context_usage.py`) roda `claude -p /context --no-session-persistence` no repositório e analisa a saída. Serve de conferência do peso de skills, memória e subagentes; não entra no relatório (E11, terceira versão).
+A repartição do contexto (`src/dark/context_usage.py`) roda `claude -p
+/context --no-session-persistence` no repositório e analisa a saída.
+Serve de conferência do peso de skills, memória e subagentes; não entra
+no relatório (E11, terceira versão).
 
 ```bash
 .venv/bin/python -m dark.context_usage [repo] [--arquivo F] [--usage N] [--nomes]
 ```
 
-Os casos de eval (`src/dark/evals/`, formato em [evals/README.md](evals/README.md)) têm mineração e validação:
+Os casos de eval (`src/dark/evals/`):
 
 ```bash
 .venv/bin/python -m dark.evals minerar --repo . --ref origin/main
 .venv/bin/python -m dark.evals validar --repo . evals/cases/goal-005-leitor.toml
 ```
 
-Dois pacotes ainda sem uso pelo `dark auditar`: o motor do scaffold (`src/dark/scaffold/`, aplica e reverte módulos de harness com manifesto; conferência com `python -m dark.scaffold inspecionar|aplicar|reverter`) e o armazenamento de agregados (`src/dark/store/`, números por sessão e por semana em SQLite, fora das transcrições).
+Dois pacotes ainda sem uso pelo `dark auditar`: o motor do scaffold
+(`src/dark/scaffold/`, aplica e reverte módulos de harness com
+manifesto; conferência com `python -m dark.scaffold
+inspecionar|aplicar|reverter`) e o armazenamento de agregados
+(`src/dark/store/`, números por sessão e por semana em SQLite, fora das
+transcrições).
 
-Portabilidade: os testes rodam em Linux, macOS e Windows (`.github/workflows/tests.yml`); os três passam desde o goal 019; o que ainda só degrada está em [docs/portabilidade.md](docs/portabilidade.md).
+> **Atenção.** O venv de desenvolvimento tem o `dark` instalado em modo
+> editável e pode vazar para a cópia validada em commits sem
+> `pyproject.toml` (ver `evals/README.md`).
 
-> **Atenção.** Validar um caso executa o comando de aceite, isto é, código do repositório avaliado, em cada commit indicado. Use só em repositórios seus. O venv de desenvolvimento tem o `dark` instalado em modo editável e pode vazar para a cópia validada em commits sem `pyproject.toml` (ver `evals/README.md`).
+### Versão
+
+A versão fica só em `pyproject.toml`; cada versão nova ganha uma entrada
+no [registro de mudanças](CHANGELOG.md) (o teste
+`tests/test_distribution.py` confere que as duas batem). Se o código
+precisar da versão, ela é lida com `importlib.metadata.version("dark")`.
