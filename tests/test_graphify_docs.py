@@ -18,7 +18,9 @@ ROOT = Path(__file__).resolve().parent.parent
 README = ROOT / "README.md"
 HEADING = "### Módulo `graphify`"
 
-_SEMVER = re.compile(r"(?<![\w.])v?\d+\.\d+\.\d+(?![\w.])")
+# A version may end a sentence ("0.9.111."), but a fourth part ("1.2.3.4")
+# makes the number something else (goal 049).
+_SEMVER = re.compile(r"(?<![\w.])v?\d+\.\d+\.\d+(?!\w|\.\w)")
 # An install command runs to the end of the line, a backtick, `;` or `)`:
 # the same pattern cuts the alternatives out of NOTES' "(ou: ...; ou: ...)".
 _INSTALL = re.compile(r"(?:uv tool install|pipx install|(?:python -m )?pip install)[^\n`;)]*")
@@ -152,10 +154,12 @@ def test_the_section_says_what_the_module_does_not_do():
     assert "**não**\nescreve no `CLAUDE.md`" in section
     assert "sem\n  alteração" in section and "Apache-2.0" in section
     assert graphify.OUTPUT_LINE in section and graphify.PACKAGE in section
-    # The section does not describe what `remover` does with the .gitignore
-    # line: goal 048 changes that behaviour.
+    # Since goal 048 the .gitignore line stays while graphify-out/ exists.
     remover = section.split("`dark remover graphify`", 1)[1].split("\n\n", 1)[0]
-    assert ".gitignore" not in remover
+    assert ("A linha\n`graphify-out/` fica no `.gitignore` enquanto a pasta existir"
+            in remover)
+    assert "parcial (código 1)" in remover
+    assert "rode `dark remover graphify` de novo" in remover
 
 
 # Probes: the checkers must fail on a doctored text.
@@ -189,3 +193,14 @@ def test_probe_a_different_graph_command_fails():
 def test_probe_an_event_outside_the_plan_fails():
     doctored = _section() + "\nE um hook em `PostToolUse`.\n"
     assert event_problems(doctored) == ["hook event PostToolUse is not in the plan"]
+
+
+def test_probe_a_wrong_version_ending_a_sentence_fails():
+    assert version_problems("Graphify 0.9.112. Antes era 0.9.111.") == [
+        "version 0.9.111 is not 0.9.112"]
+    assert version_problems("Graphify 0.9.112, v0.9.111.") == [
+        "version v0.9.111 is not 0.9.112"]
+
+
+def test_probe_a_four_part_number_is_not_a_version():
+    assert version_problems("Graphify 0.9.112. Endereço 1.2.3.4 e 1.2.3.x.") == []

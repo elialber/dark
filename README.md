@@ -169,7 +169,7 @@ Códigos de saída:
 |---|---|---|---|
 | `dark iniciar`, `dark adicionar` | plano mostrado ou aplicado | conflito com um arquivo existente (nada é aplicado) ou erro ao gravar (o que foi gravado é desfeito) | módulo desconhecido, caminho que não é a raiz de um repositório git, manifesto ilegível |
 | `dark verificar` | `ok` | o módulo não está aplicado ou falta algo dele (um arquivo; no `langfuse`, também variáveis; no `graphify`, também o executável no `PATH`) | módulo desconhecido, caminho que não é a raiz |
-| `dark remover` | tudo desfeito (ou nada a desfazer) | remoção parcial: algo alterado depois ficou | módulo desconhecido, caminho que não é a raiz |
+| `dark remover` | tudo desfeito (ou nada a desfazer) | remoção parcial: algo alterado depois ficou, ou a linha do `.gitignore` de um caminho que ainda existe | módulo desconhecido, caminho que não é a raiz |
 
 ### Módulo `langfuse`
 
@@ -230,10 +230,11 @@ aplicados, que a linha do `.gitignore` e as três entradas do
 compose no ambiente ou com valor no `.dark/langfuse/.env`; as duas chaves,
 só no ambiente (ele não lê o chaveiro). O que faltar sai no motivo, por
 exemplo `variáveis ausentes: LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY`.
-`dark remover langfuse` desfaz os arquivos, a linha e as entradas. O
-`.env` que você criou não é do módulo e fica, mas a linha que o ignorava
-sai do `.gitignore`: apague o `.env` (ou volte a ignorá-lo) antes do
-próximo commit, para os segredos não entrarem nele.
+`dark remover langfuse` desfaz os arquivos e as entradas. O `.env` que
+você criou não é do módulo e fica; enquanto ele existir, a linha que o
+ignora também fica no `.gitignore`, a remoção sai como parcial (código
+1) e o `remover` diz o que fazer: apague o `.env` e rode `dark remover
+langfuse` de novo para tirar a linha.
 
 > **Atenção.** O Langfuse guarda o **conteúdo das conversas** (pedidos,
 > respostas, entradas e saídas de ferramentas) na sua instância. O `dark`
@@ -321,7 +322,11 @@ o executável graphify não está no PATH (instale: uv tool install "graphifyy==
 ```
 
 `dark remover graphify` desfaz o que o manifesto registra para o módulo;
-o que você acrescentou ao `.claude/settings.json` fica.
+o que você acrescentou ao `.claude/settings.json` fica. A linha
+`graphify-out/` fica no `.gitignore` enquanto a pasta existir: a remoção
+sai como parcial (código 1) e o `remover` diz o que fazer: apague a
+pasta `graphify-out/` e rode `dark remover graphify` de novo para tirar
+a linha.
 
 O ganho do Graphify ainda não foi medido: o módulo tem de provar que
 reduz custo e passos de exploração, com e sem ele, e a medição depende
