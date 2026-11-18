@@ -422,6 +422,8 @@ def _add_module(name: str, path: Path | None, apply_: bool, command: str) -> int
         print("Nada a fazer: já aplicado.")
     else:
         print("Nada a criar.")
+    for note in module.notes:
+        print(note)
     return 0
 
 

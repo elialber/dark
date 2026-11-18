@@ -32,3 +32,8 @@ def get_module(name: str) -> Module | None:
 
 def list_modules() -> list[Module]:
     return [_MODULES[name]() for name in sorted(_MODULES)]
+
+
+from .graphify import Graphify  # noqa: E402  (after register: the module imports nothing from here)
+
+register(Graphify)

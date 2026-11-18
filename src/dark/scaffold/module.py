@@ -41,6 +41,9 @@ class Module(ABC):
     indicator: ClassVar[str]
     # Optional, for the plan's printout: why each created path exists.
     reasons: ClassVar[dict[str, str]] = {}
+    # Optional, printed after the plan: what to do outside the repository
+    # (install a tool, build an index). The module itself never does it.
+    notes: ClassVar[tuple[str, ...]] = ()
 
     def existing(self, repo: Path) -> list[str]:
         """What the plan leaves alone because it is already there (not ours)."""
