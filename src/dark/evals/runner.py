@@ -10,8 +10,10 @@ Steps of `run_once`:
 3. Starts the agent through the injected launcher, in the copy, with the
    prompt on stdin, under a wall-clock limit and a token cap watched on
    the stream. The turn limit is passed to the agent.
-4. Counts the lines changed, brings the case's test files from the source
-   over the copy and runs the acceptance command with the existing
+4. Counts the lines changed, puts back the pytest configuration files
+   (`conftest.py`, `pytest.ini`, `tox.ini`, `setup.cfg`, `pyproject.toml`)
+   the agent created or changed, brings the case's test files from the
+   source over the copy and runs the acceptance command with the existing
    validation code.
 5. Deletes the copy and the configuration directory, on success, on error
    and on interruption, and returns a record with numbers and identifiers.
@@ -183,6 +185,7 @@ def run_once(case: Case, condition: str, run_index: int, config: RunConfig,
                duration_s=0.0, agent_duration_s=None, turns=None, tokens=None,
                cost_usd_estimate=None, model=None, claude_code_version=None,
                lines_added=None, lines_removed=None, files_changed=None, tests_modified=None,
+               acceptance_config_changed=False,
                base_commit="0" * 40, harness_commit=None, max_turns=limits.max_turns,
                max_tokens=limits.max_tokens, timeout_s=float(limits.timeout_s))
 
@@ -251,10 +254,21 @@ def run_once(case: Case, condition: str, run_index: int, config: RunConfig,
                 copy, start_commit, acc.files)
             rec.update(lines_added=added, lines_removed=removed, files_changed=files,
                        tests_modified=tests_changed)
+            # Goal 030: pytest configuration the agent made outside the
+            # case's `files` goes back to the starting commit.
+            rec["acceptance_config_changed"] = workspace.restore_pytest_config(
+                copy, start_commit, acc.files)
             from_commit = acc.files_source(case)
             for path in acc.files:
                 workspace.write_file(copy, path, workspace.read_blob(source, from_commit, path))
         except workspace.WorkspaceError:
+            # e.g. `git add` could not read a file the agent made unreadable:
+            # still say whether pytest configuration was among the changes.
+            try:
+                rec["acceptance_config_changed"] = workspace.restore_pytest_config(
+                    copy, start_commit, acc.files)
+            except (workspace.WorkspaceError, OSError):
+                pass
             return finish(error_stage="acceptance", passed=False)
         code, _dur, expired, did_not_run, _out = run_acceptance(acc.command, copy, acc.timeout_s)
         if expired or did_not_run:

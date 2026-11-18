@@ -47,6 +47,13 @@ RECORD_SCHEMA: dict = {
         "lines_removed": _NULL_INT,
         "files_changed": _NULL_INT,
         "tests_modified": {"type": ["boolean", "null"]},
+        "acceptance_config_changed": {
+            "type": "boolean",
+            "description": "o agente criou, mudou ou apagou configuração do pytest "
+                           "(conftest.py, pytest.ini, tox.ini, setup.cfg, "
+                           "[tool.pytest*] do pyproject.toml) fora dos files do caso; "
+                           "o executor a restaurou antes do aceite. Ausente em registros "
+                           "antigos"},
         "base_commit": _SHA,
         "harness_commit": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40}$"},
         "max_turns": _INT,
@@ -54,7 +61,9 @@ RECORD_SCHEMA: dict = {
         "timeout_s": {"type": "number", "minimum": 0},
     },
 }
-RECORD_SCHEMA["required"] = list(RECORD_SCHEMA["properties"])
+# Added in goal 030: records written before it do not have the field.
+OPTIONAL_FIELDS = ("acceptance_config_changed",)
+RECORD_SCHEMA["required"] = [k for k in RECORD_SCHEMA["properties"] if k not in OPTIONAL_FIELDS]
 
 
 class RecordError(ValueError):
@@ -82,6 +91,7 @@ class RunRecord:
     lines_removed: int | None
     files_changed: int | None
     tests_modified: bool | None
+    acceptance_config_changed: bool
     base_commit: str
     harness_commit: str | None
     max_turns: int
@@ -115,8 +125,10 @@ def validate_record(d: dict) -> None:
     extra = set(d) - set(props)
     if extra:
         raise RecordError(f"campo não previsto: {', '.join(sorted(extra))}")
-    for key in RECORD_SCHEMA["required"]:
+    for key in props:
         if key not in d:
+            if key in OPTIONAL_FIELDS:
+                continue
             raise RecordError(f"campo ausente: {key}")
         rule, value = props[key], d[key]
         if "const" in rule and value != rule["const"]:

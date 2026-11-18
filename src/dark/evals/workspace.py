@@ -18,6 +18,7 @@ import os
 import shutil
 import stat
 import subprocess
+import tomllib
 from collections.abc import Sequence
 from pathlib import Path, PurePosixPath
 
@@ -154,11 +155,127 @@ def change_stats(copy: Path, start: str, test_files: Sequence[str]) -> tuple[int
     return added, removed, files, tests_changed
 
 
-def _on_rm_error(func, path, exc) -> None:
-    # Windows: git objects are read-only.
+# Files pytest reads its configuration and plugins from (goal 030). A copy
+# of the agent's making of any of these could make a `pytest` acceptance
+# pass without fixing anything, so they go back to the starting commit.
+PYTEST_CONFIG_NAMES = ("conftest.py", "pytest.ini", "tox.ini", "setup.cfg", "pyproject.toml")
+
+
+def _start_entries(copy: Path, start: str) -> dict[str, tuple[str, str]]:
+    """{path: (mode, blob sha)} of the pytest configuration files tracked at `start`."""
+    out = git(copy, "ls-tree", "-r", "-z", start)
+    found = {}
+    for entry in out.split("\0"):
+        if not entry:
+            continue
+        meta, _, path = entry.partition("\t")
+        mode, kind, sha = meta.split()
+        if kind == "blob" and PurePosixPath(path).name in PYTEST_CONFIG_NAMES:
+            found[path] = (mode, sha)
+    return found
+
+
+def _pytest_tables(data: bytes) -> object:
+    """`tool.pytest*` of a pyproject.toml, or None when it does not parse."""
     try:
-        os.chmod(path, stat.S_IWRITE)
-        func(path)
+        return tomllib.loads(data.decode("utf-8")).get("tool", {}).get("pytest")
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError):
+        return None
+
+
+def _rmtree_or_unlink(path: Path) -> None:
+    if path.is_symlink() or path.is_file():
+        try:
+            path.unlink()
+        except PermissionError:
+            os.chmod(path.parent, stat.S_IRWXU)
+            path.unlink()
+    elif path.is_dir():
+        remove_tree(path)
+        if path.exists():
+            raise WorkspaceError(f"não foi possível apagar {path.name}")
+
+
+def _differs(path: Path, mode: str | None, blob: bytes | None) -> bool:
+    """Whether `path` on disk is not what the starting commit has (`blob`, None: absent)."""
+    if path.is_symlink():
+        return not (mode == "120000" and blob is not None
+                    and os.readlink(path).encode() == blob)
+    if blob is None or mode == "120000":
+        return path.exists()
+    if not path.is_file():
+        return True
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return True
+    if data == blob:
+        return False
+    if path.name == "pyproject.toml":
+        # Only the `tool.pytest*` tables count; the rest of the file is the
+        # agent's to change (a dependency, a version).
+        before = _pytest_tables(blob)
+        after = _pytest_tables(data)
+        if before is not None and after is not None and before == after:
+            return False
+    return True
+
+
+def restore_pytest_config(copy: Path, start: str, skip: Sequence[str] = ()) -> bool:
+    """Puts the pytest configuration files back as `start` has them; True if any differed.
+
+    Files the agent created are deleted, changed or deleted ones restored
+    (a symlink or a directory in the file's place goes too). `skip` are the
+    case's own `files`, which the runner rewrites anyway. Raises
+    WorkspaceError when a file cannot be restored.
+    """
+    tracked = _start_entries(copy, start)
+    skipped = {PurePosixPath(p).as_posix() for p in skip}
+    candidates = set(tracked)
+    for root, dirs, names in os.walk(copy, onerror=lambda e: None):
+        if ".git" in dirs:
+            dirs.remove(".git")
+        rel_root = Path(root).relative_to(copy)
+        for name in [*dirs, *names]:
+            if name in PYTEST_CONFIG_NAMES:
+                candidates.add((rel_root / name).as_posix())
+    changed = False
+    for rel in sorted(candidates - skipped):
+        path = copy.joinpath(*PurePosixPath(rel).parts)
+        mode, blob = None, None
+        if rel in tracked:
+            mode, sha = tracked[rel]
+            blob = git(copy, "cat-file", "blob", sha, binary=True)
+        try:
+            different = _differs(path, mode, blob)
+        except OSError as e:
+            raise WorkspaceError(f"{rel}: {e.strerror or e}") from e
+        if not different:
+            continue
+        changed = True
+        try:
+            if path.is_symlink() or path.exists():
+                _rmtree_or_unlink(path)
+            if blob is not None:
+                write_file(copy, rel, blob)
+                if mode == "120000":
+                    path.unlink()
+                    os.symlink(blob.decode("utf-8", "surrogateescape"), path)
+        except OSError as e:
+            raise WorkspaceError(f"{rel}: {e.strerror or e}") from e
+    return changed
+
+
+def _on_rm_error(func, path, exc) -> None:
+    # Windows: git objects are read-only. POSIX: a directory the agent made
+    # unreadable or unwritable.
+    try:
+        os.chmod(path, stat.S_IRWXU)
+        os.chmod(os.path.dirname(path), stat.S_IRWXU)
+        if func in (os.open, os.scandir, os.listdir):
+            shutil.rmtree(path, onexc=_on_rm_error)
+        else:
+            func(path)
     except OSError:
         pass
 
