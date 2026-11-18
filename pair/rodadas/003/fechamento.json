@@ -1,0 +1,19 @@
+{
+  "cycle": 1,
+  "verdicts": [
+    {"goal": "042", "branch": "goal-042", "verdict": "accepted",
+     "reason": "Registro, adicionar, verificar, --listar e ida e volta byte a byte conforme o lote; 1221 testes; sondagens sem traceback. Conflito só de nome do diário 042, resolvido."}
+  ],
+  "merged": ["goal-042"],
+  "tests_passed": true,
+  "merge_conflict": false,
+  "privacy_violation": false,
+  "pending_decisions": [
+    {"id": "D1", "question": "Os módulos Langfuse e Graphify do scaffold instalam código de terceiros: qual origem e versão fixada de cada um, e o Langfuse é auto-hospedado?",
+     "options": ["Langfuse auto-hospedado e Graphify oficial, versões fixadas pelo usuário", "só o Langfuse", "adiar os dois"],
+     "recommendation": "Langfuse auto-hospedado e Graphify oficial, versões fixadas pelo usuário", "blocks": []}
+  ],
+  "batches": [],
+  "stop": true,
+  "stop_reason": "Um limite garantido por código foi violado: a main mudou durante a fase dos executores (commit do usuário com FUNCIONALIDADES.md)."
+}

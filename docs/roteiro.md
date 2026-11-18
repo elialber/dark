@@ -104,10 +104,10 @@ que descobrir. O porquê do projeto está em `docs/visao.md`.
 
 ## Em andamento
 
-Rodada 002, ciclo 5 (escritos): goal 039 (limites do `guardar`, modelo
-das sessões e a regra `model_changed_since_last_evals`), goal 040
-(documentos de `iniciar`, `remover`, `guardar`) e goal 041 (`dark coletar
---evals`). Branches `goal-039`, `goal-040` e `goal-041`.
+Goal 040 (documentos de `iniciar`, `remover`, `guardar`): aceito, **não
+junto**; o `README.md` da `main` mudou (obra do usuário) e conflita no
+parágrafo inicial. Fica para um goal de documentos que parta da `main`
+atual (README, 039, 041, 042, skill `coletar` com `--evals`).
 
 ## Fila, em ordem
 
@@ -211,8 +211,11 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
     skill e hook. Tem de provar ganho neste critério: custo e passos em
     tarefas de exploração de código, com e sem ele.
 - **Situação:** o goal 036 entregou `dark iniciar` e `dark remover` com
-  o módulo `base` (sem terceiros; `dark adicionar` e os módulos Langfuse
-  e Graphify faltam; padrão a confirmar: Langfuse auto-hospedado).
+  o módulo `base` (sem terceiros). O goal 042 entregou `dark adicionar`
+  (com `--listar`), `dark verificar` e o registro de módulos, provados
+  com módulo de teste. Faltam os módulos Langfuse e Graphify, que
+  esperam a decisão D1 (origem e versão fixada; padrão a confirmar:
+  Langfuse auto-hospedado).
 - **Próximo:** goal 042 (registro, `adicionar`, `verificar`) com módulo de
   teste; os módulos Langfuse e Graphify esperam a decisão D1 da rodada 003
   (origem e versão do que instalar).

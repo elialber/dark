@@ -1565,3 +1565,20 @@ do revisor: `guardar` com `tokens` negativo, booleano, `1e30`, `2**63`, modelo
 de 5000 caracteres, caractere nulo, campo extra, data impossível;
 `--evals` em diretório, binário, vazio, inexistente, arquivo repetido;
 `guardar --banco` dentro de repositório git. Nenhum traceback.
+
+## Rodada 003, fechamento (goal 042)
+
+**Goal 042:** aceito. Registro de módulos (`scaffold.registry`), `dark
+adicionar` (com `--listar`), `dark verificar`; `iniciar` passou a ser
+`adicionar base`. Decisões do executor confirmadas, todas **padrão a
+confirmar**: `--listar` usa o primeiro posicional como caminho; módulo
+desconhecido é checado antes do caminho; `verificar` de módulo nunca
+aplicado dá código 1; `register` recusa segundo módulo com o mesmo nome.
+
+**Diário do usuário:** o diário `042.md` da `main` (lista de
+funcionalidades) colidiu com o do goal 042; foi renomeado para
+`042-funcionalidades.md`.
+
+**Motivo:** merge de ensaio com a colisão resolvida, 1221 testes;
+sondagens: nome em caixa alta, `../x`, `--listar` com módulo e caminho,
+caminho fora da raiz, `--aplicar` duas vezes. Nenhum traceback.
