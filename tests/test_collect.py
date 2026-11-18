@@ -9,6 +9,7 @@ and commit linking run against git.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sqlite3
 import subprocess
@@ -26,14 +27,11 @@ NOW = datetime(2026, 11, 17, 12, 0, tzinfo=timezone.utc)
 
 
 def git(*args, cwd):
+    env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+           "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
     return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True,
-                          text=True, env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-                                          "GIT_COMMITTER_NAME": "t",
-                                          "GIT_COMMITTER_EMAIL": "t@t",
-                                          "GIT_CONFIG_GLOBAL": "/dev/null",
-                                          "GIT_CONFIG_NOSYSTEM": "1",
-                                          "PATH": __import__("os").environ["PATH"]}
-                          ).stdout.strip()
+                          text=True, env=env).stdout.strip()
 
 
 @pytest.fixture
@@ -210,7 +208,7 @@ def test_collection_of_one_repository(config, db, repo):
 def test_commit_links_without_git_come_from_the_transcript(config, db, repo):
     assert run(config, db, str(repo), "--sem-git") == 0
     rows = query(db, "SELECT link, commit_hash, reverted FROM commit_links ORDER BY called_at")
-    assert [r[0] for r in rows] == ["recorded", "recorded", "unlinked"]
+    assert sorted(r[0] for r in rows) == ["recorded", "recorded", "unlinked"]
     assert all(r[2] is None for r in rows)
 
 

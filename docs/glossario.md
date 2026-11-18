@@ -132,6 +132,21 @@ requisição à API nos registros (`api-request`).
 | commit comum | ordinary commit | um pai |
 | formato brasileiro (números) | Brazilian format |  |
 
+### Acrescentados no goal 024
+
+| Português | Inglês | Observação |
+|---|---|---|
+| banco de agregados | aggregate store | `dark.store`; opção `--banco` |
+| registro da coleta | collection record | uma linha da tabela `collections` |
+| retrato (do inventário) | inventory snapshot | um por repositório e por dia |
+| resumo da coleta | collection summary | o que `dark coletar` imprime |
+| sessão sem mudança | unchanged session | já no banco com o mesmo registro; não é regravada |
+| sessão recusada | skipped session | sem horário ou com identificador fora do esquema |
+| nome descartado | dropped name | nome de peça, chamada ou item fora do esquema (mais de 128 caracteres, quebra de linha) |
+| bloqueio (desfecho de hook gravado) | `block`, `stop_blocked` | `stop_blocked` é o hook de parada que impediu a continuação |
+| ligação registrada | recorded link | forma `hash` da ligação, no banco |
+| todos (`--todos` de `dark coletar`) | all | todas as sessões, de qualquer repositório |
+
 ## Valores internos e texto impresso
 
 Os valores internos (tipos de intervenção, desfechos de hook, origens,
