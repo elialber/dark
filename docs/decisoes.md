@@ -1894,3 +1894,43 @@ seção do `evals/README.md` ("Ganho de um módulo").
 **Motivo:** direção do usuário ("tornar a ferramenta utilizável em outros
 ambientes") e a regra de operação "Testes em três sistemas"; logs lidos
 com `gh run view --log-failed` e as anotações da execução 44370611205.
+
+## Rodada 005, ciclo 2 (revisão dos goals 053 e 054)
+
+**Goal 053 aceito e juntado.** Workflow da branch verde nos nove jobs
+(execuções 44377094786 e 44380064904). Confirmados os padrões do
+executor: (1) reverter um arquivo de módulo que só mudou em CRLF apaga o
+arquivo (a mudança vem do git, não de quem usa); (2) só CRLF contra LF é
+ignorado; CR sozinho, BOM e outra codificação continuam diferença (S6.4
+segue em aberto). O teste do `docker compose config` sem `.env` aceita
+qualquer nome de `COMPOSE_SECRETS` no erro e ganhou a conferência de cada
+segredo sozinho: não ficou mais fraco.
+
+**Goal 054 aceito com correções, sem juntar.** A suíte de `main` + 053 +
+054 dá 1464 passando e uma falha: `test_guardar_refuses_a_file_with_with_module`,
+do 050, que exige a recusa que o 054 tira. O arquivo era proibido ao 054
+pelo lote 022b (erro do revisor). O goal 055 junta a branch `goal-054`
+com `git merge --no-ff` na própria branch (exceção à regra "não faça
+merge", só para isso) e troca o teste. Confirmados os padrões do 054:
+medição delimitada por pareamento (caso, número, commit do harness), não
+por intervalo de tempo, porque o intervalo das `with_module` perde a
+primeira `project`; `harness_commit` nulo conta como valor; `project` sem
+par fica fora da medição; desempate pelo commit; mensagem da invariante
+em português no `plan_import`; as regras de evals existentes ignoram
+`with_module` e contam as `project` da medição.
+
+**Regra `third_party_module_without_gain`, padrões do revisor a
+confirmar:** dispara só com a medição mais recente `sem ganho` ou
+`piora`, para `graphify` e `langfuse` (não `base`), com o repositório
+auditado conhecido e o módulo aplicado nele na mesma versão medida.
+`inconclusivo` não dispara: sem medição suficiente, "desinstalar" não tem
+evidência.
+
+**Motivo:** ensaio do revisor em clone limpo no rascunho; sondagens:
+`same_bytes` com CR sozinho e CRLF parcial; `dark adicionar`/`remover
+langfuse` com o compose em CRLF (revertido) e em CRLF editado (mantido);
+banco do esquema 3 criado pelo código da `main` migrado pela branch (4
+linhas mantidas, `.v3.bak` criado, `with_module` sem módulo e `project`
+com módulo recusados); `module_measurements` sem `project`, só com erros,
+com `project` depois da `with_module` e vazio (todos `inconclusive` ou
+lista vazia, sem exceção).

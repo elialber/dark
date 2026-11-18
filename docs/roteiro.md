@@ -140,26 +140,28 @@ que descobrir. O porquê do projeto está em `docs/visao.md`.
   nada rodado), e a saída diz quando o acerto sobe com o módulo. Parte
   dos itens 6 e 7.
 
+- **Workflow de testes verde nos três sistemas** (goal 053, rodada 005):
+  as quatro falhas da `main` (Docker Compose no Linux e no Windows; três
+  só no Windows) corrigidas na camada certa; dois defeitos de produto
+  (arquivo de módulo que só difere em CRLF visto como conflito; saída do
+  git lida na localidade em `workspace.git`); regra no `CLAUDE.md` de o
+  executor conferir o workflow da branch. Os nove jobs da branch passaram.
+
 ## Em andamento
 
-Rodada 005, ciclo 1 (lotes 022 e 022b):
+Rodada 005, ciclo 2 (lote 023):
 
-- **goal 053** (principal): workflow de testes verde nos três sistemas.
-  A `main` está vermelha no Windows desde a rodada 002, ciclo 2, e no
-  Linux desde a rodada 004 (teste do Docker Compose); o macOS foi
-  cancelado por falta de máquina do GitHub. Passou à frente da fila pela
-  direção do usuário ("utilizável em outros ambientes") e pela regra
-  "Testes em três sistemas", que não estava sendo cumprida;
-- **goal 054** (paralelo): condição `with_module` no banco (esquema 4,
-  com `turns`, `applied_module` e `harness_commit`), `guardar` e `dark
-  coletar --evals` aceitando-a (corrige as linhas que somem no
-  `coletar`), e a leitura da medição mais recente por módulo.
+- **goal 055**: junta o goal 054 (condição `with_module` no banco,
+  esquema 4, `module_history`; aceito com correções na revisão 2, fora da
+  `main` porque um teste do 050 o contraria), troca esse teste e liga a
+  regra `third_party_module_without_gain` (item 5), com a linha dela no
+  `docs/metodo.md`.
 
 Depois, nesta ordem:
 
-- regra `third_party_module_without_gain` ligada sobre o 054 (item 5);
-- documentos do 052 e do 054 (`evals/README.md`, README, CHANGELOG,
-  `FUNCIONALIDADES.md`), com a frase da recusa proposta no diário 052;
+- documentos do 052, do 054 e do 055 (`evals/README.md`, README,
+  CHANGELOG, `FUNCIONALIDADES.md`), com a frase da recusa proposta no
+  diário 052;
 - medição real dos módulos e da ablação e calibração dos casos novos
   (pedem credencial); piloto (item 9).
 
@@ -245,7 +247,8 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
 - **Depende de:** 2; as regras de ablação dependem de 4.
 - **Situação:** o goal 032 entregou as regras que os dados de hoje
   sustentam; o 038 ligou `evals_at_100_percent`; `model_changed_since_last_evals`
-  foi ligada no goal 039; a de módulo de terceiro espera módulos medidos.
+  foi ligada no goal 039; a de módulo de terceiro é ligada no goal 055, sobre a medição que o 054
+  guarda no banco.
 - **Pronto quando:** uma recomendação seguida produz melhora medida
   (critério da Fase 5).
 

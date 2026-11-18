@@ -75,6 +75,8 @@ Fase 3 em andamento; laço de par disponível
 | [050 — Medir o ganho de um módulo](goals/050-module-gain.md) | Aceito com correções na [revisão 5 da rodada 004](rodadas/004/revisao-5.md) e incorporado à `main`; preparação que altera arquivo rastreado passa calada (goal 052); documentos no goal 051 |
 | [051 — Documentos da medição de ganho](goals/051-module-gain-docs.md) | Aceito na [revisão de fechamento da rodada 004](rodadas/004/revisao-fechamento.md) e incorporado à `main`; achou que `dark coletar --evals` descarta registros `with_module` sem aviso |
 | [052 — Correções da medição de ganho](goals/052-module-gain-fixes.md) | Aceito na [revisão de fechamento da rodada 004](rodadas/004/revisao-fechamento.md) e incorporado à `main`; documentos da recusa na próxima rodada |
+| [053 — Workflow de testes verde](goals/053-ci-green.md) | Aceito na [revisão 2 da rodada 005](rodadas/005/revisao-2.md) e incorporado à `main`; workflow da branch verde nos nove jobs; arquivo de módulo que só difere em CRLF deixa de ser conflito; `workspace.git` lê a saída em UTF-8 |
+| [054 — `with_module` no banco](entrada/lote-022b.md) | Aceito com correções na [revisão 2 da rodada 005](rodadas/005/revisao-2.md); **não juntado ainda**: contraria um teste do 050 que o lote proibiu mexer. Entra na `main` pelo goal 055 ([lote 023](entrada/lote-023.md)) |
 
 ## Decisões pendentes
 
@@ -102,11 +104,10 @@ Fase 3 em andamento; laço de par disponível
 
 Lista de funcionalidades com situação de cada item: [FUNCIONALIDADES.md](../FUNCIONALIDADES.md).
 
-Rodada 005, ciclo 1: nada a revisar (a rodada 004 juntou tudo). O
-workflow de testes da `main` está vermelho no Windows desde a rodada 002
-e no Linux desde a rodada 004 ([revisão 1 da rodada 005](rodadas/005/revisao-1.md)).
-Em execução: goal 053 ([lote 022](entrada/lote-022.md), workflow verde nos
-três sistemas) e goal 054 ([lote 022b](entrada/lote-022b.md),
-`with_module` no banco, esquema 4). Depois: regra
-`third_party_module_without_gain`, documentos do 052 e do 054, medição
-real (credencial), piloto (item 9).
+Rodada 005, ciclo 2 ([revisão 2](rodadas/005/revisao-2.md)): goal 053
+juntado (workflow verde nos três sistemas na branch); goal 054 aceito com
+correções e ainda fora da `main` (um teste do 050 contraria o
+comportamento novo). Em execução: goal 055 ([lote 023](entrada/lote-023.md)):
+junta o 054, troca o teste e liga a regra `third_party_module_without_gain`.
+Depois: documentos do 052, 054 e 055; medição real (credencial); piloto
+(item 9).

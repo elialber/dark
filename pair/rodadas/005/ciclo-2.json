@@ -1,0 +1,23 @@
+{
+  "cycle": 2,
+  "verdicts": [
+    {"goal": "053", "branch": "goal-053", "verdict": "accepted",
+     "reason": "As quatro falhas da main explicadas e corrigidas na camada certa, dois defeitos de produto com teste que falha na main, regra no CLAUDE.md; workflow da branch verde nos nove jobs; 1429 testes na main depois do merge."},
+    {"goal": "054", "branch": "goal-054", "verdict": "accepted_with_fixes",
+     "reason": "Esquema 4, guardar e coletar --evals com with_module e module_history conferidos (migração de banco v3 real, sondagens adversas, conferência cruzada); não juntado porque um teste do 050 em arquivo que o lote proibiu (erro do revisor) exige a recusa antiga. O goal 055 junta a branch e troca o teste."}
+  ],
+  "merged": ["goal-053"],
+  "tests_passed": true,
+  "merge_conflict": false,
+  "privacy_violation": false,
+  "pending_decisions": [
+    {"id": "D1", "question": "Apagar a branch goal-040 (local, em origin e o worktree ../dark-goal-040)? O goal 045 a substituiu e ela não foi nem será juntada (D1 da rodada 004, ainda sem resposta).",
+     "options": ["a) apagar a branch local, a remota e o worktree", "b) manter"],
+     "recommendation": "a", "blocks": []}
+  ],
+  "batches": [
+    {"batch": "023", "file": "pair/entrada/lote-023.md", "goal": "055", "branch": "goal-055"}
+  ],
+  "stop": false,
+  "stop_reason": ""
+}
