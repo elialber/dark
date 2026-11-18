@@ -32,3 +32,7 @@ def get_module(name: str) -> Module | None:
 
 def list_modules() -> list[Module]:
     return [_MODULES[name]() for name in sorted(_MODULES)]
+
+from .langfuse import Langfuse  # noqa: E402  (after the registry exists)
+
+register(Langfuse)
