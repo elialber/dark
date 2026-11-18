@@ -1361,3 +1361,29 @@ Como cada item ficou:
 - **Linha de base:** registrada como 100% nas duas condições, com a
   ressalva do teto. A Fase 3 ("duas rodadas iguais dentro da tolerância")
   não é cumprida de forma informativa até haver casos que discriminem.
+
+## Goals 025 e 026: aceitos
+
+**Data:** 2026-11-18 ([revisão 1 da rodada 002](../pair/rodadas/002/revisao-1.md))
+
+Os dois foram feitos fora do laço, a pedido do usuário, direto na
+`main`. Aceitos sem branch a juntar: 909 testes passam na `main`
+(`5136991`), nenhum caminho pessoal ou segredo nos arquivos versionados
+(só padrões de detecção nos testes). O efeito teto da calibração (44 de
+44) vira o goal 029. A dúvida do diário 026 sobre `tests_modified`
+(o aceite reescreve os arquivos de teste depois da sessão?) é conferida
+no goal 029.
+
+**Motivo:** conferência do revisor; nada a juntar.
+
+## Auditoria sobre o banco: quem dispara a coleta
+
+**Data:** 2026-11-18 ([lote 011](../pair/entrada/lote-011.md))
+
+Padrão a confirmar (E10 deixou em aberto): `dark auditar` não coleta
+sozinho. Lê o banco quando ele conhece o repositório; senão audita
+direto e diz por quê. `--coletar` coleta antes; `--direto` ignora o
+banco.
+
+**Motivo:** a auditoria não deve gravar fora do repositório sem pedido;
+quem quer o ciclo semanal usa `dark coletar --todos`.

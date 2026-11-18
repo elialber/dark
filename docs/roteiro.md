@@ -59,9 +59,17 @@ que descobrir. O porquê do projeto está em `docs/visao.md`.
   banco de agregados, conferida contra `dark.indicators`. Primeira parte
   do item 2.
 
+- **Endurecimento do laço** (goal 025) e **calibração e rodada completa
+  dos evals** (goal 026), feitos fora do laço a pedido do usuário e
+  aceitos na revisão 1 da rodada 002. A rodada completa deu 30 de 30 e
+  a calibração dos casos médios 4 de 4: efeito teto.
+
 ## Em andamento
 
-Nada. A rodada 001 fechou com os goals 022, 023 e 024 juntados.
+Rodada 002, ciclo 1: goal 027 (auditoria sobre o banco, "o que mudou",
+`dark --versao`; fecha o item 2), goal 028 (plugin do Claude Code; fecha
+o item 8) e goal 029 (casos de eval difíceis; item 3). Em paralelo, em
+branches `goal-027`, `goal-028` e `goal-029`.
 
 ## Fila, em ordem
 

@@ -47,8 +47,11 @@ Fase 3 em andamento; laço de par disponível
 | [022 — Casos de eval deste repositório](goals/022-eval-cases.md) | Aceito na [revisão de fechamento da rodada 001](rodadas/001/revisao-fechamento.md) e incorporado à `main` |
 | [023 — Distribuição](goals/023-distribution.md) | Aceito na [revisão de fechamento da rodada 001](rodadas/001/revisao-fechamento.md) e incorporado à `main` |
 | [024 — Coleta](goals/024-collect.md) | Aceito com correções na [revisão de fechamento da rodada 001](rodadas/001/revisao-fechamento.md) e incorporado à `main`; a correção (registro de coleta no mesmo segundo) vai no goal seguinte do item 2 |
-| [025 — Endurecimento do laço](goals/025-loop-hardening.md) | Concluído fora do laço, a pedido do usuário (D1 da rodada 001, opção a); aguarda revisão ([diário](diario/025.md)) |
-| [026 — Calibração dos evals](goals/026-eval-calibration.md) | Concluído fora do laço, a pedido do usuário; calibração (10), casos médios (4) e rodada completa (30): 44 de 44 passaram; efeito teto ([diário](diario/026.md)) |
+| [025 — Endurecimento do laço](goals/025-loop-hardening.md) | Concluído fora do laço (D1 da rodada 001, opção a); aceito na [revisão 1 da rodada 002](rodadas/002/revisao-1.md) |
+| [026 — Calibração dos evals](goals/026-eval-calibration.md) | Concluído fora do laço, a pedido do usuário; calibração (10), casos médios (4) e rodada completa (30): 44 de 44 passaram; efeito teto ([diário](diario/026.md)); aceito na [revisão 1 da rodada 002](rodadas/002/revisao-1.md) |
+| [027 — Auditoria sobre o banco](goals/027-audit-from-store.md) | Em andamento: [lote 011](entrada/lote-011.md), branch `goal-027` |
+| [028 — Plugin do Claude Code](goals/028-plugin.md) | Em andamento: [lote 011b](entrada/lote-011b.md), branch `goal-028` |
+| [029 — Casos de eval difíceis](goals/029-hard-eval-cases.md) | Em andamento: [lote 011c](entrada/lote-011c.md), branch `goal-029` |
 
 ## Decisões pendentes
 
@@ -64,6 +67,9 @@ Fase 3 em andamento; laço de par disponível
   (os comandos do agente podem lê-lo).
 
 ## Próximo passo
+
+Rodada 002, ciclo 1: lotes 011, 011b e 011c escritos (goals 027 a 029);
+os parágrafos abaixo são da rodada 001.
 
 Rodada 001 fechada ([relatório](rodadas/001.md)); o laço foi endurecido
 no goal 025, fora do laço. A próxima rodada revisa o goal 025 e começa pela auditoria lendo do banco (resto do item 2) e pelo plugin do

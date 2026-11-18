@@ -1,0 +1,21 @@
+{
+  "cycle": 1,
+  "verdicts": [
+    {"goal": "025", "branch": "main", "verdict": "accepted",
+     "reason": "Feito fora do laço a pedido do usuário; 909 testes passam na main e nenhum dado pessoal nos arquivos versionados."},
+    {"goal": "026", "branch": "main", "verdict": "accepted",
+     "reason": "Calibração e rodada completa: 44 de 44 passaram; efeito teto, tratado no goal 029."}
+  ],
+  "merged": [],
+  "tests_passed": true,
+  "merge_conflict": false,
+  "privacy_violation": false,
+  "pending_decisions": [],
+  "batches": [
+    {"batch": "011", "file": "pair/entrada/lote-011.md", "goal": "027", "branch": "goal-027"},
+    {"batch": "011b", "file": "pair/entrada/lote-011b.md", "goal": "028", "branch": "goal-028"},
+    {"batch": "011c", "file": "pair/entrada/lote-011c.md", "goal": "029", "branch": "goal-029"}
+  ],
+  "stop": false,
+  "stop_reason": ""
+}
