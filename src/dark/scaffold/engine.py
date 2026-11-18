@@ -273,6 +273,7 @@ def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+
 def _check_secrets(op: Operation) -> None:
     texts = op.texts()
     for name, value in os.environ.items():
@@ -339,7 +340,7 @@ def _do_create_file(ov: Overlay, rel: str, op: CreateFile):
     want = op.content.encode("utf-8")
     data = ov.read(rel)
     if data is not None:
-        if data == want:
+        if textfile.same_bytes(data, want):
             return None
         raise Conflict(f"{rel} já existe com conteúdo diferente")
     owned = _ensure_dirs(ov, paths.parents(rel))
@@ -565,7 +566,7 @@ def _undo_create_file(ov, rel, op, entry):
     data = ov.read(rel)
     if data is None:
         return "already_gone", ""
-    if _sha(data) != entry.get("sha256"):
+    if entry.get("sha256") not in (_sha(data), _sha(textfile.lf(data))):
         return "kept", f"{rel} foi alterado depois da aplicação"
     ov.delete(rel)
     return "reverted", ""
@@ -695,7 +696,8 @@ def _release_state(ov: Overlay, res: dict) -> tuple[str, Any]:
     if data is None:
         return "gone", None
     if kind == "file":
-        return ("empty" if data == res["skeleton"].encode("utf-8") else "busy"), None
+        return ("empty" if textfile.same_bytes(data, res["skeleton"].encode("utf-8"))
+                else "busy"), None
     dec = textfile.decode(data)
     root = jsontext.parse(dec.text)
     node = jsontext.find(root, res["keys"])

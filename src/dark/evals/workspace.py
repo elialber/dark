@@ -57,7 +57,11 @@ def is_inside(child: Path, parent: Path) -> bool:
 
 def git(cwd: Path, *args: str, binary: bool = False) -> str | bytes:
     try:
+        # git writes UTF-8; the locale's encoding (cp1252 on Windows) would
+        # garble accented paths, and the next command would not find them.
         r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=not binary,
+                           encoding=None if binary else "utf-8",
+                           errors=None if binary else "surrogateescape",
                            stdin=subprocess.DEVNULL)
     except OSError as e:
         raise WorkspaceError(f"git {args[0]}: {e}") from e

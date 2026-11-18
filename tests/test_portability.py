@@ -11,6 +11,7 @@ import ast
 import dataclasses
 import io
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
@@ -49,7 +50,10 @@ def _text_mode_calls_without_encoding() -> list[str]:
                     and node.func.value.id == "subprocess"):
                 continue
             kw = {k.arg: k.value for k in node.keywords}
-            text_mode = any(isinstance(kw.get(k), ast.Constant) and kw[k].value is True
+            # Any value but a literal False may turn text mode on: `text=True`,
+            # and also `text=not binary` (goal 053, `evals/workspace.git`).
+            text_mode = any(k in kw and not (isinstance(kw[k], ast.Constant)
+                                             and kw[k].value in (False, None))
                             for k in ("text", "universal_newlines"))
             if text_mode and "encoding" not in kw:
                 found.append(f"{path.relative_to(ROOT).as_posix()}:{node.lineno}")
@@ -75,6 +79,49 @@ def test_evals_git_decodes_utf8_whatever_the_locale(monkeypatch):
     monkeypatch.setattr(evals_git.subprocess, "run", fake_run)
     assert evals_git.default_executor(["git", "log"], Path(".")) == "Corrige o cálculo\n"
     assert seen.get("encoding") == "utf-8"
+
+
+def test_workspace_git_reads_accented_names_whatever_the_locale(tmp_path, monkeypatch):
+    """S6.8: the eval copy keeps a harness file with an accented name.
+
+    Simulates Windows: text read without `encoding` is decoded as cp1252.
+    """
+    from dark.evals import workspace
+    real_run = subprocess.run
+
+    def cp1252_run(argv, **kwargs):
+        if kwargs.get("text") and not kwargs.get("encoding"):
+            kwargs = {**kwargs, "text": False}
+            r = real_run(argv, **kwargs)
+            return subprocess.CompletedProcess(r.args, r.returncode,
+                                               r.stdout.decode("cp1252"),
+                                               r.stderr.decode("cp1252"))
+        return real_run(argv, **kwargs)
+
+    env = {"GIT_AUTHOR_NAME": "Teste", "GIT_AUTHOR_EMAIL": "teste@exemplo.invalid",
+           "GIT_COMMITTER_NAME": "Teste", "GIT_COMMITTER_EMAIL": "teste@exemplo.invalid",
+           "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    src = tmp_path / "src"
+    skill = src / ".claude" / "skills" / "revisão" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text("---\nname: revisão\n---\n", encoding="utf-8")
+    (src / "a.py").write_text("x = 1\n", encoding="utf-8")
+
+    def git(*args):
+        return real_run(["git", *args], cwd=src, check=True, capture_output=True,
+                        text=True, encoding="utf-8").stdout.strip()
+
+    git("init", "-q", "-b", "main")
+    git("add", "-A")
+    git("commit", "-q", "-m", "base")
+    base = git("rev-parse", "HEAD")
+    monkeypatch.setattr(workspace.subprocess, "run", cp1252_run)
+    copy = tmp_path / "copy"
+    workspace.prepare_copy(src, base, copy, None)  # bare: removes the harness
+    assert not (copy / skill.relative_to(src)).exists()
+    assert (copy / "a.py").is_file()
 
 
 def test_cli_git_decodes_utf8_whatever_the_locale(monkeypatch):

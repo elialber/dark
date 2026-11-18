@@ -23,6 +23,7 @@ import json
 import os
 from pathlib import Path
 
+from . import textfile
 from .engine import load_manifest
 from .module import Check, Module
 from .operations import AppendLine, CreateFile, JsonEntry, Plan
@@ -503,7 +504,7 @@ class Langfuse(Module):
         problems = []
         for path, content in ((COMPOSE_PATH, COMPOSE), (ENV_EXAMPLE_PATH, ENV_EXAMPLE)):
             try:
-                same = (repo / path).read_bytes() == content.encode("utf-8")
+                same = textfile.same_bytes((repo / path).read_bytes(), content.encode("utf-8"))
             except OSError:
                 problems.append(f"ausente: {path}")
                 continue
