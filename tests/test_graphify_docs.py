@@ -82,7 +82,9 @@ def install_problems(text: str) -> list[str]:
 
 def graph_command_problems(text: str) -> list[str]:
     notes = notes_commands(_GRAPH)
-    cited = [_clean(m) for m in _GRAPH.findall(text)]
+    # Since goal 051 the subsection cites the command twice (first graph and
+    # the gain measurement's preparation); each one is reported once.
+    cited = list(dict.fromkeys(_clean(m) for m in _GRAPH.findall(text)))
     problems = [f"`{c}` is not in NOTES" for c in cited if c not in notes]
     if not cited:
         problems.append("the graph command is not cited")

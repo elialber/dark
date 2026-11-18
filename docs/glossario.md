@@ -75,6 +75,8 @@ requisição à API nos registros (`api-request`).
 | execução (do agente sobre um caso) | run | um registro no arquivo JSON Lines |
 | registro (de execução) | run record | esquema `dark.eval_run/1` |
 | condição: sem harness, com o harness do projeto | condition: `bare`, `project` | valores internos; aparecem assim na saída |
+| condição: com o módulo | condition: `with_module` | valor interno, aparece assim na saída; a cópia `project` mais um módulo do scaffold (`python -m dark.evals modulo`, goal 050); campo `applied_module` do registro |
+| ganho de um módulo; ganho, sem ganho, piora, inconclusivo | module gain; `gain`, `no_gain`, `worse`, `inconclusive` | `dark.evals.module_gain`; rótulos em `OUTCOME_LABELS` |
 | motivo de término: concluiu, tempo, orçamento, turnos, erro | end reason: `completed`, `time`, `budget`, `turns`, `error` | |
 | etapa do erro: preparação, agente, aceite | error stage: `setup`, `agent`, `acceptance` | |
 | regra | rule | as regras de "O que chama atenção" |

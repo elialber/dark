@@ -86,7 +86,7 @@ Aplicar e desfazer estrutura no repositório, sem sobrescrever nada.
 - ✅ `dark iniciar` e `dark remover` com o módulo `base` (sem terceiros)
 - ✅ `dark adicionar <módulo>` (com `--listar`) e `dark verificar`
 - ✅ Módulo Langfuse (rastros de sessão; opcional; nunca grava chaves): goal 043, documentado no goal 046
-- 🔧 Módulo Graphify (grafo do repositório; opcional; precisa provar ganho): goal 044, documentado no goal 047; falta medir o ganho (pede credencial)
+- 🔧 Módulo Graphify (grafo do repositório; opcional; precisa provar ganho): goal 044, documentado no goal 047; comando de medição no goal 050, documentado no goal 051; falta a medição real (pede credencial)
 - ✅ Instalar e desinstalar deixam o repositório idêntico ao inicial, medido em módulo de terceiro: goals 043, 044 e 048 (testes de ida e volta)
 
 ## 6. Distribuição

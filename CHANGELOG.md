@@ -59,6 +59,19 @@ podem mudar entre versões menores.
   `langfuse` e do `graphify`, tabela de códigos de saída) e este registro;
   os testes de deriva do README passam a acusar uma versão errada no fim
   de uma frase (`0.9.111.`).
+- **Medir o ganho de um módulo** (goal 050): `python -m dark.evals modulo
+  --nome <módulo>` roda os casos de eval nas condições `project` e
+  `with_module` (o módulo aplicado só na cópia, preparado com os comandos
+  que ele declara, como `graphify extract . --code-only`, e conferido com
+  o `verify` dele) e responde `ganho`, `sem ganho`, `piora` ou
+  `inconclusivo`, pela regra de custo e passos declarada antes de medir.
+  Os registros ganham o campo `applied_module`; `guardar` recusa um
+  arquivo com registros `with_module`. Nenhuma medição real foi feita
+  (pede credencial).
+- **Documentos da medição de ganho** (goal 051): seção "Ganho de um
+  módulo" no `evals/README.md`, README, `docs/metodo.md` e glossário;
+  teste que falha se os rótulos, os números da regra ou o comando de
+  preparação citados divergirem do código.
 - **Documentos do módulo `graphify`** (goal 047): subseção no README,
   Anexo A de `docs/metodo.md` e glossário; teste que falha se o README
   citar versão, comando, caminho ou evento de hook diferente do código.

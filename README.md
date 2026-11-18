@@ -247,6 +247,12 @@ langfuse` de novo para tirar a linha.
 > O gancho do plugin grava estado e log em `~/.claude/state/`, ou na
 > pasta de `CC_LANGFUSE_STATE_DIR`, se a variável existir.
 
+O ganho do Langfuse ainda não pode ser medido com `python -m dark.evals
+modulo` (veja o fim da subseção do Graphify): a cópia não leva o
+`.dark/langfuse/.env`, que fica fora do git, e sem as variáveis no
+ambiente o `verify` do módulo falha na cópia e a rodada é recusada antes
+de rodar o agente.
+
 ### Módulo `graphify`
 
 Opcional. Liga o Claude Code ao Graphify (edição open source, licença
@@ -328,9 +334,26 @@ sai como parcial (código 1) e o `remover` diz o que fazer: apague a
 pasta `graphify-out/` e rode `dark remover graphify` de novo para tirar
 a linha.
 
-O ganho do Graphify ainda não foi medido: o módulo tem de provar que
-reduz custo e passos de exploração, com e sem ele, e a medição depende
-dos evals com credencial.
+O ganho do Graphify se mede com `python -m dark.evals modulo`, que roda
+os seus casos de eval com o harness do projeto e com o mesmo harness mais
+o módulo, aplicado só numa cópia (o seu repositório é só lido):
+
+```bash
+python -m dark.evals modulo --nome graphify --repo . --saida /tmp/evals/graphify.jsonl \
+  --execucoes 3 --simular evals/cases/*.toml
+```
+
+Na cópia com o módulo, antes do agente, roda a preparação que o módulo
+declara, `graphify extract . --code-only`; por isso o executável
+`graphify` tem de estar no `PATH` (sem ele a rodada é recusada, e
+`--simular` só avisa). A resposta é `ganho`, `sem ganho`, `piora` ou
+`inconclusivo`: com pelo menos 15 execuções válidas por condição,
+`ganho` pede que o acerto não caia mais que 4 em 15 execuções, que a
+média de tokens com o módulo fique em no máximo 90% da média sem ele e
+que a média de turnos não suba. A medição real roda o Claude Code e pede
+credencial no ambiente, como `rodar`; ela ainda não foi feita, e o ganho
+do Graphify continua sem número. A explicação completa está em
+[evals/README.md](evals/README.md#ganho-de-um-módulo).
 
 ## Recomendações
 

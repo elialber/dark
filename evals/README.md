@@ -220,6 +220,92 @@ seja `inconclusivo`, são 15 execuções por condição (5 casos × 3). Um
 limite estourado no meio deixa os registros parciais no arquivo de saída e
 a resposta sai `inconclusivo`.
 
+## Ganho de um módulo
+
+Diz se um módulo do scaffold (`dark adicionar --listar` mostra quais)
+reduz custo e passos do agente nos seus casos, com uma de quatro
+respostas e os números. Regra declarada no
+[goal 050](../pair/goals/050-module-gain.md) antes de qualquer medida.
+
+```bash
+python -m dark.evals modulo --repo . --nome graphify \
+  --saida /tmp/evals/graphify.jsonl --execucoes 3 --simular evals/cases/*.toml
+```
+
+As opções são as do `ablacao`, menos `--tipo`; `--nome` é o nome do
+módulo, como em `dark adicionar`. Sem `--simular`, o comando roda os casos em duas condições, as mesmas
+repetições em cada:
+
+- `project`: o harness completo do commit `--harness`, como no `rodar`;
+- `with_module`: a mesma cópia com o módulo aplicado pelo motor do
+  scaffold (o mesmo de `dark adicionar`), num commit próprio. O módulo
+  entra só na cópia; o repositório de origem é só lido. Se uma parte do
+  módulo já estiver no harness avaliado (um arquivo, um hook, a linha do
+  `.gitignore`), a rodada é recusada: a condição `project` já o teria.
+
+Na condição `with_module`, depois de aplicar o módulo e antes do agente,
+rodam na cópia os comandos de preparação que o módulo declara (no
+`graphify`, `graphify extract . --code-only`, que monta o grafo; o
+`langfuse` não declara nenhum), com o mesmo ambiente do agente: sem
+credencial, com `HOME` e diretório de configuração descartáveis. O
+executável da preparação tem de estar no `PATH`. Depois, o `verify` do
+módulo (o mesmo de `dark verificar`) tem de dar `ok` na cópia. Essa
+conferência roda duas vezes: antes da rodada, numa cópia de teste por
+commit base, apagada em seguida; e em cada execução `with_module`, que
+tem cópia nova. `--simular` mostra os comandos de preparação, o número
+de execuções e o máximo de tokens, sem rodar nada (nem a preparação) e
+sem credencial; se o executável faltar, só avisa.
+
+Exige a mesma credencial do `rodar`. O registro de cada execução ganha o
+campo `applied_module` (`nome:versão`, por exemplo `graphify:0.9.112`;
+nulo nas outras condições).
+
+### Regra de decisão
+
+Por condição, `n` são as execuções válidas e `p` as que passaram;
+execução que termina em `erro` sai da conta (tempo, orçamento e turnos
+contam como falha). A queda é `p(project) − p(with_module)`. As médias de
+tokens e de turnos são tiradas das execuções válidas que têm o número. A
+ordem da decisão é a da tabela:
+
+| Saída | Quando |
+|---|---|
+| `inconclusivo` | menos de 15 execuções válidas em uma condição, números diferentes entre elas, ou uma condição sem nenhum valor de tokens ou de turnos |
+| `piora` | a queda passa da tolerância: `queda × 15 > 4 × n` (4 em 15 execuções por condição, a tolerância de "Primeira rodada"; a mesma proporção para outro `n`) |
+| `ganho` | queda dentro da tolerância (inclusive negativa), média de tokens com o módulo de no máximo 90% da média sem ele e média de turnos com o módulo que não sobe |
+| `sem ganho` | queda dentro da tolerância, mas a média de tokens com o módulo passa de 90% da média sem ele ou a média de turnos sobe |
+
+A comparação dos tokens é exata (média com o módulo ≤ 9/10 × média sem
+ele), sem arredondamento. Com 15 execuções por condição, uma queda de 4
+está dentro da tolerância e a de 5 passa dela.
+
+A regra mede custo (tokens) e passos (turnos), não o indicador declarado
+do módulo. Os módulos `langfuse` e `graphify` declaram `cost_per_task`, o
+que a regra mede; se um módulo declarar outro indicador, o comando avisa,
+no plano e no resultado, que a regra não o mede.
+
+### Códigos de saída
+
+| Situação | Código |
+|---|---|
+| simulação; rodada completa, qualquer que seja a resposta | 0 |
+| a preparação sai com erro ou passa do `--tempo`, ou o `verify` não dá `ok` na cópia de teste (nada foi rodado) | 1 |
+| módulo desconhecido; caso ilegível; executável da preparação ausente do `PATH`; parte do módulo já presente no harness avaliado; commit base ou do harness inexistente; preparação ou `verify` que falha numa execução no meio da rodada (a rodada para) | 2 |
+| sem credencial no ambiente | 3 |
+
+### Banco de agregados
+
+O banco ainda não guarda a condição `with_module`. `python -m dark.evals
+guardar` recusa o arquivo inteiro que tenha algum registro
+`with_module`, com código 2, dizendo as linhas, e não grava nada.
+
+### Orçamento
+
+O mesmo da ablação: são `casos × execuções × 2` execuções, nos limites
+da E17. Para uma resposta que não seja `inconclusivo`, são 15
+execuções por condição (5 casos × 3); com menos, o plano avisa que a
+regra só pode dar `inconclusivo`.
+
 ## Primeira rodada
 
 Conjunto e tolerância declarados no goal 022, antes de qualquer medida

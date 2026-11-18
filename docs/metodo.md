@@ -101,6 +101,11 @@ não prova sai**.
   que a peça. Um trecho de instrução (uma linha de um `CLAUDE.md`) também
   não: não tem identidade própria. O nome tem de ser o do inventário, no
   escopo do projeto.
+- **Módulos.** O que entra também prova valor: `python -m dark.evals
+  modulo` roda os casos com o harness do projeto e com ele mais um módulo
+  do scaffold, aplicado só na cópia, e responde `ganho`, `sem ganho`,
+  `piora` ou `inconclusivo` (seção "Ganho de um módulo" de
+  [evals/README.md](../evals/README.md#ganho-de-um-módulo)).
 
 ### Antes de gastar: `--simular`
 
@@ -439,5 +444,8 @@ repositório"). O Graphify também é um módulo do `dark`: `dark adicionar
 graphify` copia a skill oficial e liga os hooks dele (mesma seção do
 README). O ganho do Graphify ainda não foi medido: o roteiro exige que
 ele prove redução de custo e de passos em tarefas de exploração de
-código, com e sem ele. Os temas custo e latência, gestão da janela e
+código, com e sem ele. O comando que faz essa medição já existe,
+`python -m dark.evals modulo --nome graphify` (seção "Ganho de um
+módulo" de [evals/README.md](../evals/README.md#ganho-de-um-módulo));
+falta rodá-lo com credencial. Os temas custo e latência, gestão da janela e
 guardrails de ação estão no guia, sem tabela de ferramentas.
