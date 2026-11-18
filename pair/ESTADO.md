@@ -102,10 +102,11 @@ Fase 3 em andamento; laço de par disponível
 
 Lista de funcionalidades com situação de cada item: [FUNCIONALIDADES.md](../FUNCIONALIDADES.md).
 
-Rodada 004 fechada ([relatório](rodadas/004.md)): goals 051 (documentos
-da medição de ganho, com teste de deriva) e 052 (preparação de módulo que
-altera arquivo rastreado é recusada; linha do acerto maior) juntados;
-1419 testes. Próxima rodada: documentos do 052 e a recusa de
-`with_module` no `dark coletar --evals`; `with_module` no banco (esquema
-4); medição real dos módulos e da ablação e calibração dos casos novos
-(pedem credencial); piloto (item 9).
+Rodada 005, ciclo 1: nada a revisar (a rodada 004 juntou tudo). O
+workflow de testes da `main` está vermelho no Windows desde a rodada 002
+e no Linux desde a rodada 004 ([revisão 1 da rodada 005](rodadas/005/revisao-1.md)).
+Em execução: goal 053 ([lote 022](entrada/lote-022.md), workflow verde nos
+três sistemas) e goal 054 ([lote 022b](entrada/lote-022b.md),
+`with_module` no banco, esquema 4). Depois: regra
+`third_party_module_without_gain`, documentos do 052 e do 054, medição
+real (credencial), piloto (item 9).

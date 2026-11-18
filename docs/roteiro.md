@@ -142,15 +142,24 @@ que descobrir. O porquê do projeto está em `docs/visao.md`.
 
 ## Em andamento
 
-Nada em execução: a rodada 004 fechou com os goals 051 e 052 juntados.
-Para a próxima rodada, nesta ordem:
+Rodada 005, ciclo 1 (lotes 022 e 022b):
 
-- documentos do 052 (frase da recusa e linha do acerto no
-  `evals/README.md`, proposta no diário 052) e a mesma recusa de
-  registros `with_module` no `dark coletar --evals` (hoje somem sem
-  aviso; achado do diário 051);
-- guardar `with_module` no banco (esquema 4) e ligar a regra
-  `third_party_module_without_gain`;
+- **goal 053** (principal): workflow de testes verde nos três sistemas.
+  A `main` está vermelha no Windows desde a rodada 002, ciclo 2, e no
+  Linux desde a rodada 004 (teste do Docker Compose); o macOS foi
+  cancelado por falta de máquina do GitHub. Passou à frente da fila pela
+  direção do usuário ("utilizável em outros ambientes") e pela regra
+  "Testes em três sistemas", que não estava sendo cumprida;
+- **goal 054** (paralelo): condição `with_module` no banco (esquema 4,
+  com `turns`, `applied_module` e `harness_commit`), `guardar` e `dark
+  coletar --evals` aceitando-a (corrige as linhas que somem no
+  `coletar`), e a leitura da medição mais recente por módulo.
+
+Depois, nesta ordem:
+
+- regra `third_party_module_without_gain` ligada sobre o 054 (item 5);
+- documentos do 052 e do 054 (`evals/README.md`, README, CHANGELOG,
+  `FUNCIONALIDADES.md`), com a frase da recusa proposta no diário 052;
 - medição real dos módulos e da ablação e calibração dos casos novos
   (pedem credencial); piloto (item 9).
 
@@ -336,6 +345,12 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
 - **Testes em três sistemas.** O revisor não roda Windows nem macOS.
   Confere pelo resultado do workflow de testes na `main` ou na branch,
   lido da execução, e registra a tabela.
+  Toda revisão confere também o workflow da `main` (`gh run list
+  --branch main`), não só o da branch: o da `main` ficou vermelho no
+  Windows da rodada 002 à 005 sem registro (achado na revisão 1 da
+  rodada 005). Job cancelado por falta de máquina do GitHub não é
+  defeito; job vermelho bloqueia a junção, salvo falha que já existia
+  na `main`, citada.
 - **Itens que dependem do usuário** (credencial para evals, repositórios
   do piloto): vão para o relatório da rodada como pedido. Enquanto não
   forem atendidos, o revisor segue com os itens que não dependem deles.

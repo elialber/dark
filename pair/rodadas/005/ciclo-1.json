@@ -1,0 +1,18 @@
+{
+  "cycle": 1,
+  "verdicts": [],
+  "merged": [],
+  "tests_passed": true,
+  "merge_conflict": false,
+  "privacy_violation": false,
+  "pending_decisions": [
+    {"id": "D1", "question": "Apagar a branch goal-040 (local, em origin e o worktree ../dark-goal-040)? O goal 045 a substituiu e ela não foi nem será juntada (D1 da rodada 004, ainda sem resposta).",
+     "options": ["a) apagar", "b) manter como registro"], "recommendation": "a", "blocks": []}
+  ],
+  "batches": [
+    {"batch": "022", "file": "pair/entrada/lote-022.md", "goal": "053", "branch": "goal-053"},
+    {"batch": "022b", "file": "pair/entrada/lote-022b.md", "goal": "054", "branch": "goal-054"}
+  ],
+  "stop": false,
+  "stop_reason": ""
+}

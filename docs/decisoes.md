@@ -1862,3 +1862,35 @@ direto com `graphify` falso: arquivo rastreado e ignorado reescrito
 (recusado), `git add` da correção seguido de restauração parcial
 (recusado), regravar o mesmo conteúdo (aceito, correto), troca de
 maiúsculas e diretório trocado por link (aceitos, limitações acima).
+
+## Rodada 005, ciclo 1 (planejamento dos goals 053 e 054)
+
+**Workflow de testes da `main` vermelho, passa à frente da fila.** A
+execução da `main` em `a208e15` falha no Ubuntu (1 teste: o do `docker
+compose config` sem `.env` espera `SALT` no erro, e o compose acusou
+`REDIS_AUTH`) e no Windows (4 testes: o mesmo do Docker, `read_text()`
+sem `encoding`, um nome de arquivo com acento na preparação de módulo e
+a skill do Graphify vista como conflito); o macOS foi cancelado por falta
+de máquina do GitHub ("The job was not acquired by Runner"), não pelo
+código. O Windows está vermelho desde a rodada 002, ciclo 2; nenhuma
+revisão registrou. Goal 053 corrige, na camada certa (teste ou produto),
+e põe no `CLAUDE.md` a regra de o executor conferir o workflow da branch.
+O roteiro ganha, em "Testes em três sistemas", a conferência do workflow
+da `main` em toda revisão.
+
+**Goal 054, padrões do revisor a confirmar:** o esquema 4 guarda
+`turns`, `applied_module` e `harness_commit` em `eval_runs` (o que a
+regra de ganho precisa para decidir a partir do banco); as execuções
+`project` de uma medição de módulo contam nas regras de evals como as de
+`rodar`; a regra `third_party_module_without_gain` fica para o goal
+seguinte, sobre a leitura da medição que o 054 entrega.
+
+**Documentos do 052 adiados** para junto dos do 054: os dois mudam a mesma
+seção do `evals/README.md` ("Ganho de um módulo").
+
+**D1 da rodada 004 (apagar `goal-040`):** segue com o usuário; o
+`pair/DIRECAO.md` não a respondeu. Não bloqueia nada.
+
+**Motivo:** direção do usuário ("tornar a ferramenta utilizável em outros
+ambientes") e a regra de operação "Testes em três sistemas"; logs lidos
+com `gh run view --log-failed` e as anotações da execução 44370611205.
