@@ -47,6 +47,7 @@ from pathlib import Path
 
 from dark import console
 from dark.store import StoreError, default_store_path, open_store
+from dark.store_path import store_refusal
 
 from . import case as m_case
 from . import ablation, mining, rounds, run_record, runner, validation
@@ -129,8 +130,12 @@ def _save(a) -> int:
         print(e)
         return EXIT_INPUT
     new = existing = 0
+    target = Path(os.path.abspath(a.store if a.store is not None else default_store_path()))
+    refusal = store_refusal(target, None, "python -m dark.evals guardar")
+    if refusal:
+        print(refusal, file=sys.stderr)
+        return 1
     if plan.runs:
-        target = Path(os.path.abspath(a.store if a.store is not None else default_store_path()))
         if target.is_dir():
             print(f"{target} é um diretório; use --banco com o caminho de um arquivo. "
                   "Nada foi gravado.")

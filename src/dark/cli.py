@@ -24,22 +24,15 @@ from pathlib import Path
 
 from dark import audit, collect, console, inventory, reader, commit_linking, report
 from dark import store_audit
+from dark.evals import rounds
+from dark.store_path import git as _git, nearest_repository as _nearest_repository
+from dark.store_path import store_refusal as _store_refusal, unignored_repository
 from dark.scaffold import ManifestError, apply as scaffold_apply, inspect as scaffold_inspect
 from dark.scaffold import base as scaffold_base, load_manifest, uninstall
 from dark.scaffold.cli import _describe, _print_revert
 from dark.store import StoreError, default_store_path, open_store
 
-_GIT_READ_ONLY = {"GIT_OPTIONAL_LOCKS": "0"}
 DEFAULT_RETENTION_DAYS = 30        # Claude Code's `cleanupPeriodDays` when not set
-
-
-def _git(*args: str) -> subprocess.CompletedProcess | None:
-    try:
-        return subprocess.run(["git", *args], capture_output=True, text=True,
-                              encoding="utf-8", errors="replace",
-                              env={**os.environ, **_GIT_READ_ONLY})
-    except OSError:
-        return None
 
 
 @cache
@@ -53,26 +46,6 @@ def git_identity(root: Path) -> str | None:
     if r is None or r.returncode != 0:
         return None
     return ",".join(sorted(r.stdout.split())) or None
-
-
-def _nearest_repository(path: Path) -> Path | None:
-    """Nearest folder with `.git` (the worktree's own, not the main one)."""
-    for folder in (path, *path.parents):
-        if (folder / ".git").exists():
-            return folder
-    return None
-
-
-def unignored_repository(destination: Path) -> Path | None:
-    """Git repository the file falls in without being ignored, if any."""
-    destination = Path(os.path.abspath(destination))
-    root = _nearest_repository(destination.parent)
-    if root is None:
-        return None
-    r = _git("-C", str(root), "check-ignore", "-q", str(destination))
-    if r is not None and r.returncode == 0:
-        return None
-    return root
 
 
 def output_warning(destination: Path) -> str | None:
@@ -225,21 +198,6 @@ def _emit(args: argparse.Namespace, result: audit.Audit, code: int) -> int:
     return code
 
 
-def _store_refusal(store: Path, root: Path | None, command: str) -> str | None:
-    """Why the store file may not be used, or None (goal 024, item 5)."""
-    if root is not None and (store == root or root in store.parents):
-        return (f"{command}: {store} fica dentro do repositório coletado {root}. "
-                f"Use um caminho fora dele (o padrão é {default_store_path()}). "
-                f"Nada foi gravado.")
-    inside = unignored_repository(store)
-    if inside is not None:
-        return (f"{command}: {store} fica dentro do repositório git {inside} e não está "
-                f"ignorado pelo git. O banco traz nomes reais de skills, ferramentas e "
-                f"repositórios; use um caminho fora do repositório (o padrão é "
-                f"{default_store_path()}). Nada foi gravado.")
-    return None
-
-
 def _collect_into(args: argparse.Namespace, root: Path | None, store: Path, out) -> int:
     """Runs the collection and prints its summary to `out`; 0, or 1 on a store error."""
     try:
@@ -328,7 +286,53 @@ def _collect(args: argparse.Namespace) -> int:
     if refusal:
         print(refusal, file=sys.stderr)
         return 1
-    return _collect_into(args, root, store, sys.stdout)
+    plans = []
+    for path in args.evals or []:
+        try:
+            plans.append((path, rounds.plan_import(path)))
+        except rounds.RecordsFileError as error:
+            print(f"dark coletar: --evals: {error}. Nada foi coletado nem gravado.",
+                  file=sys.stderr)
+            return 2
+    code = _collect_into(args, root, store, sys.stdout)
+    if code != 0 or not plans:
+        return code
+    return _import_evals(plans, store)
+
+
+EVALS_REFUSED_SHOWN = 5
+
+
+def _import_evals(plans: list, store_path: Path) -> int:
+    """Writes the eval runs of the planned files to the store and prints one line.
+
+    A second opening of the store, right after the collection: `collect.collect`
+    owns the first one (padrão a confirmar, goal 041).
+    """
+    runs = [r for _, plan in plans for r in plan.runs]
+    new = existing = 0
+    if runs:
+        try:
+            with open_store(store_path) as store:
+                new, existing = store.write_eval_runs(runs)
+        except StoreError as error:
+            print(f"dark coletar: --evals: {report.store_error_text(error)} ({store_path})",
+                  file=sys.stderr)
+            return 1
+    several = len(plans) > 1
+    refused = [f"{Path(path).name}:{n}" if several else str(n)
+               for path, plan in plans for n, _ in plan.refused]
+    word = "recusada" if len(refused) == 1 else "recusadas"
+    line = (f"evals: {new} {'nova' if new == 1 else 'novas'}, "
+            f"{existing} {'já existia' if existing == 1 else 'já existiam'}, "
+            f"{len(refused)} {word}")
+    if refused:
+        shown = ", ".join(refused[:EVALS_REFUSED_SHOWN])
+        more = len(refused) - EVALS_REFUSED_SHOWN
+        label = "linhas" if len(refused) > 1 else "linha"
+        line += f" ({label} {shown}{f' e mais {more}' if more > 0 else ''})"
+    print(line)
+    return 0
 
 
 def _target_repository(path: Path | None, command: str) -> Path | None:
@@ -488,6 +492,9 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--banco", dest="store", metavar="BANCO", type=Path, default=None,
                    help="arquivo do banco de agregados (padrão: o diretório de dados do "
                         "usuário; nunca dentro de um repositório)")
+    c.add_argument("--evals", dest="evals", metavar="ARQUIVO", type=Path, action="append",
+                   help="depois da coleta, importa as execuções de eval de um arquivo "
+                        ".jsonl (repetível), como `python -m dark.evals guardar`")
     c.add_argument("--sem-git", dest="no_git", action="store_true",
                    help="não consulta o histórico git para ligar commits (mais rápido)")
     c.add_argument("--gerenciado", dest="managed", metavar="GERENCIADO", type=Path, default=None,
