@@ -17,9 +17,14 @@ está no README do projeto) e pare.
 dark coletar --todos
 ```
 
-Para coletar só um repositório, use `dark coletar <caminho>`. O banco fica
-no diretório de dados do usuário, nunca dentro de um repositório
-(`--banco <arquivo>` escolhe outro lugar).
+Sem `--todos`, o comando coleta só o repositório do diretório atual (ou
+`dark coletar <caminho>`). O banco fica no diretório de dados do usuário,
+nunca dentro de um repositório (`--banco <arquivo>` escolhe outro lugar).
+`--sem-git` pula a consulta ao histórico git (mais rápido; as ligações já
+gravadas ficam). `dark coletar --help` lista todas as opções.
+
+A auditoria (`dark auditar`) tem opção própria para coletar antes de
+auditar; ver a skill `auditar`.
 
 ## O que é gravado
 
