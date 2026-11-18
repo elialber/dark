@@ -39,6 +39,12 @@ class Module(ABC):
     name: ClassVar[str]
     version: ClassVar[str]
     indicator: ClassVar[str]
+    # Optional, for the plan's printout: why each created path exists.
+    reasons: ClassVar[dict[str, str]] = {}
+
+    def existing(self, repo: Path) -> list[str]:
+        """What the plan leaves alone because it is already there (not ours)."""
+        return []
 
     @abstractmethod
     def plan(self, repo: Path) -> Plan:

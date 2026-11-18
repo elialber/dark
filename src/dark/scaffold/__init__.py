@@ -15,6 +15,7 @@ from .engine import (
     revert,
 )
 from .module import INDICATORS, Check, Module, install, uninstall
+from .registry import get_module, list_modules, register, unregister
 from .operations import (
     AppendLine,
     CreateDir,
@@ -29,5 +30,5 @@ __all__ = [
     "INDICATORS", "MANIFEST_NAME", "AppendLine", "Check", "CreateDir", "CreateFile",
     "JsonEntry", "ManifestError", "MarkedBlock", "Module", "Outcome", "Plan",
     "RevertOutcome", "apply", "env_ref", "inspect", "install", "load_manifest",
-    "revert", "uninstall",
+    "revert", "uninstall", "get_module", "list_modules", "register", "unregister",
 ]

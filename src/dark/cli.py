@@ -28,7 +28,7 @@ from dark.evals import rounds
 from dark.store_path import git as _git, nearest_repository as _nearest_repository
 from dark.store_path import store_refusal as _store_refusal, unignored_repository
 from dark.scaffold import ManifestError, apply as scaffold_apply, inspect as scaffold_inspect
-from dark.scaffold import base as scaffold_base, load_manifest, uninstall
+from dark.scaffold import get_module, list_modules, load_manifest, uninstall
 from dark.scaffold.cli import _describe, _print_revert
 from dark.store import StoreError, default_store_path, open_store
 
@@ -371,27 +371,40 @@ def _harness_state_line(root: Path) -> str:
     return f"Estado do harness do projeto: {count} peça(s) de harness já existem."
 
 
+def _unknown_module(command: str, name: str) -> int:
+    known = ", ".join(m.name for m in list_modules())
+    print(f"{command}: módulo desconhecido: {name} (conhecidos: {known})", file=sys.stderr)
+    return 2
+
+
 def _init(args: argparse.Namespace) -> int:
-    root = _target_repository(args.path, "dark iniciar")
+    return _add_module("base", args.path, args.apply, "dark iniciar")
+
+
+def _add_module(name: str, path: Path | None, apply_: bool, command: str) -> int:
+    """The plan of one registered module, or its application (shared by iniciar/adicionar)."""
+    module = get_module(name)
+    if module is None:
+        return _unknown_module(command, name)
+    root = _target_repository(path, command)
     if root is None:
         return 2
-    module = scaffold_base.Base()
     try:
         print(_harness_state_line(root))
-        left = scaffold_base.existing(root)
-        outcome = (scaffold_apply if args.apply else scaffold_inspect)(root, module.plan(root))
+        left = module.existing(root)
+        outcome = (scaffold_apply if apply_ else scaffold_inspect)(root, module.plan(root))
     except (ValueError, ManifestError) as error:
-        print(f"dark iniciar: {error}", file=sys.stderr)
+        print(f"{command}: {error}", file=sys.stderr)
         return 2
     except OSError as error:
-        print(f"dark iniciar: erro ao gravar; o que já tinha sido gravado foi desfeito: "
+        print(f"{command}: erro ao gravar; o que já tinha sido gravado foi desfeito: "
               f"{error}", file=sys.stderr)
         return 1
     print(f"Módulo {module.name} {module.version} em {root}:")
-    labels = {"new": "aplicado" if args.apply else "criar", "already_applied": "já aplicado",
+    labels = {"new": "aplicado" if apply_ else "criar", "already_applied": "já aplicado",
               "already_present": "já presente", "conflict": "conflito"}
     for step in outcome.steps:
-        why = scaffold_base.REASONS.get(step.op.path, "")
+        why = module.reasons.get(step.op.path, "")
         line = f"  [{labels[step.status]}] {_describe(step.op)}"
         print(line + (f": {step.reason}" if step.reason else f": {why}" if why else ""))
     for guard in dict.fromkeys(left):
@@ -400,16 +413,63 @@ def _init(args: argparse.Namespace) -> int:
         print("Há conflitos: nada foi aplicado.")
         return 1
     changed = any(s.status == "new" for s in outcome.steps)
-    if not args.apply:
+    if not apply_:
         print("Nada foi escrito. Use --aplicar para aplicar." if changed
               else "Nada a criar.")
     elif changed:
-        print("Aplicado. `dark remover base` desfaz.")
+        print(f"Aplicado. `dark remover {module.name}` desfaz.")
     elif outcome.steps:
         print("Nada a fazer: já aplicado.")
     else:
         print("Nada a criar.")
     return 0
+
+
+def _add(args: argparse.Namespace) -> int:
+    if args.list_:
+        if args.path is not None:
+            print("dark adicionar: --listar não leva módulo e caminho, só o caminho",
+                  file=sys.stderr)
+            return 2
+        return _list_modules(args.module)
+    if args.module is None:
+        print("dark adicionar: informe o módulo (ou --listar)", file=sys.stderr)
+        return 2
+    return _add_module(args.module, args.path, args.apply, "dark adicionar")
+
+
+def _list_modules(path: str | None) -> int:
+    root = _target_repository(Path(path) if path is not None else None, "dark adicionar")
+    if root is None:
+        return 2
+    try:
+        applied = {e.get("module") for e in load_manifest(root)["entries"]}
+    except (ValueError, ManifestError) as error:
+        print(f"dark adicionar: {error}", file=sys.stderr)
+        return 2
+    for module in list_modules():
+        state = "aplicado" if module.name in applied else "não aplicado"
+        print(f"{module.name} {module.version}  indicador: {module.indicator}  {state}")
+    return 0
+
+
+def _verify(args: argparse.Namespace) -> int:
+    module = get_module(args.module)
+    if module is None:
+        return _unknown_module("dark verificar", args.module)
+    root = _target_repository(args.path, "dark verificar")
+    if root is None:
+        return 2
+    try:
+        check = module.verify(root)
+    except (ValueError, ManifestError) as error:
+        print(f"dark verificar: {error}", file=sys.stderr)
+        return 2
+    if check.ok:
+        print("ok")
+        return 0
+    print(check.detail or "falhou")
+    return 1
 
 
 def _remove(args: argparse.Namespace) -> int:
@@ -419,11 +479,8 @@ def _remove(args: argparse.Namespace) -> int:
     try:
         recorded = [e for e in load_manifest(root)["entries"] if e.get("module") == args.module]
         if not recorded:
-            if args.module not in scaffold_base.MODULES:
-                print(f"dark remover: módulo desconhecido: {args.module} "
-                      f"(conhecidos: {', '.join(sorted(scaffold_base.MODULES))})",
-                      file=sys.stderr)
-                return 2
+            if get_module(args.module) is None:
+                return _unknown_module("dark remover", args.module)
             print(f"O módulo {args.module} nunca foi aplicado neste repositório; "
                   f"nada a remover.")
             return 0
@@ -509,6 +566,28 @@ def main(argv: list[str] | None = None) -> int:
                    help="repositório git (padrão: o diretório atual)")
     i.add_argument("--aplicar", dest="apply", action="store_true",
                    help="aplica o plano, tudo ou nada (padrão: só mostra)")
+    d = commands.add_parser(
+        "adicionar", help="aplica um módulo registrado a um repositório",
+        description="Como `dark iniciar`, para qualquer módulo registrado: mostra o plano "
+                    "sem escrever; --aplicar aplica, tudo ou nada, só na raiz de um "
+                    "repositório git. Conflito aborta. `dark iniciar` é `adicionar base`.")
+    d.add_argument("module", metavar="modulo", nargs="?",
+                   help="nome do módulo (com --listar, o caminho do repositório)")
+    d.add_argument("path", metavar="caminho", nargs="?", type=Path,
+                   help="repositório git (padrão: o diretório atual)")
+    d.add_argument("--aplicar", dest="apply", action="store_true",
+                   help="aplica o plano, tudo ou nada (padrão: só mostra)")
+    d.add_argument("--listar", dest="list_", action="store_true",
+                   help="lista os módulos registrados, com versão, indicador e se estão "
+                        "aplicados no repositório")
+    v = commands.add_parser(
+        "verificar", help="confere se um módulo aplicado está funcionando",
+        description="Roda a verificação do módulo e imprime `ok` ou o motivo. Só lê. "
+                    "Código 0 se ok, 1 se não, 2 se o módulo é desconhecido ou o caminho "
+                    "não é a raiz de um repositório git.")
+    v.add_argument("module", metavar="modulo", help="nome do módulo (por exemplo: base)")
+    v.add_argument("path", metavar="caminho", nargs="?", type=Path,
+                   help="repositório git (padrão: o diretório atual)")
     r = commands.add_parser(
         "remover", help="desfaz o que `dark iniciar` aplicou",
         description="Reverte o que o manifesto registra para o módulo. O que você mudou "
@@ -521,13 +600,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"dark {collect.tool_version()}")
         return 0
     if args.command is None:
-        parser.error("informe um comando (auditar, coletar, iniciar ou remover) ou --versao")
+        parser.error("informe um comando (auditar, coletar, iniciar, adicionar, verificar ou remover) ou --versao")
     if args.command == "auditar":
         return _audit(args)
     if args.command == "coletar":
         return _collect(args)
     if args.command == "iniciar":
         return _init(args)
+    if args.command == "adicionar":
+        return _add(args)
+    if args.command == "verificar":
+        return _verify(args)
     if args.command == "remover":
         return _remove(args)
     return 2

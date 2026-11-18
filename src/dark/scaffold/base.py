@@ -103,6 +103,10 @@ class Base(Module):
     name = "base"
     version = "1.0.0"
     indicator = "adherence"
+    reasons = REASONS
+
+    def existing(self, repo: Path) -> list[str]:
+        return existing(Path(repo))
 
     def plan(self, repo: Path) -> Plan:
         repo = Path(repo)
@@ -120,5 +124,3 @@ class Base(Module):
             return Check(False, "ausente: " + ", ".join(missing))
         return Check(bool(recorded), "" if recorded else "o módulo não foi aplicado")
 
-
-MODULES: dict[str, type[Module]] = {Base.name: Base}
