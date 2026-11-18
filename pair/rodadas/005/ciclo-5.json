@@ -1,0 +1,20 @@
+{
+  "cycle": 5,
+  "verdicts": [
+    {"goal": "058", "branch": "goal-058", "verdict": "accepted",
+     "reason": "validate_record usa re.fullmatch e recusa valor com quebra de linha no fim; teste de que todo pattern do esquema é ancorado; recusa de applied_module no evals/README.md com a saída real do guardar (conferida pelo revisor) e CHANGELOG do 057 e do 058. Merge limpo, 1585 testes; workflow da branch verde nos nove jobs. A lacuna do teste de âncora com alternância no topo (sondagem do revisor) não afeta nenhum padrão atual e ficou guardada para depois."}
+  ],
+  "merged": ["goal-058"],
+  "tests_passed": true,
+  "merge_conflict": false,
+  "privacy_violation": false,
+  "pending_decisions": [
+    {"id": "D1", "question": "Apagar a branch goal-040 (local, em origin e o worktree ../dark-goal-040)? O goal 045 a substituiu e ela não foi nem será juntada (D1 da rodada 004, ainda sem resposta).",
+     "options": ["a) apagar", "b) manter como registro"], "recommendation": "a", "blocks": []},
+    {"id": "D2", "question": "Apagar a branch goal-054 (local, em origin e o worktree ../dark-goal-054)? O conteúdo dela entrou na main pelo goal 055, por cherry-pick, com outros hashes; ela não será juntada.",
+     "options": ["a) apagar", "b) manter como registro"], "recommendation": "a", "blocks": []}
+  ],
+  "batches": [],
+  "stop": true,
+  "stop_reason": "Ciclos previstos concluídos (5 de 5) e a fila que não depende do usuário ficou vazia: medição real, calibração, teste com pessoa de fora e piloto pedem credencial ou o usuário."
+}

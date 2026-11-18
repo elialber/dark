@@ -80,8 +80,7 @@ Fase 3 em andamento; laço de par disponível
 | [055 — Regra de módulo de terceiro sem ganho](goals/055-third-party-rule.md) | Aceito na [revisão 3 da rodada 005](rodadas/005/revisao-3.md) e incorporado à `main`; nenhuma regra adiada; documentos no goal 056 |
 | [056 — Documentos do 052, do 054 e do 055](goals/056-docs-052-054-055.md) | Aceito na [revisão 4 da rodada 005](rodadas/005/revisao-4.md) e incorporado à `main` |
 | [057 — `applied_module` no formato `nome:versão`](goals/057-applied-module-format.md) | Aceito na [revisão 4 da rodada 005](rodadas/005/revisao-4.md) e incorporado à `main`; documentos no goal 058 |
-| 056 — Documentos do 052, 054 e 055 | Em execução ([lote 024](entrada/lote-024.md)) |
-| 057 — `applied_module` no formato `nome:versão` | Em execução ([lote 024b](entrada/lote-024b.md)) |
+| [058 — Documentos do 057 e `pattern` sem quebra de linha no fim](goals/058-docs-057-pattern-end.md) | Aceito na [revisão 5 da rodada 005](rodadas/005/revisao-5.md) e incorporado à `main`; `validate_record` usa `re.fullmatch`; teste de âncora não pega alternância no topo (guardado para depois) |
 
 ## Decisões pendentes
 
@@ -112,9 +111,8 @@ Fase 3 em andamento; laço de par disponível
 
 Lista de funcionalidades com situação de cada item: [FUNCIONALIDADES.md](../FUNCIONALIDADES.md).
 
-Rodada 005, ciclo 4 ([revisão 4](rodadas/005/revisao-4.md)): goals 056
-(documentos do 052, 054 e 055) e 057 (`guardar` recusa `applied_module`
-fora de `nome:versão`) juntados; 1538 testes. Em execução: goal 058
-([lote 025](entrada/lote-025.md)), documentos do 057 e `pattern` do
-esquema que não aceita quebra de linha no fim. Depois: medição real
-(credencial); piloto (item 9).
+Rodada 005 fechada no ciclo 5 ([revisão 5](rodadas/005/revisao-5.md),
+[relatório](rodadas/005.md)): goal 058 juntado; 1585 testes. A fila que
+não depende do usuário está vazia. Próximo: medição real dos módulos e
+da ablação e calibração dos casos novos (credencial); teste com uma
+pessoa de fora (item 7); piloto (item 9).

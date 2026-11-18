@@ -2020,3 +2020,40 @@ verde nos nove jobs (44398435613 e 44403686866) e o da `main` em
 de `SCHEMA_VERSION` (os testes de deriva do 056 falham), sete valores de
 `applied_module` contra o esquema e contra `check_module`, e SHA com
 `\n` no fim pelo `guardar`.
+
+## Rodada 005, ciclo 5 (revisão do goal 058)
+
+**Goal 058 aceito e juntado.**
+
+Confirmados os padrões do 058:
+
+1. `validate_record` confere `pattern` com `re.fullmatch`, e não com
+   `re.search` mais a exigência de casar até o fim: com todo `pattern`
+   ancorado em `^...$`, casar o texto inteiro é o que um validador de
+   JSON Schema faz, e o `fullmatch` volta atrás até consumir o texto;
+   é também o que `check_module_format` (goal 057) usa;
+2. quebra de linha no meio de um `applied_module` (`graph\nify:1.0`)
+   segue aceita pelo esquema e recusada pelo registro do banco
+   ("control characters are not allowed"); não alargar o padrão sem
+   caso real;
+3. o exemplo de recusa no `evals/README.md` usa `graphify` sem versão,
+   o erro mais provável de quem escreve o campo à mão.
+
+**Achado do revisor, guardado para depois:** o teste de âncora
+(`unanchored` em `tests/test_record_pattern.py`) confere só o primeiro e
+o último caractere; aceita `^a|b$`, em que `re.fullmatch` recusa `axx` e
+um validador de JSON Schema aceita. Nenhum `pattern` atual tem
+alternância no topo; entra na fila só se um `pattern` novo a trouxer.
+
+**A rodada fecha neste ciclo, sem lote novo:** depois do 058, todo item
+da fila depende do usuário (credencial para a medição real, pessoa de
+fora, repositórios do piloto, licença, etiqueta).
+
+**Motivo:** ensaio do revisor em worktree limpo no rascunho (`main` +
+`goal-058`, sem conflito, 1585 testes); workflow da branch verde nos
+nove jobs (44409871918 no código, 44412356938 no diário) e o da `main`
+em `2e696a8` também (44408925758); sondagens: seis valores pelo
+`validate_record` (`\n`, espaço e NUL no fim recusados; inteiro dá
+"tipo errado"), o `guardar` com `applied_module = "graphify"` dá
+exatamente a linha citada no README, e a alternância no topo contra o
+teste de âncora.

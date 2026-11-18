@@ -164,16 +164,19 @@ que descobrir. O porquê do projeto está em `docs/visao.md`.
   `applied_module` fora de `nome:versão`, e o esquema do registro diz o
   formato. Parte dos itens 5, 6 e 7.
 
+- **Documentos do 057 e `pattern` como no JSON Schema** (goal 058,
+  rodada 005): `validate_record` confere `pattern` com `re.fullmatch`
+  (um `base_commit` com `\n` no fim era aceito), teste de que todo
+  `pattern` do esquema é ancorado nas duas pontas, recusa do formato
+  `nome:versão` no `evals/README.md` com a saída real do `guardar`, e
+  CHANGELOG do 057 e do 058.
+
 ## Em andamento
 
-Rodada 005, ciclo 4:
-
-- **goal 058** (lote 025): documentos do 057 e `validate_record` sem
-  aceitar quebra de linha no fim de um `pattern` (achado da revisão 4).
-
-Depois: a fila sem credencial fica vazia. Medição real dos módulos e da
-ablação e calibração dos casos novos (pedem credencial); teste com uma
-pessoa de fora (item 7); piloto (item 9).
+Nada. A rodada 005 fechou no ciclo 5 com a fila que não depende do
+usuário vazia. O que falta pede o usuário: medição real dos módulos e da
+ablação e calibração dos casos novos (credencial); teste com uma pessoa
+de fora (item 7); piloto (item 9).
 
 ## Fila, em ordem
 
@@ -395,6 +398,11 @@ ou quando destravarem um item acima.
   worktrees que criou no rascunho (diário 021, diário 022 e revisões da
   rodada 001). Só o usuário pode fazer: `tools/pairloop/` é protegido
   (D1 da rodada 001).
+- Teste de âncora dos `pattern` do registro mais estrito: hoje aceita
+  `^a|b$`, alternância no topo em que o `^` e o `$` não valem para todo
+  o padrão, e aí o `re.fullmatch` recusa o que um validador de JSON
+  Schema aceita. Nenhum `pattern` atual tem alternância no topo
+  (sondagem da revisão 5 da rodada 005).
 
 ## Como manter este arquivo
 
