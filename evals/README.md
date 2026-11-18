@@ -143,6 +143,19 @@ python -m dark.evals esquema
   vai só para o agente, que roda com diretório de configuração e `HOME`
   descartáveis. Os comandos do agente podem lê-la: use um token dedicado
   às evals e revogue-o depois.
+- **Configuração do pytest:** além dos `files` do aceite, o executor
+  protege `conftest.py` (em qualquer pasta), `pytest.ini`, `tox.ini`,
+  `setup.cfg` e `pyproject.toml`. Depois da sessão do agente e antes do
+  aceite, o que ele criou, mudou, apagou ou trocou por link simbólico ou
+  diretório volta ao conteúdo do commit de partida (o que é novo é
+  apagado); no `pyproject.toml` só conta a seção `[tool.pytest*]`, e
+  mudança fora dela é mantida. O campo `acceptance_config_changed` do
+  registro fica verdadeiro quando houve restauração (inclusive de um
+  `conftest.py` vazio, que já muda a raiz do pytest) e falso quando
+  nada mudou; registros antigos não têm o campo. Verdadeiro não
+  significa trapaça: o agente pode ter criado o arquivo para rodar os
+  próprios testes. Se o caso precisa que um desses arquivos valha, ele o
+  lista em `files`.
 - **Registro:** JSON Lines, um objeto por execução, esquema
   `dark.eval_run/1` (`esquema` imprime). Só números e identificadores;
   nenhum texto da conversa. O arquivo de saída fica fora do repositório.

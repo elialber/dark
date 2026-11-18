@@ -165,6 +165,27 @@ elif mode == "bypass":
                 "def pytest_runtest_makereport(item, call):\n"
                 "    outcome = yield\n"
                 "    outcome.get_result().outcome = 'passed'\n")
+elif mode == "actions":
+    # `arg` is a JSON file with a list of file actions to perform in the copy.
+    import shutil
+    for act in json.load(open(arg)):
+        kind, path = act["do"], act["path"]
+        if kind == "write":
+            os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+            if os.path.islink(path):
+                os.unlink(path)
+            with open(path, "w") as f:
+                f.write(act.get("content", ""))
+        elif kind == "symlink":
+            os.symlink(act["target"], path)
+        elif kind == "mkdir":
+            os.makedirs(path, exist_ok=True)
+        elif kind == "remove":
+            os.remove(path)
+        elif kind == "rmtree":
+            shutil.rmtree(path)
+        elif kind == "chmod":
+            os.chmod(path, int(act["mode"], 8))
 elif mode == "inspect":
     def harness():
         found = []
@@ -302,8 +323,6 @@ def test_agent_that_changes_the_tests_does_not_pass(repo, fake):
     assert rec.acceptance_code not in (0, None)
 
 
-@pytest.mark.xfail(strict=True, reason="goal 029: only the case's `files` are protected; a "
-                   "conftest.py written by the agent can still make a pytest acceptance pass")
 def test_agent_that_rigs_pytest_instead_of_the_tests_does_not_pass(tmp_path, fake):
     src = tmp_path / "src"
     src.mkdir()
@@ -323,6 +342,165 @@ def test_agent_that_rigs_pytest_instead_of_the_tests_does_not_pass(tmp_path, fak
     rec = run(r, FakeLauncher(fake, "bypass"))
     assert rec.tests_modified is False       # the tests were not touched...
     assert rec.passed is False               # ...yet the agent must not win
+
+
+RIG = ("import pytest\n"
+       "@pytest.hookimpl(hookwrapper=True)\n"
+       "def pytest_runtest_makereport(item, call):\n"
+       "    outcome = yield\n"
+       "    outcome.get_result().outcome = 'passed'\n")
+FIXED_CALC = "def add(a, b):\n    return a + b\n"
+PYPROJECT = ("[project]\nname = \"calc\"\nversion = \"0\"\n\n"
+             "[tool.pytest.ini_options]\ntestpaths = [\"tests\"]\n")
+
+
+def pytest_case(tmp_path, extra=None):
+    """Source repository whose acceptance is `pytest`, bug in calc.py."""
+    src = tmp_path / "src"
+    src.mkdir()
+    _git(src, "init", "-q", "-b", "main")
+    base = make_commit(src, {
+        "calc.py": "def add(a, b):\n    return a - b\n",
+        "tests/test_calc.py": "from calc import add\n\n\ndef test_add():\n    assert add(2, 3) == 5\n",
+        "pyproject.toml": PYPROJECT,
+        **(extra or {}),
+    }, "base")
+    case = Case(
+        id="calc-pytest", source="manual", base_commit=base, prompt="Fix add in calc.py.",
+        acceptance=Acceptance(
+            command=[sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
+                     "tests/test_calc.py"],
+            files=["tests/test_calc.py"], timeout_s=60),
+        solution_commit=base)
+    return {"src": src, "case": case, "work": tmp_path / "work"}
+
+
+def acting(tmp_path, fake, actions, extra=None):
+    plan = tmp_path / "plan.json"
+    plan.write_text(json.dumps(actions), encoding="utf-8")
+    return run(pytest_case(tmp_path, extra), FakeLauncher(fake, "actions", str(plan)))
+
+
+def write(path, content):
+    return {"do": "write", "path": path, "content": content}
+
+
+FIX = write("calc.py", FIXED_CALC)
+CHEATS = {
+    "root conftest": [write("conftest.py", RIG)],
+    "tests conftest": [write("tests/conftest.py", RIG)],
+    "pytest.ini addopts": [write("pytest.ini", "[pytest]\naddopts = --co\n")],
+    # pyproject.toml wins over tox.ini and setup.cfg, so the agent drops it first.
+    "tox.ini": [{"do": "remove", "path": "pyproject.toml"},
+                write("tox.ini", "[pytest]\naddopts = --co\n")],
+    "setup.cfg": [{"do": "remove", "path": "pyproject.toml"},
+                  write("setup.cfg", "[tool:pytest]\naddopts = --co\n")],
+    "pyproject pytest table": [write("pyproject.toml", PYPROJECT.replace(
+        'testpaths = ["tests"]', 'addopts = "--co"'))],
+    "conftest symlink": [write("rig_impl.py", RIG), {"do": "symlink", "path": "conftest.py",
+                                                     "target": "rig_impl.py"}],
+    "conftest and gitignore": [write(".gitignore", "conftest.py\n"), write("conftest.py", RIG)],
+}
+
+
+@pytest.mark.parametrize("name", sorted(CHEATS))
+def test_pytest_configuration_cheat_does_not_pass(tmp_path, fake, name):
+    rec = acting(tmp_path, fake, CHEATS[name])
+    assert rec.acceptance_config_changed is True
+    assert rec.tests_modified is False
+    assert rec.passed is False
+
+
+def test_conftest_in_a_new_directory_is_removed(tmp_path, fake):
+    # Not a working cheat for this acceptance (pytest never loads it), but
+    # the file is still pytest configuration the agent added.
+    rec = acting(tmp_path, fake, [FIX, write("a/b/conftest.py", RIG)])
+    assert rec.acceptance_config_changed is True
+    assert rec.passed is True
+
+
+def test_honest_agent_keeps_passing_with_config_unchanged(tmp_path, fake):
+    rec = acting(tmp_path, fake, [FIX])
+    assert rec.passed is True
+    assert rec.acceptance_config_changed is False
+
+
+def test_change_outside_pytest_tables_of_pyproject_is_kept(tmp_path, fake):
+    rec = acting(tmp_path, fake, [FIX, write("pyproject.toml", PYPROJECT + "\n[tool.other]\nx = 1\n")])
+    assert rec.passed is True
+    assert rec.acceptance_config_changed is False
+
+
+def test_cheat_in_pyproject_cannot_hide_behind_other_changes(tmp_path, fake):
+    rig = PYPROJECT.replace('testpaths = ["tests"]', 'addopts = "--co"') + "\n[tool.other]\nx = 1\n"
+    rec = acting(tmp_path, fake, [write("pyproject.toml", rig)])
+    assert rec.passed is False and rec.acceptance_config_changed is True
+
+
+def test_deleted_pytest_config_is_restored(tmp_path, fake):
+    ini = {"pytest.ini": "[pytest]\npythonpath = lib\n", "lib/calc.py": "def add(a, b):\n    return a + b\n"}
+    rec = acting(tmp_path, fake, [{"do": "remove", "path": "pytest.ini"}], extra=ini)
+    assert rec.acceptance_config_changed is True
+    assert rec.passed is True       # the base config is back: the fixed lib/calc.py is found
+    assert rec.tests_modified is False
+
+
+def test_config_file_listed_in_files_is_the_case_decision(tmp_path, fake):
+    r = pytest_case(tmp_path, {"tests/conftest.py": "# base\n"})
+    r["case"].acceptance.files.append("tests/conftest.py")
+    plan = tmp_path / "plan.json"
+    plan.write_text(json.dumps([write("tests/conftest.py", RIG)]), encoding="utf-8")
+    rec = run(r, FakeLauncher(fake, "actions", str(plan)))
+    assert rec.tests_modified is True
+    assert rec.acceptance_config_changed is False      # restored by the `files` rule
+    assert rec.passed is False
+
+
+def test_empty_conftest_created_by_the_agent_counts_as_a_change(tmp_path, fake):
+    # An empty conftest.py at the root still changes pytest (rootdir and
+    # sys.path), so it is removed and recorded, but the fix still passes.
+    rec = acting(tmp_path, fake, [FIX, write("conftest.py", "")])
+    assert rec.acceptance_config_changed is True
+    assert rec.passed is True
+
+
+def test_conftest_as_a_directory_is_removed_without_traceback(tmp_path, fake):
+    rec = acting(tmp_path, fake, [FIX, {"do": "mkdir", "path": "conftest.py"},
+                                  write("conftest.py/x.txt", "x")])
+    assert rec.acceptance_config_changed is True
+    assert rec.passed is True
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permissions")
+def test_unwritable_config_is_handled_without_traceback(tmp_path, fake):
+    rec = acting(tmp_path, fake, [FIX, write("sub/conftest.py", RIG),
+                                  {"do": "chmod", "path": "sub/conftest.py", "mode": "000"},
+                                  {"do": "chmod", "path": "sub", "mode": "500"}])
+    assert rec.acceptance_config_changed is True
+    assert rec.passed in (True, False)
+    assert list(tmp_path.joinpath("work").iterdir()) == []
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permissions")
+def test_unreadable_directory_with_conftest_is_handled(tmp_path, fake):
+    rec = acting(tmp_path, fake, [FIX, write("hid/conftest.py", RIG),
+                                  {"do": "chmod", "path": "hid", "mode": "000"}])
+    assert rec.passed in (True, False)
+    assert list(tmp_path.joinpath("work").iterdir()) == []
+
+
+def test_old_record_without_the_field_is_still_valid_and_summarized():
+    rec = {"started_at": "2026-01-01T00:00:00+00:00", "case": "c", "condition": "bare", "run": 1,
+           "passed": True, "end_reason": "completed", "error_stage": None, "acceptance_code": 0,
+           "duration_s": 1.0, "agent_duration_s": 1.0, "turns": 1, "tokens": 1,
+           "cost_usd_estimate": 0.0, "model": "m", "claude_code_version": "v",
+           "lines_added": 1, "lines_removed": 0, "files_changed": 1, "tests_modified": False,
+           "base_commit": "0" * 40, "harness_commit": None, "max_turns": 1, "max_tokens": 1,
+           "timeout_s": 1.0, "schema": run_record.SCHEMA_ID}
+    run_record.validate_record(rec)
+    assert rounds.summarize([rec]).runs == 1
+    assert "acceptance_config_changed" not in run_record.RECORD_SCHEMA["required"]
+    assert "acceptance_config_changed" in run_record.RECORD_SCHEMA["properties"]
 
 
 def test_agent_that_ends_with_error(repo, fake):
