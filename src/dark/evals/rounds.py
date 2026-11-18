@@ -40,7 +40,14 @@ def run_round(cases: Sequence[Case], conditions: Sequence[str], runs: int, confi
     output = Path(output)
     if workspace.is_inside(output, source):
         raise RunnerRefused(f"arquivo de saída dentro do repositório de origem: {output}")
-    output.parent.mkdir(parents=True, exist_ok=True)
+    # Fail before the first run, not after spending it.
+    try:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        with output.open("a", encoding="utf-8"):
+            pass
+    except OSError as e:
+        raise RunnerRefused(
+            f"não foi possível escrever o arquivo de saída {output} ({e.strerror or e})") from None
     res = RoundResult(output=output)
     # Run index outermost: a round cut short still covers every case and condition.
     for i in range(1, runs + 1):
@@ -59,9 +66,32 @@ def run_round(cases: Sequence[Case], conditions: Sequence[str], runs: int, confi
     return res
 
 
+class RecordsFileError(ValueError):
+    """A records file that cannot be read; the message names the file and line."""
+
+
 def load_records(path: Path) -> list[dict]:
-    return [json.loads(line) for line in Path(path).read_text(encoding="utf-8").splitlines()
-            if line.strip()]
+    path = Path(path)
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        raise RecordsFileError(f"{path}: arquivo não encontrado") from None
+    except UnicodeDecodeError:
+        raise RecordsFileError(f"{path}: não está em UTF-8") from None
+    except OSError as e:
+        raise RecordsFileError(f"{path}: não foi possível ler ({e.strerror or e})") from None
+    records = []
+    for number, line in enumerate(text.splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError as e:
+            raise RecordsFileError(f"{path}, linha {number}: não é JSON ({e.msg})") from None
+        if not isinstance(record, dict):
+            raise RecordsFileError(f"{path}, linha {number}: não é um objeto JSON")
+        records.append(record)
+    return records
 
 
 @dataclass

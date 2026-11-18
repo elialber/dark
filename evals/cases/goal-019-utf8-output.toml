@@ -1,0 +1,41 @@
+id = "goal-019-utf8-output"
+source = "mined"
+base_commit = "254fe298fd5f1b5b9ecc6017cfa25d2da734e37c"
+solution_commit = "7db668ab9c140d98be1d53c3d51db1f98a156d78"
+prompt = """
+Corrija três defeitos de portabilidade (S6.5, S6.6 e S2.4 de
+docs/portabilidade.md):
+
+- toda saída do git e do claude é decodificada com a codificação da
+  localidade (cp1252 no Windows); passe a decodificá-la como UTF-8, em
+  todo lugar em que um processo é chamado;
+- os comandos falham ao escrever num terminal ou arquivo que não é
+  UTF-8 (redirecionamento no Windows); cada comando passa a trocar
+  stdout e stderr para UTF-8 quando não o são, a menos que
+  PYTHONIOENCODING esteja definido;
+- o comando de repartição do contexto procura o executável claude pelo
+  nome; ele passa a resolvê-lo pelo PATH, para achar claude.cmd no
+  Windows, e mantém o nome quando não o encontra.
+
+Os testes estão em tests/test_portability.py e definem a interface. Faça
+passar os desses três itens (os de UTF-8, localidade, cp1252,
+PYTHONIOENCODING, seta no relatório e repartição do contexto). Os demais
+testes do arquivo (S5.x, S1.2, S7.2, S2.1, S3.3) ficam para depois.
+"""
+notes = """
+Pedido escrito a partir do goal 019 (pair/goals/019-portability-fixes.md,
+item 1) e da mensagem do commit 7db668a. Candidato commits_seguidos: os
+testes de portabilidade entraram todos em 254fe29 e foram resolvidos em
+três commits; este resolve só uma parte. Por isso o aceite seleciona os
+testes com -k (16 de 51 na solução); sem a seleção o caso é inválido
+(não passa na solução).
+Solução: 74 linhas alteradas fora de tests/ (git diff --numstat).
+"""
+
+[acceptance]
+command = "python -m pytest -q -p no:cacheprovider tests/test_portability.py -k 'utf8 or locale or cp1252 or pythonioencoding or arrow or context_usage'"
+files = [
+  "tests/test_portability.py",
+]
+files_from = "7db668ab9c140d98be1d53c3d51db1f98a156d78"
+timeout = 60

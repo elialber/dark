@@ -1,0 +1,52 @@
+id = "goal-010-context-usage"
+source = "mined"
+base_commit = "3ac1adf25ff61bf064e0258145a4b3c0829c6715"
+solution_commit = "c4dedb52acff3f84d2ade7d6e583c178c7cd10dd"
+prompt = """
+Escreva o módulo src/dark/contexto.py, que obtém, para um repositório,
+quanto do contexto inicial do Claude Code vem de cada categoria e de cada
+skill, a partir da saída do comando /context em modo não interativo.
+
+Os testes já estão em tests/test_contexto.py, com amostras sintéticas em
+tests/fixtures/contexto/. Eles definem a interface; faça-os passar sem
+enfraquecê-los.
+
+O módulo, só com biblioteca padrão, tem:
+
+- uma função que executa o comando num repositório dado e devolve o
+  texto, com o executor injetável (os testes não chamam o Claude Code);
+- um analisador que converte o texto num resultado tipado: categorias
+  com tokens, total informado, ferramentas adiadas e, por skill, nome,
+  origem e tokens. Números podem vir com separador de milhar e com
+  sufixo de unidade;
+- a parte não atribuída: recebe de fora o total medido pelo usage e
+  devolve a diferença, em tokens e em percentual.
+
+A saída do comando é feita para pessoas e pode mudar. Seção ou linha não
+reconhecida não é erro: é guardada e relatada. Só é erro não encontrar
+nenhuma categoria.
+"""
+notes = """
+Pedido escrito a partir do goal 010 (pair/goals/010-contexto.md).
+Candidato commits_seguidos: os testes e as amostras entraram em 3ac1adf
+e o módulo em c4dedb5, que não mudou os testes. A base já tem os testes
+visíveis. Os critérios do goal que rodam /context com a configuração
+real do usuário não cabem num aceite automático e ficaram de fora do
+pedido.
+Solução: 595 linhas alteradas fora de tests/ (git diff --numstat), das
+quais 302 em src/ e o resto no diário.
+"""
+
+[acceptance]
+command = "python -m pytest -q -p no:cacheprovider tests/test_contexto.py"
+files = [
+  "tests/fixtures/contexto/completa.md",
+  "tests/fixtures/contexto/numeros.md",
+  "tests/fixtures/contexto/secao-desconhecida.md",
+  "tests/fixtures/contexto/sem-categorias.md",
+  "tests/fixtures/contexto/sem-skills.md",
+  "tests/fixtures/contexto/vazia.md",
+  "tests/test_contexto.py",
+]
+files_from = "c4dedb52acff3f84d2ade7d6e583c178c7cd10dd"
+timeout = 60

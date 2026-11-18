@@ -1,0 +1,29 @@
+id = "goal-020-api-error"
+source = "mined"
+base_commit = "9b7c9d9c7e3918ddee68763de08727584dc218d4"
+solution_commit = "5a68f970be8b9b7f6a2fea988db172f328b4eee6"
+prompt = """
+No executor de evals (src/dark/evals/), quando a API recusa a
+credencial (erro 401), o claude 2.1.325 termina a execução com um
+evento result de subtype "success", com is_error true, e sai com código
+1. Hoje o executor registra essa execução como concluída.
+
+Faça o executor tratá-la como erro do agente: término "error" e etapa
+do erro "agent" no registro. Uma execução concluída de verdade continua
+como está. Os testes de tests/test_evals_runner.py devem continuar
+passando.
+"""
+notes = """
+Pedido escrito a partir da mensagem do commit 5a68f97 (goal 020).
+Candidato mesmo_commit: o commit trouxe o código e um teste novo, com um
+modo do agente falso que imita a saída do claude diante de um 401.
+Solução: 7 linhas alteradas fora de tests/ (git diff --numstat).
+"""
+
+[acceptance]
+command = "python -m pytest -q -p no:cacheprovider tests/test_evals_runner.py"
+files = [
+  "tests/test_evals_runner.py",
+]
+files_from = "5a68f970be8b9b7f6a2fea988db172f328b4eee6"
+timeout = 60

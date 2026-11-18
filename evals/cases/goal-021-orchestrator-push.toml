@@ -1,0 +1,42 @@
+id = "goal-021-orchestrator-push"
+source = "mined"
+base_commit = "d8891668951c2bc58b05467c09219d835b1db16f"
+solution_commit = "f5c974f698844541987786c07305a8aad799d301"
+prompt = """
+Feche três itens do laço de par (tools/pairloop/) antes da primeira
+rodada sem supervisão:
+
+1. Push pelo orquestrador: o revisor deixa de fazer push e o hook
+   bloqueia o push do revisor; o orquestrador faz o push depois dos
+   testes e da conferência do histórico, e apaga as branches remotas já
+   juntadas. Ajuste a definição do revisor
+   (.claude/agents/pair-reviewer.md), os textos das sessões e
+   docs/laco-de-par.md.
+2. Hook: bloqueie, para os agentes do laço, a alteração de configuração
+   do git que executa código ou muda o comportamento dos comandos
+   (core.hooksPath, alias.*, core.sshCommand e semelhantes), inclusive
+   com --file.
+3. Arquivos protegidos por conteúdo: depois de cada sessão, o
+   orquestrador confere que os arquivos protegidos têm o mesmo conteúdo
+   de antes, na árvore de trabalho e não só no histórico. Diferença
+   (alterado ou apagado): a rodada para.
+
+Os testes já estão em tests/test_pairloop.py e definem a interface; faça-os
+passar sem enfraquecê-los.
+"""
+notes = """
+Pedido escrito a partir do goal 021 (pair/goals/021-loop-readiness.md,
+itens 1 a 3). Candidato commits_seguidos: os testes entraram em d889166
+e o código em f5c974f, que mudou pouco os testes (mais dois comandos com
+--file e um unlink tolerante). O item 4 do goal é outro commit.
+Solução: 283 linhas alteradas fora de tests/ (git diff --numstat), das
+quais 223 em tools/pairloop.
+"""
+
+[acceptance]
+command = "python -m pytest -q -p no:cacheprovider tests/test_pairloop.py"
+files = [
+  "tests/test_pairloop.py",
+]
+files_from = "f5c974f698844541987786c07305a8aad799d301"
+timeout = 120

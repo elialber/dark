@@ -76,6 +76,14 @@ passa na solução, comando não roda (executável ausente, ou código 126/127
 pelo shell), tempo esgotado, erro de preparação (commit ou arquivo de
 teste inexistente).
 
+Saída: 0 quando todos são válidos, 1 quando algum é inválido, 2 quando
+algum arquivo de caso não existe, não pode ser lido ou não é TOML válido
+(os demais casos são validados mesmo assim). Entrada ruim nunca termina
+em traceback: em todos os comandos (`validar`, `calibrar`, `rodar`,
+`resumir`, `minerar --gravar`), arquivo ausente, malformado ou diretório
+sem permissão de escrita dá uma mensagem com o arquivo (e a linha, no
+registro de `resumir`) e código 2.
+
 O comando roda com o ambiente de quem chama a validação. Em Python, um
 pacote do próprio projeto instalado em modo editável (`pip install -e`)
 a partir de outro checkout pode ser importado no lugar do código da cópia,
@@ -142,3 +150,64 @@ python -m dark.evals esquema
   passa quando o agente conclui e o aceite sai com código 0.
 - **Windows:** comando de aceite em texto roda por `sh -c`, que vem com
   o Git for Windows; sem ele, escreva o comando em lista.
+
+## Primeira rodada
+
+Conjunto e tolerância declarados no goal 022, antes de qualquer medida
+(regra "Tolerância em conferência" de `docs/roteiro.md`). A rodada segue
+E17: 5 casos, 2 condições (`bare`, `project`), 3 execuções por caso e
+condição, 30 execuções no total.
+
+### Casos
+
+| Caso | Módulo | Linhas da solução em código |
+|---|---|---|
+| `goal-020-api-error` | executor de evals | 7 |
+| `goal-016-whole-file-owner` | motor do scaffold | 12 |
+| `goal-019-store-header` | armazenamento | 18 |
+| `batch-009-locale-guard-tools` | portabilidade (laço de par) | 18 |
+| `goal-019-utf8-output` | portabilidade (saída e processos) | 74 |
+
+Motivo: são os cinco menores dos 11 casos gravados, medidos pelas linhas
+que a solução altera em código (`src/` e `tools/`, por `git diff
+--numstat`; o diário que alguns commits trazem não conta), e cobrem
+quatro módulos. Tarefa pequena custa menos tokens e menos tempo, o que
+importa numa rodada que repete cada caso seis vezes; e a calibração
+mede o custo real antes de qualquer rodada maior. Risco conhecido: se as
+duas condições acertarem quase sempre, a rodada não separa uma da outra
+(efeito teto); nesse caso a rodada seguinte troca casos pequenos por
+médios (`goal-019-report-paths`, `goal-021-orchestrator-push`).
+
+### Tolerância
+
+Duas rodadas iguais (mesmo harness, mesmo modelo, mesmos casos) são
+comparadas por condição, pelo total de execuções que passaram (de 0 a
+15). **Elas concordam quando os totais diferem em no máximo 4 de 15
+execuções (26,7 pontos percentuais).** A mesma régua vale para a
+diferença entre as condições: diferença de até 4 execuções entre `bare`
+e `project` é tratada como ruído, não como efeito do harness.
+
+Raciocínio. Cada execução passa ou não; com taxa de acerto real `p`, o
+total de uma condição é a soma de cinco binomiais de 3 execuções. A
+diferença entre duas rodadas iguais só tem ruído, e a pior situação é
+`p = 0,5` em todos os casos. Probabilidade de a diferença alcançar o
+limite só por acaso (cálculo exato com binomiais):
+
+| `p` de todas as execuções | diferença ≥ 4 | diferença ≥ 5 | diferença ≥ 6 |
+|---|---|---|---|
+| 0,5 | 20,0% | 9,9% | 4,3% |
+| 0,7 | 16,1% | 7,1% | 2,7% |
+| 0,9 | 3,3% | 0,7% | 0,1% |
+
+Com tolerância de 4, duas rodadas iguais discordam por acaso em no
+máximo 9,9% das vezes; com taxas mistas, mais realistas (por exemplo
+1; 0,9; 0,5; 0,5; 0,1 nos cinco casos), em 2,4%. Tolerância de 3 daria
+falso alarme em até 20%; de 5, só um efeito acima de um terço das
+execuções apareceria.
+
+Por caso, 3 execuções não bastam para julgar: a taxa só pode ser 0, 1/3,
+2/3 ou 1, e com `p = 0,5` duas rodadas iguais diferem em 2 ou mais das 3
+execuções em 21,9% das vezes. Diferença por caso é anotada, não reprova
+a comparação. Consequência: esta rodada só mostra efeitos grandes do
+harness, acima de 4 em 15 execuções; efeito menor pede mais execuções
+ou mais casos.

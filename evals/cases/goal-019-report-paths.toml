@@ -1,0 +1,39 @@
+id = "goal-019-report-paths"
+source = "mined"
+base_commit = "b76532d7425ecbd9420a25a82e7368131d0e046d"
+solution_commit = "50d4ba1b26561ab0c64825e1ecad56412c1e07f3"
+prompt = """
+Corrija os itens S1.2, S7.2, S2.1 e S3.3 de docs/portabilidade.md no
+relatório da auditoria:
+
+- S1.2: o relatório escreve todo caminho com barra normal, em qualquer
+  sistema (repositório no cabeçalho e caminhos dos itens no apêndice);
+- S7.2: o cabeçalho avisa quando a janela pedida começa antes da
+  retenção das transcrições, lida de cleanupPeriodDays nas configurações
+  (30 dias por padrão; a configuração gerenciada vence a do usuário;
+  valor inválido ou arquivo ilegível é ignorado);
+- S2.1: o cabeçalho avisa quando há sessões de versões do Claude Code
+  fora do intervalo testado;
+- S3.3: o cabeçalho diz quais skills foram contadas como embutidas só
+  pela regra "sem arquivo e sem prefixo": a lista com exatamente essas
+  skills, em ordem alfabética. Sem inventário, não há esse aviso.
+
+Os testes estão em tests/test_portability.py e definem a interface; faça
+todos passarem sem enfraquecê-los.
+"""
+notes = """
+Pedido escrito a partir do goal 019 (pair/goals/019-portability-fixes.md,
+itens 2 e 5) e da mensagem do commit 50d4ba1. Candidato mesmo_commit: os
+testes entraram antes, em 254fe29; o commit de solução só apertou uma
+asserção (lista exata das embutidas pela regra), daí a frase sobre a
+ordem alfabética.
+Solução: 123 linhas alteradas fora de tests/ (git diff --numstat).
+"""
+
+[acceptance]
+command = "python -m pytest -q -p no:cacheprovider tests/test_portability.py"
+files = [
+  "tests/test_portability.py",
+]
+files_from = "50d4ba1b26561ab0c64825e1ecad56412c1e07f3"
+timeout = 60
