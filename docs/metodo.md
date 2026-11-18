@@ -32,9 +32,13 @@ Duas regras valem em todo o documento:
 A estrutura de um harness não se copia: copiar pastas reproduz a forma, não
 o comportamento. O que se reproduz é o ciclo. Ele tem quatro movimentos:
 
-1. **Observar a falha.** Escreva tarefas reais, cada uma com um critério de
-   aceite, e meça o agente quase sem harness (a linha de base). Cada tarefa
-   que ele não resolve é uma falha a classificar.
+1. **Observar a falha.** Comece do mínimo: `dark iniciar` mostra o plano,
+   e `dark iniciar --aplicar` cria só o esqueleto (um `CLAUDE.md` com a
+   seção de regras vazia e a pasta `evals/cases/`), sem inventar regra,
+   skill nem hook; o que entrar depois nasce de falha. Escreva tarefas
+   reais, cada uma com um critério de aceite, e meça o agente quase sem
+   harness (a linha de base). Cada tarefa que ele não resolve é uma falha
+   a classificar.
 2. **Localizar a camada.** Pergunte por que ele falhou; a resposta aponta a
    camada onde a correção mora (tabela abaixo).
 3. **Mudar uma coisa.** Uma correção por vez, na camada certa, para saber o
@@ -296,11 +300,46 @@ seção diz "Nenhuma regra disparou com os dados disponíveis".
 | `fixed_weight_grew` | peso do inventário maior entre os dois últimos retratos e ao menos uma peça nova | conferir se cada peça nova precisa carregar no início e remover as que não | o peso do inventário, em "O que mudou", volta a cair | banco |
 | `repeated_hook_block` | `HOOK_BLOCKS_MIN` bloqueios ou mais do mesmo evento no período | achar a ação bloqueada e dizer na instrução ou na skill como fazê-la sem ser bloqueada | "Hooks" mostra menos bloqueios no período seguinte | direta e banco |
 | `commits_without_hash` | um ou mais commits sem hash registrado | rodar `git commit` sem `-q` | "Commits" mostra 0 sem hash nas sessões novas | direta e banco |
+| `evals_at_100_percent` | a condição `project` passou em todas as execuções, sem término por erro, nas últimas `EVALS_ROUNDS_AT_100` rodadas, e a última rodada não trouxe caso novo | acrescentar casos de falhas recentes: a linha de base não discrimina | a regra cala quando a rodada nova tem falha ou o conjunto de casos cresce | banco, com evals |
+| `model_changed_since_last_evals` | o modelo da sessão mais recente do banco é outro que o da última rodada de evals | rodar os evals de novo, comparando com o harness reduzido | a regra cala quando a última rodada guardada tem o modelo da sessão mais recente | banco, com evals |
 
 Regras do banco precisam que `dark coletar` tenha rodado; sem ele, o
-relatório diz isso numa linha só. Três regras ainda não existem por falta de
-dado e o relatório as lista como adiadas: `evals_at_100_percent`,
-`model_changed_since_last_evals` e `third_party_module_without_gain`.
+relatório diz isso numa linha só. Uma regra ainda não existe por falta de
+dado e o relatório a lista como adiada: `third_party_module_without_gain`
+(ainda não há módulo de terceiro medido).
+
+### As regras de evals
+
+As duas regras marcadas "banco, com evals" leem os resultados das rodadas
+de evals guardados no banco de coleta. Eles entram de dois jeitos, com o
+mesmo efeito: `python -m dark.evals guardar <arquivo.jsonl>` importa o
+arquivo de registros de uma rodada (`python -m dark.evals rodar
+--saida` o produz), e `dark coletar --evals <arquivo.jsonl>` coleta as sessões e
+importa o arquivo em seguida. Importar de novo o mesmo arquivo não
+duplica nada; uma linha inválida é recusada e relatada pelo número, sem
+derrubar as outras. Sem resultado de evals no banco, nenhuma das duas
+dispara.
+
+Uma **rodada** é o conjunto de execuções que começaram no mesmo dia (UTC).
+Duas rodadas no mesmo dia viram uma; uma rodada que cruza a meia-noite
+vira duas. Só a condição `project` (o harness do repositório) conta.
+
+- **`evals_at_100_percent`** olha as últimas `EVALS_ROUNDS_AT_100` rodadas
+  e dispara quando todas as execuções delas passaram, nenhuma terminou em
+  erro e a última rodada não trouxe caso que as anteriores não tinham. Um
+  conjunto que sempre passa não separa um harness bom de um ruim. O que
+  fazer: escreva casos novos a partir de falhas recentes do seu
+  repositório (`python -m dark.evals minerar`, depois `validar`), rode a
+  rodada nova, importe o resultado e leia o relatório de novo.
+- **`model_changed_since_last_evals`** compara o modelo da sessão mais
+  recente do banco (de qualquer repositório) com o da última rodada (o
+  mais frequente entre as execuções `project` com modelo; os nomes são
+  comparados como texto exato). Dispara quando são diferentes. O que
+  fazer: o harness foi medido com outro modelo, e uma muleta feita para o
+  modelo antigo pode atrapalhar o novo. Rode os evals de novo com o modelo
+  atual, de preferência com a ablação das peças candidatas (seção 3), e
+  importe o resultado; a regra cala quando a última rodada guardada tem o
+  modelo da sessão mais recente.
 
 ### Limites que são padrões a confirmar
 
@@ -313,6 +352,7 @@ mudar. Trate-os como ponto de partida, não como norma.
 | `UNUSED_WEEKS` | 4 semanas | o banco já só mostra sequências de 2 semanas ou mais; 4 evita recomendar por oscilação de um mês |
 | `INSTRUCTION_LINES_CEILING` | 200 linhas | teto sugerido na documentação do Claude Code para o arquivo de memória; dispara acima dele (200 não, 201 sim) |
 | `HOOK_BLOCKS_MIN` | 3 bloqueios | "repetidamente" não tem número no roteiro; conta por evento, não por hook |
+| `EVALS_ROUNDS_AT_100` | 3 rodadas | rodadas seguidas com a condição `project` em 100%; uma rodada é o dia UTC de início das execuções |
 
 Limites conhecidos: o bloqueio de hook é contado por evento, porque o banco
 não guarda o nome do hook nem a ação bloqueada; e a regra
@@ -393,6 +433,7 @@ como montar; aqui está só o ponto de partida.
 | Observabilidade e evals | Langfuse e um conjunto de evals | LangSmith (LangChain); Braintrust (evals como trava de CI); Arize Phoenix (RAG); Datadog LLM Observability |
 
 Dois dos módulos de terceiros previstos pelo projeto, Langfuse e Graphify,
-são opcionais e ainda não têm comando no `dark` (o motor que os instalaria
-existe, os módulos não). Os temas custo e latência, gestão da janela e
+são opcionais e ainda não estão no `dark`: o comando que os aplicaria,
+`dark adicionar`, existe, mas por enquanto só o módulo `base` vem
+registrado. Os temas custo e latência, gestão da janela e
 guardrails de ação estão no guia, sem tabela de ferramentas.

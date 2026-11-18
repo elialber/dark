@@ -120,16 +120,70 @@ a consulta ao histórico git (mais rápido; as ligações já gravadas ficam).
 `dark auditar` não coleta sozinho; `dark auditar --coletar` coleta e
 audita.
 
+`dark coletar --evals <arquivo.jsonl>` também importa, depois da coleta,
+os resultados de uma rodada de evals (a opção pode se repetir, um arquivo
+por vez). Um arquivo que não existe, vazio, binário ou que é um diretório
+faz o comando parar com código 2 antes de coletar: nada é gravado. Sem
+coletar, `python -m dark.evals guardar <arquivo.jsonl>` faz só a
+importação. As duas regras de recomendação sobre evals usam esses dados.
+
+## Preparar o repositório
+
+Quatro comandos aplicam, conferem e desfazem estrutura de harness num
+repositório. Rode-os na **raiz** de um repositório git (com `git init`,
+se for novo); em outro lugar eles recusam e dizem onde está a raiz. Nada
+existente é sobrescrito.
+
+`dark iniciar` prepara o mínimo. Sem opções, só mostra o plano e não
+escreve nada; `--aplicar` aplica, tudo ou nada:
+
+```bash
+dark iniciar [<caminho>]            # mostra o que seria criado
+dark iniciar --aplicar [<caminho>]  # cria
+```
+
+Ele usa o módulo `base`, que cria só o esqueleto: um `CLAUDE.md` com a
+seção de regras vazia e `evals/cases/` com um `LEIAME.md` e um modelo de
+caso comentado (que não vale como caso). O que já existe fica como está.
+O módulo **não** cria regras, skills, subagentes nem hooks: isso nasce de
+falhas que você observa (veja o ciclo em [docs/metodo.md](docs/metodo.md)).
+O que foi criado fica registrado no manifesto `.dark-scaffold.json`, na
+raiz.
+
+`dark adicionar <módulo> [<caminho>]` faz o mesmo para qualquer módulo
+registrado (`dark iniciar` é `dark adicionar base`), também com
+`--aplicar`. `dark adicionar --listar [<caminho>]` lista os módulos, com
+versão, indicador e se estão aplicados no repositório. Por enquanto só o
+`base` vem registrado.
+
+`dark verificar <módulo> [<caminho>]` só lê e imprime `ok` ou o motivo
+(por exemplo, um arquivo do módulo que sumiu).
+
+`dark remover <módulo> [<caminho>]` desfaz o que o manifesto registra
+para o módulo. O que você alterou depois fica no lugar e é relatado como
+`mantido`, e o manifesto continua registrando o que ficou.
+
+Códigos de saída:
+
+| Comando | 0 | 1 | 2 |
+|---|---|---|---|
+| `dark iniciar`, `dark adicionar` | plano mostrado ou aplicado | conflito com um arquivo existente (nada é aplicado) ou erro ao gravar (o que foi gravado é desfeito) | módulo desconhecido, caminho que não é a raiz de um repositório git, manifesto ilegível |
+| `dark verificar` | `ok` | o módulo não está aplicado ou falta um arquivo dele | módulo desconhecido, caminho que não é a raiz |
+| `dark remover` | tudo desfeito (ou nada a desfazer) | remoção parcial: algo alterado depois ficou | módulo desconhecido, caminho que não é a raiz |
+
 ## Recomendações
 
 O relatório traz uma seção "Recomendações", feita por regras fixas: sem nota
 única e sem texto gerado. Cada linha dá a regra, o número ou o nome que a
-disparou, uma ação que você mesmo faz e como conferir depois. Há cinco
+disparou, uma ação que você mesmo faz e como conferir depois. Há sete
 regras: peça sem uso há semanas, arquivo de instruções grande, peso do
-inventário que subiu, bloqueios repetidos de hook e commits sem hash. As
-regras de peça sem uso e de peso do inventário dependem do banco de coleta
-(`dark coletar`); as demais funcionam na leitura direta. Os limites (4 semanas, 200
-linhas, 3 bloqueios) são padrões a confirmar, constantes em
+inventário que subiu, bloqueios repetidos de hook, commits sem hash, evals
+sempre em 100% e modelo que mudou desde a última rodada de evals. As
+regras de peça sem uso, de peso do inventário e as duas de evals dependem
+do banco de coleta (`dark coletar`; as de evals, também dos resultados
+importados com `--evals` ou `guardar`); as demais funcionam na leitura
+direta. Os limites (4 semanas, 200 linhas, 3 bloqueios, 3 rodadas) são
+padrões a confirmar, constantes em
 `src/dark/recommend.py`. Cada regra, o que fazer e como ler o resto do
 relatório estão em [docs/metodo.md](docs/metodo.md), que também resume o
 método (derivação e poda) em que a ferramenta se apoia.
@@ -170,8 +224,10 @@ gravar, para o relatório não ir parar num commit.
 
 `python -m dark.evals` monta casos de avaliação a partir do histórico git
 de um repositório (`minerar`), confere cada caso (`validar`) e roda o
-agente sobre eles (`calibrar`, `rodar`, `resumir`). O formato dos casos
-está em [evals/README.md](evals/README.md).
+agente sobre eles (`calibrar`, `rodar`, `resumir`). `python -m dark.evals
+guardar <arquivo.jsonl>` grava no banco de coleta os resultados de uma
+rodada, sem duplicar ao repetir (o mesmo que `dark coletar --evals`). O
+formato dos casos está em [evals/README.md](evals/README.md).
 
 > **Atenção.** `validar`, `calibrar` e `rodar` executam o comando de
 > aceite do repositório avaliado, e os dois últimos rodam um agente que
@@ -255,12 +311,13 @@ Os casos de eval (`src/dark/evals/`):
 .venv/bin/python -m dark.evals validar --repo . evals/cases/goal-005-leitor.toml
 ```
 
-Dois pacotes ainda sem uso pelo `dark auditar`: o motor do scaffold
-(`src/dark/scaffold/`, aplica e reverte módulos de harness com
-manifesto; conferência com `python -m dark.scaffold
-inspecionar|aplicar|reverter`) e o armazenamento de agregados
-(`src/dark/store/`, números por sessão e por semana em SQLite, fora das
-transcrições).
+Mais dois pacotes: o motor do scaffold (`src/dark/scaffold/`, aplica e
+reverte módulos de harness com manifesto; é ele que `dark iniciar`, `dark
+adicionar`, `dark verificar` e `dark remover` usam; conferência com
+`python -m dark.scaffold inspecionar|aplicar|reverter`) e o armazenamento
+de agregados (`src/dark/store/`, números por sessão e por semana em
+SQLite, fora das transcrições; é o banco de `dark coletar`, lido por
+`dark auditar`).
 
 > **Atenção.** O venv de desenvolvimento tem o `dark` instalado em modo
 > editável e pode vazar para a cópia validada em commits sem

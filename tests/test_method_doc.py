@@ -15,17 +15,17 @@ from dark import recommend
 
 ROOT = Path(__file__).resolve().parent.parent
 DOC = ROOT / "docs" / "metodo.md"
-SUBCOMMANDS = ("auditar", "coletar")
+SUBCOMMANDS = ("auditar", "coletar", "iniciar", "adicionar", "verificar", "remover")
 
 _FENCE = re.compile(r"^```.*?^```", re.DOTALL | re.MULTILINE)
 _SPAN = re.compile(r"`([^`\n]+)`")
 _DARK_COMMAND = re.compile(r"(?:^|\s)(?:python -m )?dark( [^\s`|]+)?((?: [^\n`|]*)?)")
 _OPTION = re.compile(r"(?<![\w-])--[a-z][a-z-]*")
 _RULE_ID = re.compile(r"[a-z]+(?:_[a-z0-9]+)+")
-_CONSTANT = re.compile(r"[A-Z]+(?:_[A-Z]+)+")
+_CONSTANT = re.compile(r"[A-Z]+(?:_[A-Z0-9]+)+")
 _ABLATION_CONSTANTS = ("TOLERANCE_RUNS", "TOLERANCE_BASE", "MIN_RUNS")  # checked against ablation.py below
 _LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
-_THRESHOLD_ROW = re.compile(r"^\|\s*`((?!TOLERANCE_|MIN_RUNS)[A-Z_]+)`\s*\|\s*(\d+)\b", re.MULTILINE)
+_THRESHOLD_ROW = re.compile(r"^\|\s*`((?!TOLERANCE_|MIN_RUNS)[A-Z0-9_]+)`\s*\|\s*(\d+)\b", re.MULTILINE)
 
 
 def _help(args: list[str], capsys) -> str:
@@ -133,7 +133,8 @@ def test_every_rule_and_constant_cited_exists_in_recommend():
 
 def test_the_thresholds_table_covers_every_threshold():
     names = {name for name, _ in _THRESHOLD_ROW.findall(_doc())}
-    assert names == {"UNUSED_WEEKS", "INSTRUCTION_LINES_CEILING", "HOOK_BLOCKS_MIN"}
+    assert names == {"UNUSED_WEEKS", "INSTRUCTION_LINES_CEILING", "HOOK_BLOCKS_MIN",
+                     "EVALS_ROUNDS_AT_100"}
 
 
 def test_every_relative_link_points_to_an_existing_file():
@@ -295,3 +296,63 @@ def test_probe_an_outcome_that_does_not_exist_fails():
 def test_probe_a_wrong_ablation_number_fails():
     assert number_problems("| `MIN_RUNS` | 20 | x |") == ["MIN_RUNS is 15, the text says 20"]
     assert number_problems("| `TOLERANCE_RUNS` | 4 | x |") == []
+
+
+# ---------------------------------------------------------------------------
+# Goal 045: `iniciar`, `adicionar`, `verificar`, `remover`, `coletar --evals`
+# and `python -m dark.evals guardar` in README.md and docs/metodo.md
+# ---------------------------------------------------------------------------
+
+def _readme_for_users() -> str:
+    """README.md without "Desenvolvimento": that section cites developer-only commands
+    (`python -m dark.reader --nomes`, ...) that are not in any `dark` --help."""
+    text = README.read_text(encoding="utf-8")
+    return text.split("\n## Desenvolvimento\n")[0]
+
+
+def test_the_docs_cite_the_scaffold_commands_and_the_evals_import():
+    readme = README.read_text(encoding="utf-8")
+    for command in ("dark iniciar", "dark adicionar", "dark adicionar --listar", "dark verificar",
+                    "dark remover", "dark coletar --evals", "python -m dark.evals guardar"):
+        assert command in readme, command
+    doc = _doc()
+    for command in ("dark iniciar", "dark coletar --evals", "python -m dark.evals guardar"):
+        assert command in doc, command
+
+
+def test_every_command_and_option_cited_in_the_readme_exists_in_help(capsys):
+    text = _readme_for_users()
+    assert "## Preparar o repositório" in text
+    assert command_problems(text, capsys) == []
+    assert evals_option_problems(text, capsys) == []
+
+
+def test_the_method_doc_cites_both_evals_rules_and_their_constant():
+    text = _doc()
+    for rule in ("evals_at_100_percent", "model_changed_since_last_evals"):
+        assert f"| `{rule}` |" in text, rule
+    assert "| `EVALS_ROUNDS_AT_100` | 3 rodadas |" in text
+    assert recommend.EVALS_ROUNDS_AT_100 == 3
+    # The deferred list in the text is exactly recommend.DEFERRED.
+    assert set(recommend.DEFERRED) == {"third_party_module_without_gain"}
+    assert "`model_changed_since_last_evals` e `third_party_module_without_gain`" not in text
+
+
+def test_probe_options_of_the_scaffold_commands_that_do_not_exist_fail(capsys):
+    for sub in ("iniciar", "adicionar", "verificar", "remover", "coletar"):
+        assert command_problems(f"`dark {sub} --inexistente`", capsys) \
+            == [f"--inexistente is not in `dark {sub} --help`"], sub
+    assert command_problems("`dark verificar --aplicar`", capsys) \
+        == ["--aplicar is not in `dark verificar --help`"]
+    assert command_problems("`dark iniciar --aplicar`, `dark adicionar --listar`, "
+                            "`dark remover base`, `dark coletar --evals x.jsonl`", capsys) == []
+    assert evals_option_problems("`python -m dark.evals guardar --inexistente`", capsys) \
+        == ["--inexistente is not in `python -m dark.evals guardar --help`"]
+    assert evals_option_problems("`python -m dark.evals guardar x.jsonl --banco y`", capsys) == []
+
+
+def test_probe_a_wrong_evals_rounds_value_fails():
+    assert rule_problems("| `EVALS_ROUNDS_AT_100` | 5 rodadas | x |") \
+        == ["EVALS_ROUNDS_AT_100 is 3, the text says 5"]
+    assert rule_problems("`EVALS_ROUNDS_AT_9`") \
+        == ["`EVALS_ROUNDS_AT_9` is not a constant of recommend.py"]

@@ -157,7 +157,7 @@ def test_every_option_cited_in_a_skill_exists_in_its_command_help(capsys):
 def test_skills_cite_the_options_that_matter(capsys):
     # The reverse of the drift: options the skills must not ignore.
     assert {"--direto", "--coletar", "--banco"} <= _cited_options("auditar")
-    assert {"--todos", "--banco"} <= _cited_options("coletar")
+    assert {"--todos", "--banco", "--evals"} <= _cited_options("coletar")
 
 
 def test_dark_version_option_the_skill_relies_on_works(capsys):
@@ -173,3 +173,16 @@ def test_readme_has_a_plugin_section_that_names_the_plugin_dir_usage():
     assert "\n## Plugin\n" in text
     section = text.split("\n## Plugin\n")[1].split("\n## ")[0]
     assert "--plugin-dir" in section and "plugin/README.md" in section
+
+
+def test_the_collect_skill_says_a_bad_evals_file_aborts_before_collecting():
+    # Goal 045: what `--evals` reads and that a bad file stops with code 2, nothing written.
+    text = (PLUGIN / "skills" / "coletar" / "SKILL.md").read_text(encoding="utf-8")
+    assert "`--evals <arquivo.jsonl>`" in text
+    assert "código 2" in text and "antes de coletar" in text
+
+
+def test_probe_a_skill_citing_an_option_that_does_not_exist_is_caught(capsys):
+    help_text = _help("coletar", capsys)
+    cited = set(_OPTION.findall("`dark coletar --evals x.jsonl --inexistente`"))
+    assert cited - set(_OPTION.findall(help_text)) == {"--inexistente"}

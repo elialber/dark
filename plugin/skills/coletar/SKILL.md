@@ -23,6 +23,15 @@ nunca dentro de um repositório (`--banco <arquivo>` escolhe outro lugar).
 `--sem-git` pula a consulta ao histórico git (mais rápido; as ligações já
 gravadas ficam). `dark coletar --help` lista todas as opções.
 
+Se o usuário tiver resultados de uma rodada de evals (o arquivo `.jsonl`
+de `python -m dark.evals rodar`), `--evals <arquivo.jsonl>` os importa
+depois da coleta; a opção pode se repetir, um arquivo por vez. O arquivo é
+conferido antes: se não existe, está vazio, é binário ou é um diretório,
+o comando para com código 2 **antes de coletar** e nada é gravado. Nesse
+caso, informe a mensagem ao usuário; não tente corrigir o arquivo. Linhas
+inválidas de um arquivo bom são recusadas uma a uma e aparecem pelo número
+na linha `evals: ...` que o comando imprime.
+
 A auditoria (`dark auditar`) tem opção própria para coletar antes de
 auditar; ver a skill `auditar`.
 

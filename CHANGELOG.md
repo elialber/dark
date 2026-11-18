@@ -6,6 +6,29 @@ podem mudar entre versões menores.
 
 ## Não lançado
 
+- **`dark iniciar` e `dark remover`** (goal 036): `iniciar` mostra o plano
+  do módulo `base` (`CLAUDE.md` com a seção de regras vazia e
+  `evals/cases/`) e, com `--aplicar`, o aplica, tudo ou nada, só na raiz de
+  um repositório git; não sobrescreve nada e não cria regras, skills nem
+  hooks. `remover` desfaz o que o manifesto registra e mantém, relatando,
+  o que você alterou depois.
+- **Resultados de evals no banco** (goal 038): `python -m dark.evals
+  guardar` grava as execuções de um arquivo JSON Lines, sem duplicar ao
+  repetir; nova regra `evals_at_100_percent` (condição `project` em 100%
+  por 3 rodadas, sem caso novo na última).
+- **Modelo das sessões no banco** (goal 039): a coleta grava o modelo de
+  cada sessão (esquema 3, com migração); nova regra
+  `model_changed_since_last_evals`; `guardar` recusa, linha a linha,
+  números que o banco não guarda (inteiro acima de 64 bits, decimal não
+  finito).
+- **`dark coletar --evals`** (goal 041): importa os resultados de evals
+  depois da coleta; arquivo ruim aborta com código 2 antes de coletar.
+  `guardar` passa a recusar banco dentro de repositório git não ignorado,
+  como o `coletar`.
+- **`dark adicionar` e `dark verificar`** (goal 042): aplicam e conferem
+  qualquer módulo registrado (`dark iniciar` é `dark adicionar base`);
+  `dark adicionar --listar` mostra os módulos e se estão aplicados. Só o
+  módulo `base` vem registrado.
 - **`dark auditar` lê do banco de coleta**, quando ele existe e conhece o
   repositório: sessões, indicadores e ligações de commit vêm do banco
   (inclusive as sessões que o Claude Code já apagou), e o cabeçalho diz a
