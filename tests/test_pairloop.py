@@ -597,14 +597,110 @@ def test_executor_writing_into_main_checkout_outside_git_stops_round(repo):
     assert "docs/origem/novo.md" in st["stop"]["detail"]
 
 
-def test_python_bytecode_in_loop_directory_does_not_stop_round(repo):
+def test_python_bytecode_planted_in_loop_directory_stops_round(repo):
+    """The loop runs without writing bytecode (goal 025), so a new .pyc
+    under a protected directory was planted: it would load on resume."""
     fake = FakeSessions(repo)
 
     def compiled(info):
         write(info["cwd"] / "tools/pairloop/__pycache__/guard.cpython-313.pyc", "x")
     fake.on_review = compiled
     st = orchestrator(repo, fake, cycles=1).start()
+    assert st["stop"]["code"] == "guard_violation"
+    assert "__pycache__" in st["stop"]["detail"]
+
+
+# --- goal 025: git configuration and hooks of the main repository ----------
+
+def test_git_config_planted_in_repository_stops_round(repo):
+    initial = remote_rev(repo, "main")
+    fake = FakeSessions(repo)
+
+    def plant(info):
+        info["after_commit"] = lambda: git(info["cwd"], "config",
+                                           "alias.planted", "!echo x")
+    fake.on_review = plant
+    st = orchestrator(repo, fake).start()
+    assert st["stop"]["code"] == "guard_violation"
+    assert ".git/config" in st["stop"]["detail"]
+    assert remote_rev(repo, "main") == initial
+
+
+def test_git_hook_planted_in_repository_stops_round(repo):
+    fake = FakeSessions(repo)
+
+    def plant(req, goal, branch):
+        write(repo / ".git/hooks/pre-push", "#!/bin/sh\nexit 0\n")
+        return True
+    fake.on_execute = plant
+    st = orchestrator(repo, fake).start()
+    assert st["stop"]["code"] == "guard_violation"
+    assert st["stop"]["phase"] == "execute"
+    assert ".git/hooks/pre-push" in st["stop"]["detail"]
+
+
+def test_branch_and_identity_config_written_by_the_loop_do_not_stop_round(repo):
+    fake = FakeSessions(repo)
+
+    def identity(info):
+        git(info["cwd"], "config", "user.email", "revisor@exemplo.invalid")
+        git(info["cwd"], "config", "branch.x.remote", "origin")
+    fake.on_review = identity
+    st = orchestrator(repo, fake, cycles=1).start()
     assert st["stop"]["code"] == "cycles_done"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="hook em shell só roda em POSIX")
+def test_orchestrator_git_does_not_run_repository_hooks(repo):
+    """A pre-push hook present before the round never runs in the
+    orchestrator's push."""
+    marker = repo.parent / "hook-ran"
+    hook = repo / ".git/hooks/pre-push"
+    write(hook, f"#!/bin/sh\ntouch '{marker.as_posix()}'\nexit 1\n")
+    hook.chmod(0o755)
+    st = orchestrator(repo, FakeSessions(repo), cycles=1).start()
+    assert st["stop"]["code"] == "cycles_done"
+    assert not marker.exists()
+    assert remote_rev(repo, "main") == local_rev(repo, "main")
+
+
+def test_orchestrator_git_neutralizes_code_running_config(tmp_path):
+    from tools.pairloop.git import Git
+    g = Git(tmp_path)
+    args = g.base_args()
+    for item in ("core.hooksPath=" + os.devnull, "core.fsmonitor=false"):
+        assert item in args
+    assert g.environment()["GIT_SSH_COMMAND"]
+
+
+# --- goal 025: start of a round -------------------------------------------------
+
+def test_start_refuses_when_tests_fail_on_base(repo):
+    write(repo / "TESTS_FAIL", "x\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-m", "broken base")
+    fake = FakeSessions(repo)
+    with pytest.raises(RuntimeError, match="testes"):
+        orchestrator(repo, fake).start()
+    assert fake.requests == []
+    assert StateStore(repo / "local/pairloop").rounds() == []
+
+
+def test_cli_start_refuses_without_claude(repo, capsys):
+    write(repo / "loop.toml", "[claude]\ncommand = [\"claude-que-nao-existe-025\"]\n")
+    assert cli.main(["--repo", str(repo), "--config", "loop.toml",
+                     "iniciar"]) == 2
+    assert "claude-que-nao-existe-025" in capsys.readouterr().err
+    assert StateStore(repo / "local/pairloop").rounds() == []
+
+
+def test_cli_turns_off_bytecode(repo, monkeypatch):
+    monkeypatch.delenv("PYTHONDONTWRITEBYTECODE", raising=False)
+    monkeypatch.setattr(sys, "dont_write_bytecode", False)
+    write(repo / "loop.toml", "[checks]\ntest_command = [\"true\"]\n")
+    assert cli.main(["--repo", str(repo), "--config", "loop.toml", "estado"]) == 0
+    assert os.environ["PYTHONDONTWRITEBYTECODE"] == "1"
+    assert sys.dont_write_bytecode
 
 
 # --- limits checked in git history (second layer) --------------------------
@@ -968,6 +1064,80 @@ def test_guard_rehearsal_base_protects_main_from_reviewer(roots):
     assert bash("git push origin --delete ensaio", c) is not None
 
 
+# --- guard: goal 025 ----------------------------------------------------------
+
+def test_guard_reviewer_writes_in_scratch_inside_repository(tmp_path):
+    main = tmp_path / "proj"
+    scratch = main / "local/pairloop/scratch/001/r"
+    scratch.mkdir(parents=True)
+    c = guard.Context(role="reviewer", roots=(main,), scratch=(scratch,), cwd=main)
+    assert edit(scratch / "x.py", c, "Write") is None
+    assert bash(f"echo x > {scratch.as_posix()}/a", c) is None
+    assert bash(f"git clone . {scratch.as_posix()}/copia", c) is None
+    assert bash("echo x > local/pairloop/outro", c) is not None
+    assert edit(main / "src/x.py", c) is not None
+
+
+def test_guard_expands_variables(roots):
+    import dataclasses
+    main, wt, scratch = roots
+    c = dataclasses.replace(ctx("reviewer", roots),
+                            env={"PAIRLOOP_SCRATCH": str(scratch)})
+    assert bash("echo x > $PAIRLOOP_SCRATCH/a", c) is None
+    assert bash("echo x > ${PAIRLOOP_SCRATCH}/a", c) is None
+    assert bash('cp README.md "$PAIRLOOP_SCRATCH/r"', c) is None
+    assert bash(f"S={scratch.as_posix()}; echo x > $S/a", c) is None
+    assert bash(f"export S={scratch.as_posix()} && touch $S/a", c) is None
+    assert bash("S=docs; echo x > $S/visao.md", c) is not None
+    assert bash("S=/tmp/fora-025; echo x > $S/a", c) is not None
+    assert bash("echo x > $NAO_DEFINIDA_025/a", c) is not None
+
+
+@pytest.mark.parametrize("target", ["/dev/stdout", "/dev/stderr", "/dev/fd/1",
+                                    "/dev/fd/2"])
+def test_guard_allows_standard_streams(roots, target):
+    assert bash(f"echo x > {target}", ctx("reviewer", roots)) is None
+
+
+@pytest.mark.parametrize("role", ["reviewer", "executor"])
+def test_guard_checks_clone_init_and_worktree_destinations(roots, role, tmp_path):
+    c = ctx(role, roots)
+    s = roots[2].as_posix()
+    out = (tmp_path / "fora").as_posix()
+    assert bash(f"git clone . {out}", c) is not None
+    assert bash(f"git clone --depth 1 file:///x/repo.git {out}", c) is not None
+    assert bash(f"git init {out}", c) is not None
+    assert bash(f"git init -q {out}", c) is not None
+    assert bash(f"git worktree add {out} main", c) is not None
+    assert bash(f"git worktree add -b t {out}", c) is not None
+    assert bash(f"cd {(tmp_path).as_posix()} && git clone https://x.invalid/repo.git",
+                c) is not None
+    assert bash(f"git clone . {s}/copia", c) is None
+    assert bash(f"git clone --no-local -q . {s}/copia2", c) is None
+    assert bash(f"git worktree add --detach {s}/wt HEAD", c) is None
+    assert bash(f"git -C {s} clone /x/repo.git", c) is None
+    assert bash(f"git init {s}/novo", c) is None
+
+
+def test_guard_executor_removes_worktrees_in_its_scratch(roots):
+    c = ctx("executor", roots)
+    s = roots[2].as_posix()
+    assert bash(f"git worktree remove {s}/wt", c) is None
+    assert bash(f"git worktree remove --force {s}/wt", c) is None
+    assert bash(f"git worktree move {s}/a {s}/b", c) is None
+    assert bash("git worktree remove ../proj", c) is not None
+    assert bash(f"git worktree move {s}/a ../x", c) is not None
+    assert bash("git worktree prune", c) is not None
+
+
+def test_guard_reads_git_bash_drive_paths_on_windows():
+    assert guard.from_git_bash("/c/Users/x/f", windows=True) == "C:/Users/x/f"
+    assert guard.from_git_bash("/d", windows=True) == "D:/"
+    assert guard.from_git_bash("/c/Users/x", windows=False) == "/c/Users/x"
+    assert guard.from_git_bash("/cd/x", windows=True) == "/cd/x"
+    assert guard.from_git_bash("relativo/x", windows=True) == "relativo/x"
+
+
 def test_guard_without_role_blocks():
     c = guard.Context(role="", roots=())
     assert guard.check_tool("Read", {}, c) is not None
@@ -1085,6 +1255,23 @@ def test_known_worktree_matches_paths_as_git_lists_them(tmp_path):
     assert known_worktree(wt, {wt.as_posix(): "goal-1"})
     assert known_worktree(wt, {str(wt): "goal-1"})
     assert not known_worktree(wt, {(tmp_path / "outro").as_posix(): "x"})
+
+
+def test_runner_rewrites_hook_settings_before_each_session(tmp_path):
+    script = tmp_path / "fake_claude.py"
+    script.write_text("print('{}')\n", encoding="utf-8")
+    settings = {"hooks": {"PreToolUse": [{"matcher": "Bash"}]}}
+    path = tmp_path / "hook-settings.json"
+    runner = ClaudeCliRunner((sys.executable, str(script)), path,
+                             "bypassPermissions", settings=settings)
+    path.write_text('{"hooks": {}}', encoding="utf-8")       # tampered
+    req = SessionRequest(role="reviewer", label="r", prompt="x", cwd=tmp_path,
+                         env={}, max_turns=1, timeout_s=30)
+    runner.run(req)
+    assert json.loads(path.read_text(encoding="utf-8")) == settings
+    path.unlink()                                            # removed
+    runner.run(req)
+    assert json.loads(path.read_text(encoding="utf-8")) == settings
 
 
 def test_runner_timeout(tmp_path):
