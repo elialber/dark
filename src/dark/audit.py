@@ -212,6 +212,18 @@ class InventoryChange:
 
 
 @dataclass(frozen=True)
+class EvalRun:
+    """One stored eval run, as far as the recommendation rules need it."""
+    day: str                 # UTC day it started (YYYY-MM-DD); a round is one day
+    case: str
+    condition: str
+    run: int
+    passed: bool
+    end_reason: str
+    model: str | None = None
+
+
+@dataclass(frozen=True)
 class Changes:
     """"O que mudou desde a última semana": numbers from the store, nothing else."""
     available: bool                      # two weeks with data
@@ -223,6 +235,7 @@ class Changes:
     streaks: tuple[Streak, ...] = ()
     inventory: InventoryChange | None = None
     inventory_note: str | None = None
+    evals: tuple[EvalRun, ...] = ()      # every eval run in the store (goal 038)
 
 
 @dataclass

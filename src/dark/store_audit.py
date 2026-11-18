@@ -20,7 +20,7 @@ from dark import audit as au
 from dark import indicators as ind
 from dark import provenance as prov
 from dark import reader
-from dark.audit import (CATEGORIES, Audit, Changes, InventoryChange, Source, Streak,
+from dark.audit import (CATEGORIES, Audit, Changes, EvalRun, InventoryChange, Source, Streak,
                         WeekNumbers)
 from dark.commit_linking import CommitLink as Link
 from dark.commit_linking import CommitLinks
@@ -300,8 +300,23 @@ def _numbers(w) -> WeekNumbers:
         mid_turn_messages=w.mid_turn_messages, fixed_weight_median=w.fixed_weight.median)
 
 
+def eval_runs(store: AggregateStore) -> tuple[EvalRun, ...]:
+    """Every eval run in the store (not per repository: the evals measure the harness)."""
+    return tuple(EvalRun(r.started_at.date().isoformat(), r.case_name, r.condition,
+                         r.run_number, r.passed, r.end_reason, r.model)
+                 for r in store.eval_runs())
+
+
 def changes(store: AggregateStore, root: str | None) -> Changes:
-    """The latest ISO week with data against the one before it, from the store."""
+    """The latest ISO week with data against the one before it, from the store.
+
+    Also carries the eval runs, which the recommendation rules read.
+    """
+    from dataclasses import replace
+    return replace(_changes(store, root), evals=eval_runs(store))
+
+
+def _changes(store: AggregateStore, root: str | None) -> Changes:
     if root is None:
         return Changes(False, "a comparação é por repositório; rode sem `--todos`.")
     weeks = sorted({IsoWeek.of(r.started_at, timezone.utc)

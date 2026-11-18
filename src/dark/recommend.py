@@ -13,6 +13,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from dark import audit as au
 from dark import indicators as ind
 from dark.audit import Audit
 
@@ -22,6 +23,7 @@ UNUSED_WEEKS = 4                  # weeks with sessions and no use of a piece wi
 INSTRUCTION_LINES_CEILING = 200   # lines of an instruction file loaded at start
 HOOK_BLOCKS_MIN = 3               # blocks of one event in the period
 NAMES_SHOWN = 5
+EVALS_ROUNDS_AT_100 = 3           # rounds (days) in a row with `project` at 100%
 
 KIND_TITLES = {"skill": "skill", "subagent_type": "subagente", "tool": "ferramenta",
                "mcp_server": "servidor MCP"}
@@ -29,8 +31,8 @@ USER_SCOPES = ("user", "project")     # a managed or plugin file is not the user
 
 # Rules of the roadmap that today's data does not support, and the missing data.
 DEFERRED = {
-    "evals_at_100_percent": "resultados de evals por rodada no banco",
-    "model_changed_since_last_evals": "modelo e data da última rodada de evals no banco",
+    "model_changed_since_last_evals": "modelo das sessões coletadas (o banco guarda só a "
+                                      "versão do Claude Code, não o modelo das sessões)",
     "third_party_module_without_gain": "módulos de terceiros medidos (ainda não há módulo)",
 }
 
@@ -137,9 +139,35 @@ def commits_without_hash(a: Audit) -> list[Recommendation]:
         "`dark auditar`: \"Commits\" mostra 0 sem hash nas sessões novas")]
 
 
+def evals_at_100_percent(a: Audit) -> list[Recommendation]:
+    """A round is the set of runs that started on the same UTC day (padrão a confirmar)."""
+    if a.changes is None:
+        return []
+    by_day: dict[str, list[au.EvalRun]] = {}
+    for r in a.changes.evals:
+        if r.condition == "project":
+            by_day.setdefault(r.day, []).append(r)
+    days = sorted(by_day)[-EVALS_ROUNDS_AT_100:]
+    if len(days) < EVALS_ROUNDS_AT_100:
+        return []
+    if not all(r.passed and r.end_reason != "error" for d in days for r in by_day[d]):
+        return []
+    earlier = {r.case for d in days[:-1] for r in by_day[d]}
+    if {r.case for r in by_day[days[-1]]} - earlier:      # the set of cases grew
+        return []
+    total = sum(len(by_day[d]) for d in days)
+    return [Recommendation(
+        "evals_at_100_percent",
+        f"condição `project` passou em {n(total)} de {n(total)} execuções nas últimas "
+        f"{n(len(days))} rodadas ({days[0]} a {days[-1]})",
+        "acrescentar casos de falhas recentes, pois a linha de base não discrimina",
+        "`python -m dark.evals guardar` com a rodada nova: a regra deixa de disparar quando "
+        "a rodada tiver falha ou o conjunto de casos crescer")]
+
+
 RULES: list[Callable[[Audit], list[Recommendation]]] = [
     unused_piece, instruction_file_too_long, fixed_weight_grew, repeated_hook_block,
-    commits_without_hash,
+    commits_without_hash, evals_at_100_percent,
 ]
 
 

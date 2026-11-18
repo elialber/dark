@@ -785,7 +785,8 @@ def _recommendations(a: Audit) -> list[str]:
     lines += ["", how_to_read(
         "cada recomendação vem de uma regra fixa e traz o número ou o nome que a dispara; "
         "não há nota única nem texto gerado. Os limites (semanas sem uso, linhas do "
-        "arquivo de instruções, bloqueios de hook) são padrões a confirmar. O bloqueio de "
+        "arquivo de instruções, bloqueios de hook, rodadas de evals em 100%) são padrões a "
+        "confirmar; uma rodada de evals é o conjunto de medidas feitas no mesmo dia. O bloqueio de "
         "hook é contado por evento: o banco não guarda o nome do hook. Regras adiadas, "
         "por falta do dado: "
         + "; ".join(f"`{k}` ({v})" for k, v in recommend.DEFERRED.items()) + ".")]

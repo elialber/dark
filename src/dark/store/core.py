@@ -22,7 +22,7 @@ from . import kinds, queries, schema
 from .errors import (MigrationError, RepositoryConflict, SchemaError, StoreCorrupt,
                      StoreError, StoreLocationError, StoreLocked, StoreTooNew,
                      UnknownRepository)
-from .records import (CollectionRecord, CommitLink, HookOutcome, InventoryItem,
+from .records import (CollectionRecord, CommitLink, EvalRunRecord, HookOutcome, InventoryItem,
                       InventorySnapshot, PartUsage, PermissionModeCount, RepositoryRecord,
                       SessionRecord, TokenCounts)
 from .weeks import UTC, IsoWeek
@@ -330,6 +330,28 @@ class AggregateStore:
         return [CollectionRecord(**{c: _py("collections", c, x) for c, x in zip(columns, row)})
                 for row in self._query(f"SELECT {', '.join(columns)} FROM collections "
                                        "ORDER BY started_at")]
+
+    # ------------------------------------------------------------------ eval runs
+
+    def write_eval_runs(self, records: Iterable[EvalRunRecord | Mapping]) -> tuple[int, int]:
+        """Writes the runs; returns (new, already there). A run already stored is kept."""
+        records = [_as(EvalRunRecord, r) for r in records]
+        columns = [c for c in schema.COLUMNS["eval_runs"] if c != "id"]
+        new = 0
+        with self.batch(), self._errors():
+            for r in records:
+                row = [_sql("eval_runs", c, getattr(r, c)) for c in columns]
+                cur = self._con.execute(
+                    f"INSERT OR IGNORE INTO eval_runs({', '.join(columns)}) "
+                    f"VALUES ({', '.join('?' * len(columns))})", row)
+                new += cur.rowcount
+        return new, len(records) - new
+
+    def eval_runs(self) -> list[EvalRunRecord]:
+        columns = [c for c in schema.COLUMNS["eval_runs"] if c != "id"]
+        return [EvalRunRecord(**{c: _py("eval_runs", c, x) for c, x in zip(columns, row)})
+                for row in self._query(f"SELECT {', '.join(columns)} FROM eval_runs "
+                                       "ORDER BY started_at, case_name, condition, run_number")]
 
     # ------------------------------------------------------------------ queries
 

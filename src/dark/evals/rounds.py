@@ -9,11 +9,12 @@ by at most one run (whose own cap is the per-run limit).
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import workspace
+from . import run_record, workspace
 from .case import Case
 from .runner import Launcher, RunConfig, RunnerRefused, _source_root, run_once
 
@@ -179,3 +180,69 @@ def describe_summary(s: Summary) -> str:
         lines.append(f"- {cond}: {g.passes}/{g.n} ({g.rate:.0%}) em {g.n} execuções; "
                      f"tokens {_fmt_tokens(g.tokens_total)}")
     return "\n".join(lines)
+
+
+# --------------------------------------------------------------------------
+# Importing records into the aggregate store (goal 038)
+# --------------------------------------------------------------------------
+
+@dataclass
+class ImportPlan:
+    """What a records file holds: runs ready for the store and the lines refused."""
+    runs: list = field(default_factory=list)      # dark.store.EvalRunRecord
+    refused: list[tuple[int, str]] = field(default_factory=list)   # (line number, reason)
+
+
+def to_store_record(d: dict):
+    """A validated `dark.eval_run/1` dict -> the store's record. Raises ValueError/StoreError."""
+    from dark.store import EvalRunRecord
+
+    started = datetime.fromisoformat(d["started_at"])
+    return EvalRunRecord(
+        started_at=started, case_name=d["case"], condition=d["condition"],
+        run_number=d["run"], passed=d["passed"], end_reason=d["end_reason"],
+        model=d.get("model"), tokens=d.get("tokens"),
+        cost_usd_estimate=d.get("cost_usd_estimate"), ablated_piece=d.get("ablated_piece"))
+
+
+def plan_import(path: Path) -> ImportPlan:
+    """Reads the file line by line; a bad line is refused, never fatal.
+
+    Raises RecordsFileError when the file is missing, unreadable, empty or binary.
+    """
+    from dark.store import StoreError
+
+    path = Path(path)
+    try:
+        data = path.read_bytes()
+    except FileNotFoundError:
+        raise RecordsFileError(f"{path}: arquivo não encontrado") from None
+    except IsADirectoryError:
+        raise RecordsFileError(f"{path}: é um diretório, não um arquivo .jsonl") from None
+    except OSError as e:
+        raise RecordsFileError(f"{path}: não foi possível ler ({e.strerror or e})") from None
+    lines = [(i, raw) for i, raw in enumerate(data.split(b"\n"), start=1) if raw.strip()]
+    if not lines:
+        raise RecordsFileError(f"{path}: arquivo vazio")
+    plan = ImportPlan()
+    decoded = 0
+    for number, raw in lines:
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            plan.refused.append((number, "não está em UTF-8"))
+            continue
+        decoded += 1
+        try:
+            d = json.loads(text)
+        except json.JSONDecodeError as e:
+            plan.refused.append((number, f"não é JSON ({e.msg})"))
+            continue
+        try:
+            run_record.validate_record(d)
+            plan.runs.append(to_store_record(d))
+        except (run_record.RecordError, ValueError, StoreError) as e:
+            plan.refused.append((number, str(e)))
+    if not decoded:
+        raise RecordsFileError(f"{path}: arquivo binário (nenhuma linha é texto UTF-8)")
+    return plan
