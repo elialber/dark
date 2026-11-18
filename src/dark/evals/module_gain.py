@@ -10,6 +10,14 @@ After applying, the commands the module declares in `prepare` run in the
 copy (Graphify builds its graph there), then the module's `verify` must
 say `ok`; otherwise the run is refused.
 
+Goal 052: the preparation may only create files. A tracked file of the
+copy that changes content, permission or type, or disappears, and a HEAD
+that moves, refuse the measurement (`SetupFailed`): otherwise the
+preparation could do the agent's work. The check reads the files on disk,
+not `git status`, so `--assume-unchanged` or a commit made by the
+preparation cannot hide a change. New files git does not ignore go into
+the preparation's commit and are reported.
+
 Decision rule (declared in pair/goals/050-module-gain.md before any
 measurement), over the valid runs (those that did not end in `error`),
 with `n` per condition and the means taken over the valid runs that have
@@ -25,8 +33,10 @@ the number:
 
 from __future__ import annotations
 
+import hashlib
 import os
 import shutil
+import stat
 import subprocess
 import tempfile
 from collections.abc import Iterable, Mapping, Sequence
@@ -44,6 +54,7 @@ TOLERANCE_BASE = 15
 MIN_RUNS = 15               # per condition
 MAX_TOKEN_RATIO = Fraction(9, 10)
 GAIN_INDICATOR = "cost_per_task"
+MAX_LISTED_PATHS = 10       # paths named in a message; the rest are counted
 
 OUTCOME_LABELS = {"gain": "ganho", "no_gain": "sem ganho", "worse": "piora",
                   "inconclusive": "inconclusivo"}
@@ -70,6 +81,72 @@ class SetupFailed(ModuleGainError):
 
 def _command_text(argv: Sequence[str]) -> str:
     return " ".join(argv)
+
+
+def list_paths(items: Sequence[str], limit: int = MAX_LISTED_PATHS) -> str:
+    """At most `limit` items, comma separated, then "e outros N"."""
+    shown = ", ".join(items[:limit])
+    rest = len(items) - limit
+    return f"{shown} e outros {rest}" if rest > 0 else shown
+
+
+def _tracked_paths(copy: Path) -> list[str]:
+    """Paths of the files in HEAD's tree (submodules left out)."""
+    out = workspace.git(copy, "ls-tree", "-r", "-z", "--full-tree", "HEAD", binary=True)
+    paths = []
+    for entry in out.split(b"\0"):
+        if not entry:
+            continue
+        meta, _, path = entry.partition(b"\t")
+        if meta.split(b" ")[0] != b"160000":
+            paths.append(os.fsdecode(path))
+    return paths
+
+
+def _file_state(path: Path) -> tuple:
+    """What a tracked path is on disk: kind, then what matters for that kind."""
+    try:
+        st = os.lstat(path)
+    except (FileNotFoundError, NotADirectoryError):
+        return ("missing",)
+    if stat.S_ISLNK(st.st_mode):
+        return ("link", os.readlink(path))
+    if stat.S_ISDIR(st.st_mode):
+        return ("dir",)
+    if not stat.S_ISREG(st.st_mode):
+        return ("other",)
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            h.update(block)
+    executable = os.name != "nt" and bool(st.st_mode & 0o111)
+    return ("file", executable, h.hexdigest())
+
+
+_KIND_CHANGE = {"missing": "apagado", "dir": "virou diretório", "link": "virou link simbólico",
+                "file": "virou arquivo comum", "other": "virou arquivo especial"}
+
+
+def _change(before: tuple, after: tuple) -> str | None:
+    if before == after:
+        return None
+    if before[0] != after[0]:
+        return _KIND_CHANGE[after[0]]
+    if after[0] == "link":
+        return "destino do link mudou"
+    if before[2] != after[2]:
+        return "conteúdo mudou"
+    return "permissão de execução mudou"
+
+
+def _snapshot(copy: Path) -> dict[str, tuple]:
+    return {p: _file_state(copy / p) for p in _tracked_paths(copy)}
+
+
+def _new_files(copy: Path) -> list[str]:
+    out = workspace.git(copy, "status", "--porcelain=v1", "-z", "--untracked-files=all",
+                        binary=True)
+    return sorted(os.fsdecode(e[3:]) for e in out.split(b"\0") if e.startswith(b"?? "))
 
 
 @dataclass(frozen=True, eq=False)
@@ -118,7 +195,18 @@ class ModuleSetup:
                 "comparação não mediria o módulo")
         return self._commit(copy, f"eval: apply module {self.label}")
 
-    def prepare(self, copy: Path, env: Mapping[str, str], timeout_s: float) -> None:
+    def prepare(self, copy: Path, env: Mapping[str, str], timeout_s: float) -> list[str]:
+        """Runs the preparation; returns the new files it left that git does not ignore.
+
+        Raises SetupFailed if it changed a tracked file or moved HEAD.
+        """
+        if not self.commands:
+            return []
+        try:
+            head = workspace.git(copy, "rev-parse", "HEAD").strip()
+            tracked = _snapshot(copy)
+        except (workspace.WorkspaceError, OSError) as e:
+            raise SetupFailed(f"não foi possível ler a cópia antes da preparação: {e}") from None
         for argv in self.commands:
             exe = shutil.which(argv[0])
             if exe is None:
@@ -140,13 +228,27 @@ class ModuleSetup:
                 tail = f": {last[-1][:200]}" if last else ""
                 raise SetupFailed(f"a preparação saiu com código {r.returncode} "
                                   f"({_command_text(argv)}){tail}")
-        # Whatever the preparation left that git does not ignore goes in its own
-        # commit, so it is not counted as the agent's change.
         try:
-            if workspace.git(copy, "status", "--porcelain").strip():
+            changed = [f"{p} ({c})" for p, before in sorted(tracked.items())
+                       if (c := _change(before, _file_state(copy / p)))]
+            if changed:
+                raise SetupFailed(
+                    f"a preparação do módulo {self.name} alterou {len(changed)} arquivo(s) "
+                    f"rastreado(s) da cópia: {list_paths(changed)}; a preparação de um módulo "
+                    "só pode criar arquivos, senão faria parte do trabalho do agente")
+            head_after = workspace.git(copy, "rev-parse", "HEAD").strip()
+            if head_after != head:
+                raise SetupFailed(
+                    f"a preparação do módulo {self.name} mudou o HEAD da cópia (de {head[:7]} "
+                    f"para {head_after[:7]}); a preparação de um módulo só pode criar arquivos")
+            # Whatever the preparation left that git does not ignore goes in its own
+            # commit, so it is not counted as the agent's change.
+            new = _new_files(copy)
+            if new:
                 self._commit(copy, f"eval: prepare module {self.label}")
-        except workspace.WorkspaceError as e:
-            raise SetupFailed(f"não foi possível registrar a preparação na cópia: {e}") from None
+        except (workspace.WorkspaceError, OSError) as e:
+            raise SetupFailed(f"não foi possível conferir a preparação na cópia: {e}") from None
+        return new
 
     def verify(self, copy: Path) -> None:
         check = self.module.verify(copy)
@@ -156,10 +258,15 @@ class ModuleSetup:
 
     def setup(self, copy: Path, env: Mapping[str, str], timeout_s: float) -> str:
         """Apply, prepare, verify; returns the commit the agent starts from."""
+        return self.setup_with_new_files(copy, env, timeout_s)[0]
+
+    def setup_with_new_files(self, copy: Path, env: Mapping[str, str],
+                             timeout_s: float) -> tuple[str, list[str]]:
+        """Like `setup`; also returns the new files the preparation committed."""
         self.apply(copy)
-        self.prepare(copy, env, timeout_s)
+        new = self.prepare(copy, env, timeout_s)
         self.verify(copy)
-        return workspace.git(copy, "rev-parse", "HEAD").strip()
+        return workspace.git(copy, "rev-parse", "HEAD").strip(), new
 
     @staticmethod
     def _commit(copy: Path, message: str) -> str:
@@ -173,10 +280,11 @@ class ModuleSetup:
 
 
 def preflight(source_repo: Path, base_commits: Iterable[str], harness_commit: str,
-              setup: ModuleSetup, workdir: Path | None, timeout_s: float) -> None:
+              setup: ModuleSetup, workdir: Path | None, timeout_s: float) -> list[str]:
     """Builds a test copy per base commit, sets the module up in it, deletes it.
 
-    Raises SetupRefused or SetupFailed; returns when every copy verified ok.
+    Raises SetupRefused or SetupFailed; when every copy verified ok, returns the
+    new files (not ignored by git) the preparation left in any of them.
     """
     from .runner import RunnerRefused, _source_root, agent_environment, check_workdir
 
@@ -194,6 +302,7 @@ def preflight(source_repo: Path, base_commits: Iterable[str], harness_commit: st
     except workspace.WorkspaceError:
         raise SetupRefused(f"commit do harness não encontrado: {harness_commit}") from None
     seen = set()
+    new_files: set[str] = set()
     for base in base_commits:
         try:
             base_sha = workspace.resolve_commit(source, base)
@@ -212,9 +321,12 @@ def preflight(source_repo: Path, base_commits: Iterable[str], harness_commit: st
             except workspace.WorkspaceError as e:
                 raise SetupRefused(f"não foi possível montar a cópia de {base_sha[:7]}: {e}") \
                     from None
-            setup.setup(copy, agent_environment(os.environ, config_dir, home, {}), timeout_s)
+            _, new = setup.setup_with_new_files(
+                copy, agent_environment(os.environ, config_dir, home, {}), timeout_s)
+            new_files.update(new)
         finally:
             workspace.remove_tree(tmp)
+    return sorted(new_files)
 
 
 # --------------------------------------------------------------------------
@@ -342,8 +454,12 @@ def describe(d: Decision, setup: ModuleSetup | None = None) -> str:
                  else "subiram")
         lines.append(f"  tokens com o módulo: {_num(ratio * 100, 1)}% da média sem ele "
                      f"(ganho pede no máximo 90%); turnos: {turns}")
-    lines.append(f"  queda de acerto: {d.drop} execução(ões); tolerância: {TOLERANCE_RUNS} em "
-                 f"{TOLERANCE_BASE} execuções por condição")
+    if d.drop < 0:
+        lines.append(f"  acerto com o módulo: {-d.drop} execução(ões) a mais; a regra de ganho "
+                     "mede custo e passos, o acerto só conta para a piora")
+    else:
+        lines.append(f"  queda de acerto: {d.drop} execução(ões); tolerância: {TOLERANCE_RUNS} "
+                     f"em {TOLERANCE_BASE} execuções por condição")
     if d.errors:
         lines.append(f"  {d.errors} execução(ões) terminaram em erro e ficaram fora da conta")
     lines.append(f"  {_REASONS[d.outcome]}")
