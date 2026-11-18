@@ -66,9 +66,11 @@ Fase 3 em andamento; laço de par disponível
 | [041 — `dark coletar --evals`](goals/041-collect-evals.md) | Aceito na [revisão 1 da rodada 003](rodadas/003/revisao-1.md) e incorporado à `main`; skill `coletar` do plugin e documentos ainda não citam `--evals` |
 | [042 — `dark adicionar`, `dark verificar` e registro de módulos](goals/042-add-modules.md) | Aceito na [revisão de fechamento da rodada 003](rodadas/003/revisao-fechamento.md) e incorporado à `main` |
 | [043 — Módulo Langfuse](goals/043-langfuse-module.md) | Aceito na [revisão 2 da rodada 004](rodadas/004/revisao-2.md) e incorporado à `main`; documentos no goal 046 |
-| 044 — Módulo Graphify | Aceito com correções na [revisão 2 da rodada 004](rodadas/004/revisao-2.md), **não junto** (conflito com o 043); correções no [lote 018b](entrada/lote-018b.md), na mesma branch |
+| [044 — Módulo Graphify](goals/044-graphify-module.md) | Aceito na [revisão 3 da rodada 004](rodadas/004/revisao-3.md), com as correções do lote 018b, e incorporado à `main`; documentos no goal 047 |
 | [045 — Documentos em dia com 036 a 042](goals/045-docs-catch-up.md) | Aceito na [revisão 2 da rodada 004](rodadas/004/revisao-2.md) e incorporado à `main` |
-| 046 — Documentos do módulo Langfuse | Em execução ([lote 018](entrada/lote-018.md)) |
+| [046 — Documentos do módulo Langfuse](goals/046-langfuse-docs.md) | Aceito na [revisão 3 da rodada 004](rodadas/004/revisao-3.md) e incorporado à `main`; achou o defeito do `.env` no `remover` (goal 048) |
+| 047 — Documentos do módulo Graphify | Em execução ([lote 019](entrada/lote-019.md)) |
+| 048 — Correções do motor do scaffold | Em execução ([lote 019b](entrada/lote-019b.md)) |
 
 ## Decisões pendentes
 
@@ -96,9 +98,10 @@ Fase 3 em andamento; laço de par disponível
 
 Lista de funcionalidades com situação de cada item: [FUNCIONALIDADES.md](../FUNCIONALIDADES.md).
 
-Rodada 004, ciclo 2: goals 043 (Langfuse) e 045 (documentos) juntados;
-044 (Graphify) aceito com correções. Lotes 018 (goal 046, documentos do
-Langfuse) e 018b (correções do 044 na mesma branch), em paralelo.
-Depois: juntar o 044, documentos do Graphify, rótulo `[aplicado]` com
-conflito; calibração dos casos novos e medição real da ablação e dos
-módulos (pedem credencial); piloto (item 9).
+Rodada 004, ciclo 3: goals 044 (Graphify) e 046 (documentos do
+Langfuse) juntados; 1317 testes. Lotes 019 (goal 047, documentos do
+Graphify) e 019b (goal 048: linha do `.gitignore` mantida enquanto o
+`.env` existir, rótulo `[aplicado]` com conflito), em paralelo.
+Depois: README e CHANGELOG em dia com o 048; calibração dos casos novos
+e medição real da ablação e dos módulos (pedem credencial); piloto
+(item 9).

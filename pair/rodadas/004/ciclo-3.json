@@ -1,0 +1,23 @@
+{
+  "cycle": 3,
+  "verdicts": [
+    {"goal": "044", "branch": "goal-044", "verdict": "accepted",
+     "reason": "Correções do lote 018b feitas sem merge do executor (o guarda bloqueia): merge de três vias limpo, um só campo notes, notas impressas uma vez, Graphify e Langfuse de ida e volta no mesmo repositório; 1317 testes no merge de ensaio; sondagens do revisor sem traceback."},
+    {"goal": "046", "branch": "goal-046", "verdict": "accepted",
+     "reason": "Documentos do Langfuse em dia (README, método, CHANGELOG, FUNCIONALIDADES, glossário) com avisos de conteúdo de conversas e telemetria; testes de deriva pegam versão e variável erradas; parágrafo do usuário intacto. O defeito do .env que o executor achou foi reproduzido e vira o goal 048."}
+  ],
+  "merged": ["goal-044", "goal-046"],
+  "tests_passed": true,
+  "merge_conflict": false,
+  "privacy_violation": false,
+  "pending_decisions": [
+    {"id": "D1", "question": "Apagar a branch goal-040 (local, em origin e o worktree ../dark-goal-040)? O goal 045 a substituiu e ela não foi nem será juntada.",
+     "options": ["a) apagar", "b) manter"], "recommendation": "a", "blocks": []}
+  ],
+  "batches": [
+    {"batch": "019", "file": "pair/entrada/lote-019.md", "goal": "047", "branch": "goal-047"},
+    {"batch": "019b", "file": "pair/entrada/lote-019b.md", "goal": "048", "branch": "goal-048"}
+  ],
+  "stop": false,
+  "stop_reason": ""
+}

@@ -1674,3 +1674,55 @@ comentada e `export` (acusa só os ausentes); `graphify` aplicado, o
 usuário acrescenta um hook e `model` ao settings, `remover` mantém os
 dele e tira só os do Graphify; diff do compose embarcado contra o
 original da `v4.82.0`: só imagens, segredos e dois comentários.
+
+## Rodada 004, ciclo 3 (goals 044 e 046)
+
+**Goal 044 (correções do lote 018b):** aceito e juntado. O lote mandava
+o executor fazer `git merge main` na branch; o guarda do laço bloqueia
+qualquer `git merge` do executor. O executor, sem contornar o guarda,
+igualou os três arquivos da branch à resolução pedida (mesmo campo
+`notes` e comentário da `main`, notas impressas uma vez, no lugar do
+goal 043) e mudou o Graphify para a tabela inicial do `registry.py`, de
+modo que o merge de três vias sai sem conflito. Confirmado, **padrão a
+confirmar**: o Graphify registrado na tabela inicial (não importa nada
+do registro), com teste que passa todo módulo da tabela pelo `validate`;
+os quatro testes que precisam do Langfuse pulam quando ele não está
+registrado.
+
+**Lotes não pedem merge ao executor.** O executor nunca faz `git merge`
+(o guarda bloqueia, e a definição do laço diz que quem junta é o
+revisor). Branch atrasada em relação à `main` se resolve como no lote
+018b: a branch muda os arquivos para que o merge de três vias saia
+limpo, conferido com `git merge-tree --write-tree`.
+
+**Goal 046:** aceito e juntado. Padrões do executor confirmados, todos
+**padrão a confirmar**: variáveis aceitas na subseção do README (compose,
+`INTEGRATION_VARS`, chaves `env` do plano e `CC_LANGFUSE_STATE_DIR` numa
+lista explícita); "versão citada" (`VERSION`, `PLUGIN_VERSION`,
+`SDK_PIN`); comandos `docker compose` e `cp` conferidos com `NOTES`;
+Langfuse ✅ em `FUNCIONALIDADES.md` (o texto do item não pede medição;
+a medição de ganho é do item 6 do roteiro e da regra de módulo de
+terceiro); glossário ganhou os termos do scaffold, que faltavam desde o
+goal 016.
+
+**Defeito do `remover` com segredos (diário 046):** reproduzido pelo
+revisor; vira o goal 048. Padrão a confirmar: a linha de `.gitignore`
+acrescentada por um módulo fica (`kept`) enquanto o caminho literal que
+ela ignora existir; padrão com glob segue revertido. Vale para todo
+módulo (também `graphify-out/`), não só para o Langfuse.
+
+**Rótulo `[aplicado]` com conflito (diários 043 e 044):** entra no goal
+048, junto do defeito acima, porque os dois mexem no motor e no
+`cli.py`; o goal 047 (documentos do Graphify) não toca em código.
+
+**Graphify fica 🔧 em `FUNCIONALIDADES.md`** até a medição de ganho: o
+texto do item diz "precisa provar ganho". Padrão a confirmar.
+
+**Motivo:** testes de cada branch (044: 1254 + 4 pulados sozinha; 046:
+1280); merge de ensaio `main` + 044 + 046 sem conflito, 1317 testes.
+Sondagens do revisor: `adicionar graphify --aplicar` com
+`hooks.PreToolUse` que não é lista (conflito, settings intacto, notas
+não impressas, mas `[aplicado]` nas outras linhas); com JSON inválido
+(conflito, sem traceback); notas uma vez em `langfuse` e `graphify` sem
+`--aplicar`; `langfuse` e `graphify` aplicados, `.env` criado, `remover
+langfuse` → `?? .dark/langfuse/.env` (defeito confirmado).

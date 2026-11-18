@@ -108,18 +108,27 @@ que descobrir. O porquê do projeto está em `docs/visao.md`.
   v1.2.2; README, método, CHANGELOG, skill `coletar` e
   `FUNCIONALIDADES.md` em dia com 036 a 042. Parte do item 6.
 
+- **Módulo Graphify e documentos do Langfuse** (goals 044 e 046, rodada
+  004): `dark adicionar graphify` com a skill oficial da 0.9.112 copiada
+  sem alteração, hooks `PreToolUse` e `SessionStart`, `graphify-out/` no
+  `.gitignore`; os dois módulos aplicados e removidos no mesmo
+  repositório deixam a árvore igual; README, método, CHANGELOG,
+  glossário e `FUNCIONALIDADES.md` em dia com o Langfuse, com os avisos
+  de conteúdo de conversas e de telemetria. Parte dos itens 6 e 7.
+
 ## Em andamento
 
-Rodada 004, ciclo 2 (lotes 018 e 018b):
+Rodada 004, ciclo 3 (lotes 019 e 019b):
 
-- goal 046, documentos do módulo Langfuse (itens 6 e 7), lote principal;
-- correções do goal 044, módulo Graphify (item 6), na mesma branch
-  `goal-044` (lote 018b): juntar a `main` e resolver o conflito com o
-  043 (campo `notes`, registro, notas impressas uma vez).
+- goal 047, documentos do módulo Graphify (itens 6 e 7), lote principal;
+- goal 048, correções do motor do scaffold (item 6), em paralelo: a
+  linha do `.gitignore` fica enquanto o que ela ignora existir (o
+  `remover langfuse` deixava o `.env` com segredos fora do git) e o
+  rótulo `[aplicado]` deixa de aparecer quando há conflito.
 
-Depois: documentos do Graphify; o rótulo `[aplicado]` que `dark
-adicionar` mostra quando há conflito e nada foi aplicado (diários 043 e
-044); medição dos módulos (pede credencial).
+Depois: README e CHANGELOG em dia com o 048 (a frase do `.env` na
+subseção do Langfuse); medição dos módulos e da ablação (pede
+credencial); piloto (item 9).
 
 ## Fila, em ordem
 
@@ -229,9 +238,10 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
   usuário: Langfuse auto-hospedado, embarcado como Docker Compose; origem,
   a edição community oficial de cada projeto; versão, a mais recente
   publicada quando o goal for feito, fixada.
-- **Próximo:** o Langfuse entrou no goal 043. O Graphify (goal 044) foi
-  aceito com correções e entra depois do lote 018b. Depois: documentos do
-  Graphify e a medição de ganho dos dois (pede credencial para os
+- **Próximo:** Langfuse (goal 043) e Graphify (goal 044) estão na
+  `main`, com ida e volta byte a byte nos testes, também os dois juntos.
+  Faltam os documentos do Graphify (goal 047), as correções do motor
+  (goal 048) e a medição de ganho dos dois (pede credencial para os
   evals). Instalar e desinstalar deixam o repositório idêntico, com os
   dois módulos, nos testes de cada um.
 - **Cuidado:** módulo de terceiro executa código na máquina do usuário.
