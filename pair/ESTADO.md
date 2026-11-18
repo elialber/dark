@@ -43,7 +43,7 @@ Fase 3 em andamento; laço de par disponível
 | [018 — Laço de par](goals/018-pair-loop.md) | Aceito no [lote 009](entrada/lote-009.md) e incorporado à `main` |
 | [019 — Correções de portabilidade](goals/019-portability-fixes.md) | Aceito pelo revisor no [lote 009](entrada/lote-009.md) |
 | [020 — Executor de evals](goals/020-eval-runner.md) | Aceito no [lote 009](entrada/lote-009.md) e incorporado à `main`; critério 2 (calibração) bloqueado por credencial |
-| [021 — Laço pronto para rodar](goals/021-loop-readiness.md) | Em andamento |
+| [021 — Laço pronto para rodar](goals/021-loop-readiness.md) | Concluído, aguarda revisão ([diário](diario/021.md)) |
 
 ## Decisões pendentes
 
@@ -61,7 +61,13 @@ e `goal-020` foram incorporadas e apagadas, e os worktrees removidos.
 
 ## Próximo passo
 
-Goal 021: push pelo orquestrador, bloqueio de configuração do git no
-hook, conferência dos arquivos protegidos por conteúdo e executor no
-comando `python -m dark.evals`. A primeira rodada do laço só começa
-quando o usuário pedir.
+Revisão do goal 021. Os seis jobs do workflow passam na `main` (run
+`44211507723`: 844 testes em Linux e macOS; 843 e 1 pulado no Windows).
+O revisor não faz mais push; o orquestrador publica depois das
+conferências. O hook bloqueia configuração do git, e a rodada para se
+um arquivo protegido muda na árvore de trabalho. O executor de evals
+está em `python -m dark.evals`. O workflow mostrou quatro defeitos de
+Windows nos goals 018 e 020, corrigidos no goal. O diário 021 lista o
+que ainda mudar antes de três ciclos; o primeiro item são os comandos
+git do próprio orquestrador. A primeira rodada do laço só começa quando
+o usuário pedir.

@@ -1085,3 +1085,92 @@ avaliação (poda por ablação, medição de módulos) não começam.
 
 **Motivo:** critério 2 do goal 020, bloqueado; o executor roda com
 configuração isolada, e nela a credencial tem de vir do ambiente.
+
+## Goal 021: push pelo orquestrador
+
+**Data:** 2026-11-17 ([goal 021](../pair/goals/021-loop-readiness.md))
+
+- O hook bloqueia todo push do revisor, inclusive a remoção de branch
+  remota.
+- Depois de cada revisão (de ciclo ou de fechamento), o orquestrador faz
+  o push da branch base (`refs/heads/<base>:refs/heads/<base>`) só se,
+  nessa fase, a sessão terminou bem, o histórico e o conteúdo dos
+  arquivos protegidos conferiram, os testes passaram e a saída do
+  revisor é válida. Em seguida apaga do remoto as branches juntadas; uma
+  falha nisso vira nota, não parada. Push que falha para a rodada
+  (`push_failed`).
+- Depois de uma parada por problema (testes, conflito, limite de
+  sessão, erro, diário ausente, saída inválida, privacidade, violação de
+  limite, push), a rodada não faz mais push, nem no fechamento. Paradas
+  sem problema (ciclos concluídos, orçamento, revisor parou, sem lote)
+  não impedem o push do fechamento.
+- O orquestrador guarda no estado o remoto da base no início da revisão
+  e o último commit que ele mesmo publicou; se o remoto mudou para outra
+  coisa durante a revisão, o revisor fez push por fora do hook, e a
+  rodada para.
+
+**Motivo:** lote 009; uma violação detectada depois do push já estaria
+no remoto.
+
+## Goal 021: configuração do git
+
+**Data:** 2026-11-17 ([goal 021](../pair/goals/021-loop-readiness.md))
+
+O hook bloqueia, para os dois papéis, toda escrita de configuração do
+git (`git config` com valor, `set`, `unset`, `--add`, `--replace-all`,
+`--edit`, `--rename-section`, `--remove-section`), exceto `user.name` e
+`user.email` no arquivo do próprio repositório. Escrita com `--global`,
+`--system` ou `--file` é bloqueada sempre. Leitura é livre. Lista
+permitida em vez de lista proibida: as chaves que executam código ou
+mudam comandos são muitas (`core.hooksPath`, `core.fsmonitor`,
+`core.sshCommand`, `core.pager`, `alias.*`, `include.*`, `filter.*`,
+`credential.*`...) e crescem com as versões do git. `git -c chave=valor`,
+que vale só para aquele comando, continua bloqueado apenas para remoto e
+push, como antes: não persiste e não alcança os comandos do orquestrador.
+
+**Motivo:** sondagem do revisor no lote 009 (`core.hooksPath` passava);
+configuração persistente executa código depois, também nos comandos git
+do orquestrador.
+
+## Goal 021: conferência dos arquivos protegidos por conteúdo
+
+**Data:** 2026-11-17 ([goal 021](../pair/goals/021-loop-readiness.md))
+
+No início de cada fase (revisão, execução, fechamento), o orquestrador
+guarda no estado o SHA-256 de cada arquivo protegido na árvore de
+trabalho da raiz do repositório, rastreado ou não pelo git (arquivo novo
+em diretório protegido conta). Link simbólico vale pelo destino. Ficam
+de fora os diretórios `__pycache__`, que os testes gravam. Ao fim da
+fase, qualquer diferença (conteúdo, arquivo novo, arquivo apagado) para
+a rodada como violação de limite. Os worktrees dos executores não são
+conferidos assim: o que eles não commitam não chega à base.
+
+**Motivo:** lote 009; pega a escrita que o hook não vê (`python -c`).
+
+## Goal 021: executor de evals no comando
+
+**Data:** 2026-11-17 ([goal 021](../pair/goals/021-loop-readiness.md))
+
+`calibrar`, `rodar`, `resumir` e `esquema` passam a ser subcomandos de
+`python -m dark.evals`; o módulo `runner_cli` deixou de existir. A
+validação encerra o comando de aceite que estoura o tempo com
+`process.kill_tree`, a função do executor: no POSIX, SIGTERM ao grupo,
+até 3 segundos de espera, SIGKILL ao grupo e aos descendentes; no
+Windows, `taskkill /T /F`. Nenhum caminho da validação chama `os.killpg`
+ou `taskkill` diretamente. O tempo esgotado pode demorar até 3 segundos
+a mais para ser declarado.
+
+**Motivo:** diário 020, mudanças propostas; lote 009.
+
+## Goal 021: defeitos de Windows do laço e do executor
+
+**Data:** 2026-11-17 ([goal 021](../pair/goals/021-loop-readiness.md))
+
+Os goals 018 e 020 nunca tinham rodado nos jobs de Windows: o CI roda
+na `main`, e os dois entraram pela junção do lote 009. Corrigidos no
+goal 021, porque o critério 1 exige os seis jobs: comparação de caminho
+de worktree, `/dev/null` no hook, encerramento das sessões do laço sem
+`os.killpg` e `core.autocrlf=false` na configuração da cópia de
+avaliação. Detalhes no [diário 021](../pair/diario/021.md).
+
+**Motivo:** critério 1 do goal 021.
