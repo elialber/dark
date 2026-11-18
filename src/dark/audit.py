@@ -148,6 +148,63 @@ def installed(inv: Inventory) -> Installed:
             with_reason=sum(p.instruction.with_reason for p in instructions)))
 
 
+@dataclass(frozen=True)
+class Source:
+    """Where the numbers came from (goal 027)."""
+    kind: str                            # "store" or "direct"
+    store: Path | None = None
+    last_collection: datetime | None = None
+    reason: str | None = None            # why the store was not used ("direct" only)
+    only_in_store: int = 0               # sessions whose transcript Claude Code deleted
+
+
+@dataclass(frozen=True)
+class WeekNumbers:
+    week: str
+    sessions: int
+    requests: int
+    tokens: int
+    tokens_per_request: float | None
+    interruptions: int
+    rejections: int
+    mid_turn_messages: int
+    fixed_weight_median: float | None
+
+
+@dataclass(frozen=True)
+class Streak:
+    kind: str
+    name: str
+    weeks: int
+    since: str
+    reaches_first_record: bool
+
+
+@dataclass(frozen=True)
+class InventoryChange:
+    before: str                          # ISO dates of the two snapshots
+    after: str
+    added: int
+    removed: int
+    resized: int
+    chars_before: int
+    chars_after: int
+
+
+@dataclass(frozen=True)
+class Changes:
+    """"O que mudou desde a última semana": numbers from the store, nothing else."""
+    available: bool                      # two weeks with data
+    note: str | None = None              # why not, when not
+    previous: WeekNumbers | None = None
+    current: WeekNumbers | None = None
+    became_used: tuple[tuple[str, str], ...] = ()      # (kind, name)
+    became_unused: tuple[tuple[str, str], ...] = ()
+    streaks: tuple[Streak, ...] = ()
+    inventory: InventoryChange | None = None
+    inventory_note: str | None = None
+
+
 @dataclass
 class Audit:
     repository: Path | None          # None: all sessions (--todos)
@@ -187,12 +244,22 @@ class Audit:
     # Sessions with a Claude Code version outside reader.TESTED_VERSIONS (S2.1).
     sessions_outside_tested: int = 0
     versions_outside_tested: list[str] = field(default_factory=list)
+    source: Source | None = None
+    changes: Changes | None = None
+
+    @property
+    def from_store(self) -> bool:
+        return self.source is not None and self.source.kind == "store"
 
     @property
     def builtin_by_rule(self) -> list[str]:
         """Skills counted as built-in only because they have no file and no prefix (S3.3)."""
         if self.provenances is None:
-            return []
+            # Read from the store: the origin stored for each skill name.
+            if self.provenance_of is None:
+                return []
+            return sorted(name for name, o in self.provenance_of["skills"].items()
+                          if o.provenance == "builtin")
         return sorted(name for name, o in self.provenances.skills.items()
                       if o.provenance == "builtin")
 

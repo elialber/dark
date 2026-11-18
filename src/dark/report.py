@@ -24,6 +24,7 @@ TITLE = "Auditoria do harness"
 
 SECTIONS = {
     "header": TITLE,
+    "changes": "O que mudou desde a última semana",
     "fixed-context": "Peso fixo",
     "dead-weight": "Peso morto",
     "cost": "Custo",
@@ -60,6 +61,27 @@ INVENTORY_TYPES = {
     "mcp": "Servidor MCP",
     "permission": "Permissões",
 }
+
+# Error classes of `dark.store`, in Portuguese for the user (goal 027). The
+# English message of the store goes in the detail, after the label.
+STORE_ERROR_LABELS = {
+    "StoreLocked": "o banco está em uso por outro processo (travado); tente de novo em instantes",
+    "StoreCorrupt": "o arquivo não é um banco do dark legível (corrompido ou de outro formato)",
+    "StoreTooNew": "o banco foi gravado por uma versão mais nova do dark; atualize o dark",
+    "MigrationError": "não foi possível atualizar o formato do banco",
+    "StoreLocationError": "o banco fica dentro de um repositório auditado",
+    "SchemaError": "o banco tem um valor fora do esquema",
+    "UnknownRepository": "o banco não conhece o repositório",
+    "StoreError": "erro no banco",
+}
+
+
+def store_error_text(error: BaseException) -> str:
+    """Portuguese label of a `dark.store` error, by its class (most specific first)."""
+    for cls in type(error).__mro__:
+        if cls.__name__ in STORE_ERROR_LABELS:
+            return STORE_ERROR_LABELS[cls.__name__]
+    return STORE_ERROR_LABELS["StoreError"]
 INVENTORY_SCOPES = ("project", "user", "plugin", "managed")
 
 CATEGORIES = {
@@ -139,6 +161,23 @@ def first_items(names, limit: int = FIRST_NAMES) -> str:
 # Sections
 # --------------------------------------------------------------------------
 
+def _source(a: Audit) -> list[str]:
+    src = a.source
+    if src is None:
+        return []
+    if src.kind == "direct":
+        return [f"- Fonte: leitura direta das transcrições e do git; o banco não foi "
+                f"usado: {src.reason}."]
+    lines = [f"- Fonte: banco de agregados `{path_text(src.store)}`, última coleta em "
+             f"{when(src.last_collection)}. Sessões, indicadores e ligações de commit vêm "
+             f"do banco, não das transcrições; o que aconteceu depois da última coleta "
+             f"não aparece (`dark auditar --coletar` coleta antes)."]
+    if src.only_in_store:
+        lines.append(f"- Sessões que só existem no banco (o Claude Code já apagou a "
+                     f"transcrição): {n(src.only_in_store)}")
+    return lines
+
+
 def _header(a: Audit) -> list[str]:
     lines = [f"# {TITLE}", ""]
     if a.repository is None:
@@ -149,6 +188,7 @@ def _header(a: Audit) -> list[str]:
         if merged:
             lines.append(f"- Diretórios juntados (mesmo commit inicial): "
                           f"{', '.join(f'`{path_text(d)}`' for d in a.directories)}")
+    lines += _source(a)
     lines.append(f"- Período coberto: {when(a.start)} a {when(a.end)}")
     selection_ = []
     if a.since:
@@ -222,7 +262,8 @@ def sentence(x: Finding, a: Audit) -> str:
                  f"{n(v['maximum'])}).")
     elif x.rule == "commits_without_hash":
         text = (f"{n(v['without_hash'])} de {n(v['calls'])} chamadas de commit não "
-                 f"deixaram hash registrado (com `-q`: {n(v['silent'])}).")
+                 f"deixaram hash registrado"
+                 + ("." if a.from_store else f" (com `-q`: {n(v['silent'])})."))
     elif x.rule == "mode_without_rejection":
         text = (f"{n(v['prompts_in_mode'])} de {n(v['prompts'])} pedidos "
                  f"({pct(v['prompts_in_mode'], v['prompts'])}) rodaram em modo de "
@@ -323,7 +364,7 @@ def _breakdown(a: Audit) -> list[str]:
         lines.append(f"| **{GROUP_TITLES[group]}** | **{n(round(r.group_summary(group).median))}** "
                       f"| **{pct(r.group_sum(group), r.measured_total)}** |")
         for g, part in ind.PARTS:
-            if g == group and group != "prompt":
+            if g == group and group != "prompt" and not a.from_store:
                 lines.append(f"| {PART_TITLES[part]} | {n(round(r.summary(part).median))} | "
                               f"{pct(r.total_sum(part), r.measured_total)} |")
     lines.append(f"| **Não explicado** | **{n(round(r.unexplained_summary().median))}** "
@@ -460,8 +501,13 @@ def _cost(a: Audit) -> list[str]:
               f"- Total: {n(c.total.total)} tokens; subagentes {n(c.total.subagents)} "
               f"({pct(c.total.subagents, c.total.total)})",
               f"- Por sessão: {_summary(c.session_summary)}",
-              f"- Por pedido: {_summary(c.prompt_summary)} ({n(c.prompt_summary.n)} pedidos)",
-              f"- Sem pedido atribuído: {n(c.without_prompt)} tokens da sessão principal"]
+              ]
+    if a.from_store:
+        lines.append("- Por pedido, sem pedido atribuído e pedidos mais caros: o banco "
+                     "guarda os números por sessão, não por pedido; use `--direto`.")
+    else:
+        lines += [f"- Por pedido: {_summary(c.prompt_summary)} ({n(c.prompt_summary.n)} pedidos)",
+                  f"- Sem pedido atribuído: {n(c.without_prompt)} tokens da sessão principal"]
     if a.costly:
         lines += ["", f"Os {len(a.costly)} pedidos mais caros:", "",
                    "| Início do pedido | Tokens | Subagentes |", "|---|---:|---:|"]
@@ -487,8 +533,11 @@ def _interventions(a: Audit) -> list[str]:
               f"- Interrupções: {n(t.interruptions)} · rejeições de ferramenta: "
               f"{n(t.rejections)} ({n(t.rejections_with_comment)} com comentário) · "
               f"mensagens no meio do turno: {n(t.mid_turn_messages)}",
-              f"- Pedidos com algum sinal: {n(with_signal)} de {n(t.prompts)} · sessões "
-              f"sem nenhum sinal: {n(it.sessions_without_signal)} de {n(a.sessions)}",
+              (f"- Sessões sem nenhum sinal: {n(it.sessions_without_signal)} de "
+               f"{n(a.sessions)} (pedidos com algum sinal: o banco não guarda por pedido)"
+               if a.from_store else
+               f"- Pedidos com algum sinal: {n(with_signal)} de {n(t.prompts)} · sessões "
+               f"sem nenhum sinal: {n(it.sessions_without_signal)} de {n(a.sessions)}"),
               "- Modo de permissão dos pedidos: " + (", ".join(
                   f"`{m}` {n(k)}" for m, k in modes) or "—"),
               "", "Avisos:", ""]
@@ -515,8 +564,9 @@ def _hooks(a: Audit) -> list[str]:
     if not h.total:
         lines.append("Nenhum desfecho visível de hook no período.")
     else:
-        lines += [f"Desfechos visíveis: {n(h.total)}, em {n(h.sessions_with_hook)} sessões "
-                   f"({n(h.in_subagents)} em subagentes); bloqueios: {n(h.blocks_count)}.",
+        lines += [f"Desfechos visíveis: {n(h.total)}, em {n(h.sessions_with_hook)} sessões"
+                   + (f"; bloqueios: {n(h.blocks_count)}." if a.from_store else
+                      f" ({n(h.in_subagents)} em subagentes); bloqueios: {n(h.blocks_count)}."),
                    "", "| Evento | Desfechos visíveis | Por tipo |", "|---|---:|---|"]
         for event, total in sorted(h.by_event.items(), key=lambda kv: (-kv[1], kv[0])):
             kinds = sorted(((t, k) for (t, e), k in h.by_type_and_event.items()
@@ -539,10 +589,14 @@ def _commits(a: Audit) -> list[str]:
     else:
         lines += [
             f"- Chamadas de `git commit`: {n(c.calls)}, em {n(c.sessions_with_commit)} "
-            f"sessões ({n(c.in_subagents)} em subagentes)",
-            f"- Com hash registrado: {n(c.with_hash)} · sem hash: {n(c.without_hash)}",
-            f"- Silenciosas (`-q` ou `--quiet`): {n(c.silent)} · amends: "
-            f"{n(c.amends)} · com erro: {n(c.with_error)}"]
+            f"sessões" + ("" if a.from_store else f" ({n(c.in_subagents)} em subagentes)"),
+            f"- Com hash registrado: {n(c.with_hash)} · sem hash: {n(c.without_hash)}"]
+        if a.from_store:
+            lines.append("- Silenciosas, com erro e em subagentes: o banco não guarda; "
+                         "use `--direto`.")
+        else:
+            lines.append(f"- Silenciosas (`-q` ou `--quiet`): {n(c.silent)} · amends: "
+                         f"{n(c.amends)} · com erro: {n(c.with_error)}")
         if c.approximate_count:
             lines.append(f"- Detectadas por padrão, sem análise do comando: "
                           f"{n(c.approximate_count)}")
@@ -576,13 +630,18 @@ def _commit_linking(a: Audit) -> list[str]:
               f"{n(f['window'])} · ambíguas: {n(f['ambiguous'])} · sem ligação: "
               f"{n(f['unlinked'])}"]
     reasons = links.unlinked_by_reason()
-    if reasons:
+    if a.from_store:
+        pass
+    elif reasons:
         lines.append("  - sem ligação, por motivo: " + ", ".join(
             f"{m} {n(k)}" for m, k in sorted(reasons.items(), key=lambda kv: (-kv[1], kv[0]))))
-    lines.append(f"- Amends: {n(links.amends)} (pelo comando: {n(links.amends_by_command)}; "
-                  f"o git confirmou {n(links.amends_confirmed)} e não confirmou "
-                  f"{n(links.amends_unconfirmed)}; achados só pelo git: "
-                  f"{n(links.amends_only_by_git)})")
+    if a.from_store:
+        lines.append(f"- Amends: {n(links.amends)} (como gravados na coleta)")
+    else:
+        lines.append(f"- Amends: {n(links.amends)} (pelo comando: {n(links.amends_by_command)}; "
+                     f"o git confirmou {n(links.amends_confirmed)} e não confirmou "
+                     f"{n(links.amends_unconfirmed)}; achados só pelo git: "
+                     f"{n(links.amends_only_by_git)})")
     if links.amends_kind:
         lines.append(f"  - o `kind` gravado pelo Claude Code diz amend em "
                       f"{n(links.amends_kind)}; guardado à parte, não entra na conta "
@@ -641,10 +700,85 @@ def _appendix(a: Audit) -> list[str]:
     return lines
 
 
+KIND_TITLES = {"skill": "skill", "subagent_type": "subagente", "tool": "ferramenta",
+               "mcp_server": "servidor MCP"}
+
+
+def _parts_text(parts) -> str:
+    shown = [f"{KIND_TITLES.get(k, k)} `{name}`" for k, name in parts[:FIRST_NAMES]]
+    more = len(parts) - len(shown)
+    return ", ".join(shown) + (f" e mais {n(more)}" if more > 0 else "")
+
+
+def _changes(a: Audit) -> list[str]:
+    c = a.changes
+    lines = ["## O que mudou desde a última semana", ""]
+    if c is None:
+        return []
+    if not c.available:
+        lines.append(c.note[0].upper() + c.note[1:])
+        return lines + ["", how_to_read(
+            "a comparação usa o banco de agregados, que guarda as semanas depois que o "
+            "Claude Code apaga as transcrições; só números, sem texto de conversa (E14).")]
+    p, w = c.previous, c.current
+    lines += [f"Semana {w.week} (a mais recente com dados) contra {p.week}.", "",
+              f"| | {p.week} | {w.week} |", "|---|---:|---:|"]
+    for title, a_, b_ in (
+            ("Sessões", p.sessions, w.sessions), ("Pedidos", p.requests, w.requests),
+            ("Tokens", p.tokens, w.tokens),
+            ("Tokens por pedido", p.tokens_per_request, w.tokens_per_request),
+            ("Interrupções", p.interruptions, w.interruptions),
+            ("Rejeições de ferramenta", p.rejections, w.rejections),
+            ("Mensagens no meio do turno", p.mid_turn_messages, w.mid_turn_messages),
+            ("Peso fixo, mediana", p.fixed_weight_median, w.fixed_weight_median)):
+        lines.append(f"| {title} | {n(round(a_) if isinstance(a_, float) else a_)} | "
+                     f"{n(round(b_) if isinstance(b_, float) else b_)} |")
+    lines.append("")
+    lines.append(f"- Peças que passaram a ser usadas: {n(len(c.became_used))}"
+                 + (f" ({_parts_text(c.became_used)})" if c.became_used else ""))
+    lines.append(f"- Peças que deixaram de ser usadas: {n(len(c.became_unused))}"
+                 + (f" ({_parts_text(c.became_unused)})" if c.became_unused else ""))
+    if c.streaks:
+        longest = c.streaks[0]
+        edge = sum(1 for x in c.streaks if x.reaches_first_record)
+        lines.append(f"- Peças com arquivo sem uso há {plural(longest.weeks, 'semana', 'semanas')} "
+                     f"ou mais: {n(len(c.streaks))}; a mais antiga, "
+                     f"{KIND_TITLES.get(longest.kind, longest.kind)} `{longest.name}`, "
+                     f"desde {longest.since}"
+                     + (f" ({n(edge)} chegam ao primeiro registro do banco; a sequência "
+                        f"pode ser maior)" if edge else ""))
+        lines += [f"  - {KIND_TITLES.get(x.kind, x.kind)} `{x.name}`: {n(x.weeks)} semanas "
+                  f"(desde {x.since})" for x in c.streaks[:FIRST_NAMES]]
+    else:
+        lines.append("- Peças com arquivo sem uso há 2 semanas ou mais: 0")
+    if c.inventory is not None:
+        i = c.inventory
+        delta = i.chars_after - i.chars_before
+        sign = "+" if delta > 0 else ""
+        tokens = round(delta / ind.CHARS_PER_TOKEN)
+        lines.append(
+            f"- Inventário, retratos de {i.before} e {i.after}: {n(i.added)} peças novas, "
+            f"{n(i.removed)} removidas, {n(i.resized)} com tamanho diferente; peso "
+            f"{sign}{n(delta)} caracteres (≈ {sign}{n(tokens)} tokens)")
+    else:
+        lines.append(f"- Inventário: {c.inventory_note}")
+    lines += ["", how_to_read(
+        "a semana é a ISO (segunda a domingo, UTC), pelo início da sessão; a anterior é "
+        "a última semana anterior com sessões, que pode não ser a imediatamente anterior. "
+        "\"Passou a ser usada\" é peça disponível e sem uso na anterior, usada agora; "
+        "\"deixou de ser usada\", o contrário. Sem uso conta só semanas com sessões e só "
+        "peças com arquivo (E16). Os números vêm do banco, só contagens e nomes (E14); "
+        "nota única e recomendação não entram aqui.")]
+    return lines
+
+
 def markdown(a: Audit) -> str:
     parts = [_header(a)]
     if a.sessions:
-        parts += [_attention(a), _fixed_context(a), _dead_weight(a)]
+        parts += [_attention(a)]
+        if a.changes is not None:
+            parts.append(_changes(a))
+        parts += [_fixed_context(a), _dead_weight(a)]
         if a.installed is not None:
             parts.append(_installed(a))
         parts += [_cost(a), _interventions(a), _hooks(a), _commits(a), _appendix(a)]

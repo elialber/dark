@@ -370,9 +370,10 @@ def collect(config: Path | None, store_path: Path, *, repository: Path | None,
             summary.repositories_seen = len(repos)
             summary.failures += len(failures)
             summary.seconds = time.perf_counter() - clock
+            registered = _free_second(started, store)
             store.write_collection(CollectionRecord(
-                started_at=started,
-                finished_at=started + timedelta(seconds=summary.seconds),
+                started_at=registered,
+                finished_at=registered + timedelta(seconds=summary.seconds),
                 tool_version=summary.tool_version,
                 session_files_read=summary.session_files_read,
                 sessions_written=summary.sessions_written,
@@ -381,6 +382,19 @@ def collect(config: Path | None, store_path: Path, *, repository: Path | None,
                 failures=summary.failures))
     summary.seconds = time.perf_counter() - clock
     return summary
+
+
+def _free_second(started: datetime, store) -> datetime:
+    """`started` or the next second with no collection record yet (goal 027).
+
+    `collections.started_at` is unique, in seconds; writing a second
+    collection in an occupied second would replace the earlier record.
+    """
+    taken = {c.started_at for c in store.collections()}
+    moment = started.astimezone(timezone.utc).replace(microsecond=0)
+    while moment in taken:
+        moment += timedelta(seconds=1)
+    return moment
 
 
 def _with_links(record: SessionRecord, links: Iterable[CommitLink]) -> SessionRecord:

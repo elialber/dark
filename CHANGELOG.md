@@ -4,6 +4,23 @@ Mudanças de cada versão do `dark`, a mais recente primeiro. A versão segue
 o versionamento semântico; enquanto for `0.x`, comandos e opções ainda
 podem mudar entre versões menores.
 
+## Não lançado
+
+- **`dark auditar` lê do banco de coleta**, quando ele existe e conhece o
+  repositório: sessões, indicadores e ligações de commit vêm do banco
+  (inclusive as sessões que o Claude Code já apagou), e o cabeçalho diz a
+  data da última coleta. Sem banco, ou com banco ilegível, a auditoria
+  direta roda como antes e o cabeçalho diz por que não usou o banco. Novas
+  opções: `--direto`, `--coletar`, `--banco`.
+- **Seção "O que mudou desde a última semana"** no relatório: a semana ISO
+  mais recente com dados contra a anterior (pedidos, tokens, intervenções,
+  peças que passaram a ser usadas ou deixaram de ser, peças sem uso há
+  semanas, peso do inventário), só números.
+- **`dark --versao`** imprime a versão instalada.
+- **Correção:** três coletas no mesmo segundo não perdem mais o registro
+  das anteriores (a coleta usa o próximo segundo livre).
+- As mensagens de erro do banco saem em português.
+
 ## 0.1.0 — 2026-11-17
 
 Primeira versão instalável de fora do checkout
