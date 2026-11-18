@@ -47,13 +47,12 @@ Fase 3 em andamento; laço de par disponível
 | [022 — Casos de eval deste repositório](goals/022-eval-cases.md) | Aceito na [revisão de fechamento da rodada 001](rodadas/001/revisao-fechamento.md) e incorporado à `main` |
 | [023 — Distribuição](goals/023-distribution.md) | Aceito na [revisão de fechamento da rodada 001](rodadas/001/revisao-fechamento.md) e incorporado à `main` |
 | [024 — Coleta](goals/024-collect.md) | Aceito com correções na [revisão de fechamento da rodada 001](rodadas/001/revisao-fechamento.md) e incorporado à `main`; a correção (registro de coleta no mesmo segundo) vai no goal seguinte do item 2 |
+| [025 — Endurecimento do laço](goals/025-loop-hardening.md) | Concluído fora do laço, a pedido do usuário (D1 da rodada 001, opção a); aguarda revisão ([diário](diario/025.md)) |
 
 ## Decisões pendentes
 
-- **D1 da rodada 001:** como corrigir os defeitos do laço de par, que
-  nenhum agente do laço pode editar (`tools/pairloop/` é protegido).
-  Opções e recomendação no [relatório da rodada](rodadas/001.md).
-  Nenhum goal da fila espera por ela.
+Nenhuma. A D1 da rodada 001 foi respondida pelo usuário com a opção
+(a) e executada no [goal 025](goals/025-loop-hardening.md).
 
 ## Pedidos ao usuário
 
@@ -67,7 +66,7 @@ Fase 3 em andamento; laço de par disponível
 
 ## Próximo passo
 
-Rodada 001 fechada ([relatório](rodadas/001.md)). A próxima rodada
-começa pela auditoria lendo do banco (resto do item 2) e pelo plugin do
+Rodada 001 fechada ([relatório](rodadas/001.md)); o laço foi endurecido
+no goal 025, fora do laço. A próxima rodada revisa o goal 025 e começa pela auditoria lendo do banco (resto do item 2) e pelo plugin do
 Claude Code com `dark --versao` (resto do item 8); a calibração, assim
 que a credencial chegar.

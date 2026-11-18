@@ -1283,3 +1283,41 @@ lista de D1 (endurecimento do laço): deixar o executor remover os
 worktrees que ele mesmo criou em `$PAIRLOOP_SCRATCH`.
 
 **Motivo:** diário 022; só o usuário edita `tools/pairloop/`.
+
+## D1 da rodada 001: endurecimento do laço fora do laço
+
+**Data:** 2026-11-18 ([goal 025](../pair/goals/025-loop-hardening.md))
+
+O usuário escolheu a opção (a): os defeitos do laço são corrigidos numa
+sessão fora do laço, entre rodadas. Feito no goal 025, com a lista da
+D1 inteira. `tools/pairloop/` continua protegido contra os agentes do
+laço.
+
+Como cada item ficou:
+
+- **Git do orquestrador:** `-c core.hooksPath=<dispositivo nulo>`,
+  `-c core.fsmonitor=false`, `--no-ext-diff` e `--no-textconv` nos diffs;
+  `GIT_SSH_COMMAND` sempre definido (o do ambiente, senão
+  `core.sshCommand` global, senão `GIT_SSH`, senão `ssh`), porque ele
+  vence o `core.sshCommand` do repositório. Efeito colateral aceito: o
+  push do orquestrador não roda os hooks do usuário (`pre-push`).
+- **Retrato:** passa a incluir `.git/config` (comparado sem as chaves
+  `branch.*` e `user.*`, lido com `git config --file --no-includes`),
+  `.git/hooks/`, `.git/info/` e os `__pycache__` dos diretórios
+  protegidos. A exclusão de bytecode do goal 021 cai: o laço define
+  `PYTHONDONTWRITEBYTECODE=1`, herdado pelos testes e pelas sessões.
+- **Arquivo de hooks:** regravado antes de cada sessão; link simbólico
+  ou diretório no lugar dele é erro.
+- **Partida:** `iniciar` exige o `claude` no `PATH` e os testes passando
+  na branch base. `continuar` não confere.
+- **Hook:** rascunho conferido antes das raízes; variáveis expandidas
+  (as do ambiente da sessão e as atribuídas antes, no mesmo comando; uma
+  desconhecida fica como está e vale como caminho relativo); `/dev/stdout`,
+  `/dev/stderr`, `/dev/stdin` e `/dev/fd/N` aceitos; destino de
+  `git clone` (o diretório dado ou o derivado da origem), `git init` (o
+  diretório dado ou `.git` no diretório atual) e `git worktree add`
+  conferido como escrita; `/c/...` lido como `C:/...` no Windows; o
+  executor remove e move worktrees dentro do próprio rascunho, e
+  `worktree prune` continua bloqueado.
+
+**Motivo:** D1 da rodada 001, opção (a), escolhida pelo usuário.
