@@ -1,0 +1,26 @@
+{
+  "cycle": 4,
+  "verdicts": [
+    {"goal": "056", "branch": "goal-056", "verdict": "accepted",
+     "reason": "Documentos do 052, 054 e 055 em dia com o código (abertura do README, recusa da preparação com saída real, esquema 4 e migração, regra de módulo de terceiro, FUNCIONALIDADES 8/8 no item 4), com testes de deriva que falham quando o revisor muda WITHOUT_GAIN ou SCHEMA_VERSION; 1538 testes no ensaio e na main; workflow da branch verde nos nove jobs (44398435613), tabela preenchida."},
+    {"goal": "057", "branch": "goal-057", "verdict": "accepted",
+     "reason": "guardar e coletar --evals recusam, linha a linha, applied_module fora de nome:versão, com o valor na mensagem; banco antigo com 'graphify' lido sem traceback; esquema com pattern que mantém registros antigos válidos; 31 testes, tabela de casos completa; workflow verde nos nove jobs (44403686866). A sondagem do revisor achou que o validador do esquema aceita quebra de linha no fim de um pattern (anterior ao 057; o 057 recusa o caso); vai no goal 058."}
+  ],
+  "merged": ["goal-056", "goal-057"],
+  "tests_passed": true,
+  "merge_conflict": false,
+  "privacy_violation": false,
+  "pending_decisions": [
+    {"id": "D1", "question": "Apagar a branch goal-040 (local, em origin e o worktree ../dark-goal-040)? O goal 045 a substituiu e ela não foi nem será juntada (D1 da rodada 004, ainda sem resposta).",
+     "options": ["a) apagar a branch local, a remota e o worktree", "b) manter"],
+     "recommendation": "a", "blocks": []},
+    {"id": "D2", "question": "Apagar a branch goal-054 (local, em origin e o worktree ../dark-goal-054)? O conteúdo dela entrou na main pelo goal 055, por cherry-pick, com outros hashes; ela não será juntada.",
+     "options": ["a) apagar a branch local, a remota e o worktree", "b) manter"],
+     "recommendation": "a", "blocks": []}
+  ],
+  "batches": [
+    {"batch": "025", "file": "pair/entrada/lote-025.md", "goal": "058", "branch": "goal-058"}
+  ],
+  "stop": false,
+  "stop_reason": ""
+}

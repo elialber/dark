@@ -78,6 +78,8 @@ Fase 3 em andamento; laço de par disponível
 | [053 — Workflow de testes verde](goals/053-ci-green.md) | Aceito na [revisão 2 da rodada 005](rodadas/005/revisao-2.md) e incorporado à `main`; workflow da branch verde nos nove jobs; arquivo de módulo que só difere em CRLF deixa de ser conflito; `workspace.git` lê a saída em UTF-8 |
 | [054 — `with_module` no banco](goals/054-with-module-store.md) | Aceito com correções na [revisão 2 da rodada 005](rodadas/005/revisao-2.md); incorporado à `main` pelo goal 055, por `cherry-pick` (a branch `goal-054` não foi juntada; apagá-la é a D2) |
 | [055 — Regra de módulo de terceiro sem ganho](goals/055-third-party-rule.md) | Aceito na [revisão 3 da rodada 005](rodadas/005/revisao-3.md) e incorporado à `main`; nenhuma regra adiada; documentos no goal 056 |
+| [056 — Documentos do 052, do 054 e do 055](goals/056-docs-052-054-055.md) | Aceito na [revisão 4 da rodada 005](rodadas/005/revisao-4.md) e incorporado à `main` |
+| [057 — `applied_module` no formato `nome:versão`](goals/057-applied-module-format.md) | Aceito na [revisão 4 da rodada 005](rodadas/005/revisao-4.md) e incorporado à `main`; documentos no goal 058 |
 | 056 — Documentos do 052, 054 e 055 | Em execução ([lote 024](entrada/lote-024.md)) |
 | 057 — `applied_module` no formato `nome:versão` | Em execução ([lote 024b](entrada/lote-024b.md)) |
 
@@ -110,9 +112,9 @@ Fase 3 em andamento; laço de par disponível
 
 Lista de funcionalidades com situação de cada item: [FUNCIONALIDADES.md](../FUNCIONALIDADES.md).
 
-Rodada 005, ciclo 3 ([revisão 3](rodadas/005/revisao-3.md)): goal 055
-juntado, com o 054 dentro; todas as regras do item 5 ligadas. Em execução:
-goal 056 ([lote 024](entrada/lote-024.md)), documentos do 052, 054 e 055;
-goal 057 ([lote 024b](entrada/lote-024b.md)), `guardar` recusa
-`applied_module` fora de `nome:versão`. Depois: medição real
+Rodada 005, ciclo 4 ([revisão 4](rodadas/005/revisao-4.md)): goals 056
+(documentos do 052, 054 e 055) e 057 (`guardar` recusa `applied_module`
+fora de `nome:versão`) juntados; 1538 testes. Em execução: goal 058
+([lote 025](entrada/lote-025.md)), documentos do 057 e `pattern` do
+esquema que não aceita quebra de linha no fim. Depois: medição real
 (credencial); piloto (item 9).

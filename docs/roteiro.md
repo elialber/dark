@@ -155,18 +155,25 @@ que descobrir. O porquê do projeto está em `docs/visao.md`.
   terceiro aplicado na mesma versão medida: `dark remover`). Nenhuma
   regra do item 5 fica adiada.
 
+- **Documentos do 052, 054 e 055 e formato de `applied_module`** (goals
+  056 e 057, rodada 005): README (abertura em dia: mede, indica e prepara
+  com módulos), `evals/README.md` (recusa da preparação, esquema 4,
+  migração com `.v3.bak`, auditoria), CHANGELOG, glossário e
+  `FUNCIONALIDADES.md` (item 4 com 8 de 8), com testes de deriva; o
+  `guardar` e o `dark coletar --evals` recusam, linha a linha,
+  `applied_module` fora de `nome:versão`, e o esquema do registro diz o
+  formato. Parte dos itens 5, 6 e 7.
+
 ## Em andamento
 
-Rodada 005, ciclo 3:
+Rodada 005, ciclo 4:
 
-- **goal 056** (lote 024): documentos do 052, do 054 e do 055
-  (`README.md`, `evals/README.md`, `CHANGELOG.md`, `FUNCIONALIDADES.md`,
-  glossário);
-- **goal 057** (lote 024b, paralelo): `guardar` recusa `applied_module`
-  fora de `nome:versão`; docstring de `module_history`.
+- **goal 058** (lote 025): documentos do 057 e `validate_record` sem
+  aceitar quebra de linha no fim de um `pattern` (achado da revisão 4).
 
-Depois: medição real dos módulos e da ablação e calibração dos casos
-novos (pedem credencial); piloto (item 9).
+Depois: a fila sem credencial fica vazia. Medição real dos módulos e da
+ablação e calibração dos casos novos (pedem credencial); teste com uma
+pessoa de fora (item 7); piloto (item 9).
 
 ## Fila, em ordem
 

@@ -1971,3 +1971,52 @@ branch verde nos nove jobs, execução 44389731759); sondagens: duas
 versões medidas do mesmo módulo, dois módulos sem ganho ao mesmo tempo,
 manifesto com entradas de tipo errado, manifesto diretório e com bytes
 fora do UTF-8, medição só com erros e repositório inexistente.
+
+## Rodada 005, ciclo 4 (revisão dos goals 056 e 057)
+
+**Goals 056 e 057 aceitos e juntados**, nessa ordem.
+
+Confirmados os padrões do 056:
+
+1. o exemplo da recusa da preparação no `evals/README.md` é o do caso de
+   teste (`calc.py`, `graphify` falso no modo `fix`), dito como tal, com
+   teste de deriva que roda o mesmo cenário;
+2. o teste de deriva importa fixtures de outros arquivos de teste, como
+   `test_collect_evals.py` e `test_recommend_modules.py` já fazem;
+3. a regra de módulo de terceiro conta como regra de evals ("três regras
+   de evals" no README), como em `test_method_doc.py`;
+4. a data de situação do `FUNCIONALIDADES.md` não traz número de testes.
+
+Confirmados os padrões do 057:
+
+1. "sem espaço nas pontas" vale para o nome e para a versão, cada um;
+   espaço no meio de uma parte é aceito;
+2. espaço é o `\s` do Python; caractere invisível que não é espaço
+   (U+200B) passa e a regra o ignora, calada. Não alargar sem caso real;
+3. com `with_module`, a conferência de formato roda antes do esquema,
+   para a mensagem mostrar o valor recebido; em `project`, o valor fora
+   do formato é recusado pelo esquema ("formato inválido");
+4. o esquema JSON de `applied_module` tem `pattern` igual à constante do
+   código (`APPLIED_MODULE_PATTERN`); registros sem o campo ou com `null`
+   seguem válidos.
+
+**Achado do revisor, padrão a confirmar:** `validate_record` confere
+`pattern` com `re.match`, e o `$` do Python casa antes de um `\n` final;
+um `base_commit` com `\n` no fim entra pelo `guardar`. O validador deve
+tratar `$` como fim do texto, como um validador de JSON Schema de fora
+(goal 058). Sem efeito no banco hoje: `base_commit` não é guardado,
+`harness_commit` com `\n` é recusado pelo registro do banco, e
+`applied_module` pela conferência do 057.
+
+**Falha intermitente a observar:** `tests/test_pairloop.py::test_parallel_batches_capped_by_limit`
+falhou uma vez no Windows do GitHub ("unknown error occurred while reading
+the configuration files" no `git push` de um repositório temporário) e
+passou na reexecução (diário 057). Se voltar, vira goal.
+
+**Motivo:** ensaio do revisor em clone limpo com as duas branches
+(1538 testes, igual na `main` depois da junção); workflow das branches
+verde nos nove jobs (44398435613 e 44403686866) e o da `main` em
+`84714c8` também (44394388052); sondagens: mutação de `WITHOUT_GAIN` e
+de `SCHEMA_VERSION` (os testes de deriva do 056 falham), sete valores de
+`applied_module` contra o esquema e contra `check_module`, e SHA com
+`\n` no fim pelo `guardar`.
