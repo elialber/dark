@@ -89,7 +89,7 @@ def test_report_line_format_matches_the_others():
     line = [x for x in text.splitlines() if x.startswith("- `evals_at_100_percent`")]
     assert len(line) == 1
     assert "Ação:" in line[0] and "Verificação:" in line[0] and "3 rodadas" in line[0]
-    assert "`evals_at_100_percent` (" not in text.split("Regras adiadas")[1]
+    assert "Regras adiadas" not in text
 
 
 # Goal 054: `with_module` runs reach the store; the two rules read `project` only.

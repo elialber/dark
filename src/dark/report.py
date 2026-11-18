@@ -789,10 +789,19 @@ def _recommendations(a: Audit) -> list[str]:
         "confirmar; uma rodada de evals é o conjunto de medidas feitas no mesmo dia. Nomes de "
         "modelo são comparados como texto exato: um nome escrito de outro jeito conta como "
         "modelo diferente. O bloqueio de "
-        "hook é contado por evento: o banco não guarda o nome do hook. Regras adiadas, "
-        "por falta do dado: "
-        + "; ".join(f"`{k}` ({v})" for k, v in recommend.DEFERRED.items()) + ".")]
+        "hook é contado por evento: o banco não guarda o nome do hook. Um módulo de "
+        "terceiro só recebe recomendação pela medição da versão aplicada neste repositório; "
+        "a medição de outra versão não conta."
+        + _deferred())]
     return lines
+
+
+def _deferred() -> str:
+    """The sentence on deferred rules, or nothing when no rule is deferred."""
+    if not recommend.DEFERRED:
+        return ""
+    return (" Regras adiadas, por falta do dado: "
+            + "; ".join(f"`{k}` ({v})" for k, v in recommend.DEFERRED.items()) + ".")
 
 
 def markdown(a: Audit) -> str:

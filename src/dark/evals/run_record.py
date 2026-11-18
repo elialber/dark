@@ -15,7 +15,7 @@ END_REASONS = ("completed", "time", "budget", "turns", "error")
 ERROR_STAGES = ("setup", "agent", "acceptance")
 # `ablated` (goal 034): the `project` harness minus one piece (see `ablation`).
 # `with_module` (goal 050): the `project` copy plus one scaffold module (see
-# `module_gain`). The aggregate store does not take it yet.
+# `module_gain`). The aggregate store keeps it since schema 4 (goal 054).
 CONDITIONS = ("bare", "project", "ablated", "with_module")
 
 _INT = {"type": "integer", "minimum": 0}

@@ -204,10 +204,11 @@ def fired(a):
 RULE = "model_changed_since_last_evals"
 
 
-def test_rule_is_active_and_only_third_party_stays_deferred():
+def test_rule_is_active_and_no_rule_stays_deferred():
+    # Goal 055: `third_party_module_without_gain`, the last deferred rule, is active.
     assert RULE in {r.__name__ for r in rec.RULES}
-    assert RULE not in rec.DEFERRED
-    assert list(rec.DEFERRED) == ["third_party_module_without_gain"]
+    assert "third_party_module_without_gain" in {r.__name__ for r in rec.RULES}
+    assert rec.DEFERRED == {}
 
 
 def test_fires_when_the_models_differ():
@@ -259,6 +260,5 @@ def test_report_line_and_how_to_read_note():
     assert "`m2`" in line[0] and "`m1`" in line[0] and "2026-11-01" in line[0]
     assert "Ação: rodar os evals de novo" in line[0] and "harness reduzido" in line[0]
     assert "Verificação:" in line[0]
-    tail = text.split("Regras adiadas")[1]
-    assert RULE not in tail and "third_party_module_without_gain" in tail
+    assert "Regras adiadas" not in text and "por falta do dado: ." not in text
     assert "texto exato" in text
