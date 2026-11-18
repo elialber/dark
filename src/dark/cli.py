@@ -21,7 +21,8 @@ from datetime import datetime, timedelta, timezone
 from functools import cache
 from pathlib import Path
 
-from dark import audit, console, inventory, reader, commit_linking, report
+from dark import audit, collect, console, inventory, reader, commit_linking, report
+from dark.store import StoreError, default_store_path
 
 _GIT_READ_ONLY = {"GIT_OPTIONAL_LOCKS": "0"}
 DEFAULT_RETENTION_DAYS = 30        # Claude Code's `cleanupPeriodDays` when not set
@@ -57,8 +58,8 @@ def _nearest_repository(path: Path) -> Path | None:
     return None
 
 
-def output_warning(destination: Path) -> str | None:
-    """Warning if the output file falls inside a git repository without being ignored."""
+def unignored_repository(destination: Path) -> Path | None:
+    """Git repository the file falls in without being ignored, if any."""
     destination = Path(os.path.abspath(destination))
     root = _nearest_repository(destination.parent)
     if root is None:
@@ -66,6 +67,15 @@ def output_warning(destination: Path) -> str | None:
     r = _git("-C", str(root), "check-ignore", "-q", str(destination))
     if r is not None and r.returncode == 0:
         return None
+    return root
+
+
+def output_warning(destination: Path) -> str | None:
+    """Warning if the output file falls inside a git repository without being ignored."""
+    root = unignored_repository(destination)
+    if root is None:
+        return None
+    destination = Path(os.path.abspath(destination))
     return (f"aviso: {destination} fica dentro do repositório git {root} e não está "
             f"ignorado pelo git. O relatório traz nomes reais de skills, ferramentas "
             f"e servidores; cuidado para não versioná-lo.")
@@ -183,6 +193,53 @@ def _audit(args: argparse.Namespace) -> int:
     return code
 
 
+def _collect(args: argparse.Namespace) -> int:
+    if args.all_ and args.path is not None:
+        print("dark coletar: informe o caminho de um repositório ou --todos, não os dois",
+              file=sys.stderr)
+        return 2
+    root = None
+    if not args.all_:
+        target = Path(os.path.abspath(args.path if args.path is not None else Path.cwd()))
+        root = reader.git_root_of(target) if target.exists() else None
+        if root is None:
+            print(f"dark coletar: {args.path or target} não é um repositório git",
+                  file=sys.stderr)
+            return 2
+    store = Path(os.path.abspath(args.store if args.store is not None
+                                 else default_store_path()))
+    if root is not None and (store == root or root in store.parents):
+        print(f"dark coletar: {store} fica dentro do repositório coletado {root}. "
+              f"Use um caminho fora dele (o padrão é {default_store_path()}). "
+              f"Nada foi gravado.", file=sys.stderr)
+        return 1
+    inside = unignored_repository(store)
+    if inside is not None:
+        print(f"dark coletar: {store} fica dentro do repositório git {inside} e não está "
+              f"ignorado pelo git. O banco traz nomes reais de skills, ferramentas e "
+              f"repositórios; use um caminho fora do repositório (o padrão é "
+              f"{default_store_path()}). Nada foi gravado.", file=sys.stderr)
+        return 1
+    try:
+        summary = collect.collect(args.config, store, repository=root, identity=git_identity,
+                                  no_git=args.no_git, managed=args.managed)
+    except StoreError as error:
+        print(f"dark coletar: {error}", file=sys.stderr)
+        return 1
+    print(f"coleta gravada em {summary.store}")
+    print(f"  sessões gravadas: {summary.sessions_written} "
+          f"(sem mudança: {summary.sessions_unchanged}, recusadas: "
+          f"{summary.sessions_skipped})")
+    print(f"  repositórios vistos: {summary.repositories_seen}")
+    print(f"  retratos do inventário: {summary.snapshots_written}")
+    if summary.failures:
+        print(f"  falhas de leitura: {summary.failures}")
+    if summary.names_dropped:
+        print(f"  nomes fora do esquema, descartados: {summary.names_dropped}")
+    print(f"  tempo: {summary.seconds:.1f} s".replace(".", ",", 1))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     console.utf8_output()
     parser = argparse.ArgumentParser(
@@ -211,9 +268,31 @@ def main(argv: list[str] | None = None) -> int:
                    help="não consulta o histórico git para ligar commits (mais rápido)")
     a.add_argument("--gerenciado", dest="managed", metavar="GERENCIADO", type=Path, default=None,
                    help="diretório de política gerenciada (conferência; padrão: o do sistema)")
+    c = commands.add_parser(
+        "coletar", help="grava os números das sessões no banco de agregados",
+        description="Lê as transcrições do Claude Code e grava, no banco de agregados, os "
+                    "números de cada sessão, as ligações de commits e o retrato do "
+                    "inventário. Nenhum texto de conversa é gravado. Coletar de novo "
+                    "não duplica nada; sessões apagadas pelo Claude Code continuam no banco.")
+    c.add_argument("path", metavar="caminho", nargs="?", type=Path,
+                   help="repositório a coletar, qualquer pasta dentro dele "
+                        "(padrão: o diretório atual)")
+    c.add_argument("--todos", dest="all_", action="store_true",
+                   help="todas as sessões, de qualquer repositório")
+    c.add_argument("--config", type=Path, default=None,
+                   help="diretório de configuração (padrão: CLAUDE_CONFIG_DIR ou ~/.claude)")
+    c.add_argument("--banco", dest="store", metavar="BANCO", type=Path, default=None,
+                   help="arquivo do banco de agregados (padrão: o diretório de dados do "
+                        "usuário; nunca dentro de um repositório)")
+    c.add_argument("--sem-git", dest="no_git", action="store_true",
+                   help="não consulta o histórico git para ligar commits (mais rápido)")
+    c.add_argument("--gerenciado", dest="managed", metavar="GERENCIADO", type=Path, default=None,
+                   help="diretório de política gerenciada (conferência; padrão: o do sistema)")
     args = parser.parse_args(argv)
     if args.command == "auditar":
         return _audit(args)
+    if args.command == "coletar":
+        return _collect(args)
     return 2
 
 
