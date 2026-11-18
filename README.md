@@ -149,6 +149,15 @@ está em [evals/README.md](evals/README.md).
 > aceite do repositório avaliado, e os dois últimos rodam um agente que
 > edita arquivos e executa comandos. Use só em repositórios seus.
 
+## Plugin
+
+A pasta `plugin/` é um plugin do Claude Code com duas skills, `auditar` e
+`coletar`, que orientam o agente a rodar o `dark` instalado. O plugin não
+é instalado pelo pip, não substitui o pacote e não o instala; para usar
+numa sessão, aponte o Claude Code para a pasta:
+`claude --plugin-dir <caminho-do-repositório>/plugin`. Detalhes em
+[plugin/README.md](plugin/README.md).
+
 ## Desenvolvimento
 
 Esta seção é para quem trabalha no próprio `dark`.

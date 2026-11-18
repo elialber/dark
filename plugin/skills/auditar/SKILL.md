@@ -12,14 +12,15 @@ não contém o método da auditoria: o relatório vem do comando.
 
 Rode `dark --versao`.
 
-- Se imprimir uma versão, siga para o passo 2.
-- Se o comando não existir ainda (`dark: command not found`, ou a opção
-  `--versao` não for reconhecida), confira com `command -v dark` e
-  `python -m pip show dark`. Se o `dark` não estiver instalado, **não
-  instale por conta própria**: diga ao usuário que a instalação é por
-  `python -m pip install "git+<URL do repositório>"` (a URL está no README
-  do projeto) e pare até ele instalar. Se o `dark` estiver instalado, mas
-  sem `--versao`, siga para o passo 2.
+- Se imprimir uma versão (`dark 0.x.y`), siga para o passo 2.
+- Se o comando não existir (`dark: command not found`), confira com
+  `command -v dark` e `python -m pip show dark`. Se o `dark` não estiver
+  instalado, **não instale por conta própria**: diga ao usuário que a
+  instalação é por `python -m pip install "git+<URL do repositório>"` (a
+  URL está no README do projeto) e pare até ele instalar.
+- Exceção: se o `dark` estiver instalado, mas for uma versão antiga que não
+  reconhece `--versao`, siga para o passo 2; as opções do passo 2 que a
+  versão antiga não tiver aparecem em `dark auditar --help`.
 - Se o comando `dark` não ficar no `PATH`, `python -m dark` faz o mesmo.
 
 ## 2. Rodar a auditoria
@@ -35,6 +36,34 @@ diretório atual). Passe só as opções que o usuário pediu:
 
 `dark auditar --help` lista todas. O comando só lê; não altera o
 repositório auditado.
+
+### De onde vêm os números
+
+O relatório diz na linha "Fonte" de onde leu:
+
+- **banco de agregados**: sessões, indicadores e ligações de commit vêm do
+  banco local que `dark coletar` grava, inclusive as sessões que o Claude
+  Code já apagou. A linha traz a data da última coleta; o que aconteceu
+  depois dela não aparece. É o padrão quando o banco existe e conhece o
+  repositório.
+- **leitura direta**: lê as transcrições e o git. A linha diz por que o
+  banco não foi usado (não existe, não conhece o repositório ou não pôde
+  ser lido).
+
+Opções que mudam a fonte, para usar só se o usuário pedir ou se a linha
+"Fonte" mostrar que o banco está velho:
+
+- `--coletar`: coleta no banco antes de auditar (o mesmo que rodar `dark
+  coletar` antes). Use quando a última coleta estiver velha;
+- `--direto`: ignora o banco e lê as transcrições e o git. Use para ver só
+  o que as transcrições ainda guardam;
+- `--banco <arquivo>`: usa outro arquivo de banco (o padrão fica no
+  diretório de dados do usuário, nunca dentro de um repositório).
+
+A seção "O que mudou desde a última semana" só aparece quando a fonte é o
+banco, e só traz a comparação quando há duas semanas com dados; antes
+disso ela diz que ainda não há comparação. Sem banco, ou com `--direto`,
+ela não existe.
 
 ## 3. Resumir o relatório
 

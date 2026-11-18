@@ -17,6 +17,12 @@ podem mudar entre versões menores.
   peças que passaram a ser usadas ou deixaram de ser, peças sem uso há
   semanas, peso do inventário), só números.
 - **`dark --versao`** imprime a versão instalada.
+- **Plugin do Claude Code** em `plugin/`, com as skills `auditar` e
+  `coletar` (goal 028). Não vai no pacote pip; uso por `claude
+  --plugin-dir <caminho>/plugin`.
+- **Skills do plugin em dia com o comando** (goal 031): `dark --versao`, a
+  linha "Fonte" do relatório, `--direto`, `--coletar` e `--banco`; um teste
+  falha se uma skill citar opção que o comando não tem.
 - **Correção:** três coletas no mesmo segundo não perdem mais o registro
   das anteriores (a coleta usa o próximo segundo livre).
 - As mensagens de erro do banco saem em português.

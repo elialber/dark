@@ -115,3 +115,61 @@ def test_the_wheel_does_not_carry_the_plugin():
     # never picks it up; it is installed from the checkout, not from the wheel.
     assert PYPROJECT["tool"]["setuptools"]["packages"]["find"]["where"] == ["src"]
     assert not (ROOT / "src" / "dark" / "plugin").exists()
+
+
+# --------------------------------------------------------------------------
+# Goal 031: the skills do not drift from the real command
+# --------------------------------------------------------------------------
+
+# Each skill is about one subcommand; its options are checked against that
+# subcommand's `--help`. `--versao` is a top-level option, checked separately.
+_SKILL_COMMAND = {"auditar": "auditar", "coletar": "coletar"}
+_OPTION = re.compile(r"(?<![\w-])--[a-z][a-z-]*")
+_TOP_LEVEL = {"--versao"}
+
+
+def _help(command: str, capsys) -> str:
+    from dark import cli
+    capsys.readouterr()
+    try:
+        cli.main([command, "--help"])
+    except SystemExit:
+        pass
+    return capsys.readouterr().out
+
+
+def _cited_options(skill: str) -> set[str]:
+    text = (PLUGIN / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+    return set(_OPTION.findall(text))
+
+
+def test_every_option_cited_in_a_skill_exists_in_its_command_help(capsys):
+    missing = []
+    for skill, command in _SKILL_COMMAND.items():
+        help_text = _help(command, capsys)
+        options_in_help = set(_OPTION.findall(help_text))
+        for option in sorted(_cited_options(skill) - _TOP_LEVEL):
+            if option not in options_in_help:
+                missing.append(f"{skill}: {option} is not in `dark {command} --help`")
+    assert missing == []
+
+
+def test_skills_cite_the_options_that_matter(capsys):
+    # The reverse of the drift: options the skills must not ignore.
+    assert {"--direto", "--coletar", "--banco"} <= _cited_options("auditar")
+    assert {"--todos", "--banco"} <= _cited_options("coletar")
+
+
+def test_dark_version_option_the_skill_relies_on_works(capsys):
+    from dark import cli
+    assert "--versao" in _cited_options("auditar")
+    capsys.readouterr()
+    assert cli.main(["--versao"]) == 0
+    assert capsys.readouterr().out.startswith("dark ")
+
+
+def test_readme_has_a_plugin_section_that_names_the_plugin_dir_usage():
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "\n## Plugin\n" in text
+    section = text.split("\n## Plugin\n")[1].split("\n## ")[0]
+    assert "--plugin-dir" in section and "plugin/README.md" in section
