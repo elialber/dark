@@ -20,3 +20,14 @@ Quando a direção mudar, substitua a seção abaixo. O histórico fica no git.
 
 Concluir a Fase 3 (evals) e tornar a ferramenta utilizável em outros
 ambientes.
+
+Respostas às decisões da rodada 003 (usuário, 2026-11-18):
+
+- **D1 (Langfuse e Graphify):** opção (a), com um ajuste. O Langfuse é
+  auto-hospedado e vem embarcado no módulo como arquivos Docker (Docker
+  Compose, já que o Langfuse auto-hospedado precisa de mais de um
+  serviço). Origem: a edição community (open source) oficial de cada
+  projeto. Versão: a mais recente publicada quando o goal for feito,
+  fixada no módulo (nada de `latest`).
+- **Goal 040 (documentos):** opção (a). Um goal novo refaz os documentos
+  sobre a `main` atual, incluindo 039, 041 e 042.
