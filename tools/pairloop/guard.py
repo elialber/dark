@@ -11,8 +11,14 @@ Limits enforced here:
 
 - no agent pushes with force, pushes to another remote, rewrites remotes
   or deletes ``main`` (or the round's base branch);
+- the reviewer never pushes: the orchestrator pushes the base branch after
+  its own checks;
 - the executor never pushes to, merges into or checks out the base branch,
   and never merges at all;
+- no agent writes git configuration, except its identity (``user.name``,
+  ``user.email``) in the repository: configuration can run code later, in
+  the orchestrator's own git commands (``core.hooksPath``,
+  ``core.fsmonitor``, ``core.sshCommand``, ``alias.*``...);
 - no agent writes outside its roots (repository, its worktree) and its
   scratch directories;
 - no agent edits the loop itself (``tools/pairloop/``, the reviewer
@@ -21,9 +27,12 @@ Limits enforced here:
 - the reviewer only writes in ``pair/``, ``docs/decisoes.md`` and
   ``docs/roteiro.md``.
 
-Shell commands cannot be fully analysed. The checks here catch the usual
-forms (redirections, file utilities, ``sed -i``, git); the orchestrator
-checks the resulting git history after every session as a second layer.
+Shell commands cannot be fully analysed, and a program the agent writes
+(``python -c``, a script) is not seen at all. The checks here catch the
+usual forms (redirections, file utilities, ``sed -i``, git). After every
+session the orchestrator checks the git history and the content of the
+protected files in the working tree; writes outside the repository by such
+a program are not caught by any layer (accepted risk, docs/decisoes.md).
 
 Environment:
 
@@ -75,6 +84,24 @@ FILE_TOOLS = {
     "MultiEdit": "file_path",
     "NotebookEdit": "notebook_path",
 }
+
+# git config keys a loop agent may write, in the repository's own file.
+CONFIG_WRITABLE = {"user.name", "user.email"}
+_CONFIG_READ_FLAGS = {
+    "--get", "--get-all", "--get-regexp", "--get-urlmatch", "--get-color",
+    "--get-colorbool", "-l", "--list",
+}
+_CONFIG_WRITE_FLAGS = {
+    "--add", "--replace-all", "--unset", "--unset-all",
+}
+_CONFIG_SECTION_FLAGS = {"--rename-section", "--remove-section", "-e", "--edit"}
+_CONFIG_VALUE_OPTS = {
+    "-f", "--file", "--blob", "-t", "--type", "--default", "--comment",
+    "--value", "--url",
+}
+_CONFIG_READ_SUBCOMMANDS = {"get", "list"}
+_CONFIG_SUBCOMMANDS = {"get", "list", "set", "unset", "rename-section",
+                       "remove-section", "edit"}
 
 GIT_MUTATING = {
     "add", "am", "apply", "checkout", "cherry-pick", "clean", "commit",
@@ -344,7 +371,12 @@ def check_git(argv: list[str], cwd: Path, ctx: Context) -> str | None:
             reason = check_path(resolve(raw, cwd), ctx)
             if reason:
                 return reason
+    if sub == "config":
+        return _check_config(args)
     if sub == "push":
+        if ctx.role == REVIEWER:
+            return ("O revisor não faz push; o orquestrador faz, depois dos "
+                    "testes e da conferência do histórico.")
         return _check_push(args, cwd, ctx)
     if sub == "remote" and args and args[0] in {
             "add", "set-url", "rename", "remove", "rm", "set-head"}:
@@ -433,9 +465,53 @@ def _check_push(args: list[str], cwd: Path, ctx: Context) -> str | None:
             targets.add(current)
     if ctx.role == EXECUTOR and targets & ctx.protected_branches:
         return "O executor nunca faz push para a branch base nem para main."
-    if ctx.role == REVIEWER and "main" in targets and ctx.base_branch != "main":
-        return (f"git push main: nesta rodada a branch base é "
-                f"{ctx.base_branch}; main não é tocada.")
+    return None
+
+
+def _check_config(args: list[str]) -> str | None:
+    """Block git config writes, except the identity in the repository."""
+    blocked = ("git config: o laço só lê a configuração do git (e grava "
+               "user.name e user.email no repositório); configuração pode "
+               "executar código depois, nos comandos do orquestrador.")
+    operands: list[str] = []
+    mode = None            # "read", "write" or "section"
+    outside = False
+    i = 0
+    while i < len(args):
+        a = args[i]
+        name = a.split("=", 1)[0]
+        if name in ("-f", "--file", "--blob"):
+            outside = True     # another file: only the repository's own
+        if a in _CONFIG_VALUE_OPTS:
+            i += 2
+            continue
+        if a.startswith("--") and "=" in a and name in _CONFIG_VALUE_OPTS:
+            pass
+        elif a in ("--global", "--system"):
+            outside = True
+        elif a in _CONFIG_SECTION_FLAGS:
+            mode = "section"
+        elif a in _CONFIG_WRITE_FLAGS:
+            mode = mode or "write"
+        elif a in _CONFIG_READ_FLAGS:
+            mode = mode or "read"
+        elif not a.startswith("-"):
+            operands.append(a)
+        i += 1
+    if mode is None and operands and operands[0] in _CONFIG_SUBCOMMANDS:
+        verb = operands.pop(0)
+        mode = ("read" if verb in _CONFIG_READ_SUBCOMMANDS
+                else "section" if verb in ("rename-section", "remove-section",
+                                           "edit")
+                else "write")
+    if mode is None:
+        mode = "write" if len(operands) >= 2 else "read"
+    if mode == "read":
+        return None
+    if mode == "section" or outside or not operands:
+        return blocked
+    if operands[0].lower() not in CONFIG_WRITABLE:
+        return blocked
     return None
 
 

@@ -42,8 +42,11 @@ def reviewer_prompt(p: ReviewParams) -> str:
     pending = ("\n".join(f"- {d.get('id', '?')}: {d.get('question', '')}"
                          for d in p.pending_decisions)
                or "- none")
-    push = (f"on: push the base branch to `{p.remote}` after merging"
-            if p.push else "off: do not push anything")
+    push = (f"the orchestrator pushes `{p.base_branch}` to `{p.remote}` "
+            "after its own tests and checks, and deletes the merged branches "
+            "from the remote; never push anything yourself"
+            if p.push else
+            "off for this round; never push anything yourself")
     lines = [
         f"Pair loop, round {p.round_no:03d}, cycle {p.cycle} of {p.cycles}.",
         "",
@@ -83,7 +86,7 @@ def reviewer_prompt(p: ReviewParams) -> str:
             f"`{p.report_path}`.",
         ]
     lines += ["", "Follow your definition. Finish by committing on the base "
-              "branch."]
+              "branch; do not push."]
     return "\n".join(lines)
 
 

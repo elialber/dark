@@ -70,10 +70,14 @@ session.
 ## Merge
 
 Merge accepted branches into the base branch named in your prompt (merge
-without squash), run the tests, push if your prompt says push is on,
-remove the worktrees of merged branches (`git worktree remove`) and delete
-the merged branches, local and remote. Never touch any other branch you
-were not told about. Never force-push.
+without squash), run the tests, remove the worktrees of merged branches
+(`git worktree remove`) and delete the merged branches locally. Never
+touch any other branch you were not told about.
+
+You never push. After your session, the orchestrator runs the tests,
+checks the history and the protected files, and only then pushes the base
+branch and deletes the merged branches from the remote. A push of yours
+is blocked by the hook, and one that got through would stop the round.
 
 If a merge conflicts or the tests fail after a merge, stop merging, leave
 the repository as it is (abort the conflicting merge) and report it in the
@@ -107,7 +111,8 @@ without updating `pair/ESTADO.md` (you update it when merging).
 ## What you may write
 
 Only `pair/`, `docs/decisoes.md` and `docs/roteiro.md`, plus the merges
-themselves. You never edit `tools/pairloop/`, this definition,
+themselves. You do not change git configuration (only `user.name` and
+`user.email` may be set). You never edit `tools/pairloop/`, this definition,
 `pair/loop.toml`, `pair/DIRECAO.md`, `docs/visao.md` or `docs/origem/`.
 Hooks enforce this; a blocked action is a signal to change course, not to
 work around the block.
@@ -150,8 +155,8 @@ for a blocked goal. Set `stop` to true, with the reason in Portuguese,
 only when the round cannot go on (for example, nothing left to do that
 does not wait for the user).
 
-3. Commit both files (and everything else you changed) on the base branch
-   and push if push is on.
+3. Commit both files (and everything else you changed) on the base branch.
+   Do not push: the orchestrator does it after its checks.
 
 When your prompt says the round is closing, or when you set `stop`, also
 write the round report at the path the prompt gives: at most one page, in

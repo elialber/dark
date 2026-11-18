@@ -35,7 +35,10 @@ faria.
    anterior, junta as aceitas, atualiza o roteiro e as decisões, escreve
    até quatro lotes e deixa duas saídas em `pair/rodadas/NNN/`: o
    diário de revisão (`revisao-k.md`) e a saída do ciclo (`ciclo-k.json`),
-   que o orquestrador lê.
+   que o orquestrador lê. O revisor não faz push: depois da sessão, o
+   orquestrador roda os testes, confere o histórico e os arquivos
+   protegidos e só então faz o push da `main` e apaga do remoto as
+   branches juntadas.
 2. **Execução (ciclo k).** Para cada lote, o orquestrador cria o worktree
    `../<repositório>-<branch>` e abre uma sessão de executor nele, em
    paralelo, até o limite. Cada executor escreve
@@ -46,9 +49,13 @@ faria.
 Depois de cada sessão o orquestrador confere por conta própria, no git:
 se o revisor só commitou em `pair/`, `docs/decisoes.md` e
 `docs/roteiro.md`; se nenhum arquivo protegido mudou; se a `main` não
-mudou durante a execução; se cada executor deixou o diário; se há
-caminho pessoal nas linhas novas; e roda os testes depois de cada
-junção.
+mudou durante a execução, nem a do remoto durante a revisão; se cada
+executor deixou o diário; se há caminho pessoal nas linhas novas; e roda
+os testes depois de cada junção. Confere também o conteúdo dos arquivos
+protegidos na árvore de trabalho, comparado com o de antes da sessão,
+para pegar a escrita que não passou pelo git. O push só acontece se tudo
+isso passou; depois de uma parada por problema, a rodada não faz mais
+push.
 
 ## O que cada papel pode fazer
 
@@ -58,18 +65,28 @@ junção.
 | Onde trabalha | raiz do repositório | raiz, na `main` | o próprio worktree |
 | Escreve | estado em `local/pairloop/` e o relatório de reserva | `pair/`, `docs/decisoes.md`, `docs/roteiro.md` | tudo do próprio worktree que o lote permitir |
 | Merge na `main` | não | sim, só ele | nunca |
-| Push | não | `main` e remoção de branches juntadas | só a própria branch |
+| Push | `main` e remoção de branches juntadas, depois das conferências | nunca | só a própria branch |
 | Decide | quando parar | vereditos, decisões fora da lista abaixo, próximos lotes | o que o lote deixa em aberto, registrado como "padrão a confirmar" |
 
 Nenhum agente faz push forçado, push para outro remoto, apaga a `main`,
 escreve fora do repositório, dos worktrees e do próprio rascunho
-(`$PAIRLOOP_SCRATCH`), nem edita `tools/pairloop/`,
+(`$PAIRLOOP_SCRATCH`), altera a configuração do git (fora `user.name` e
+`user.email` do repositório), nem edita `tools/pairloop/`,
 `.claude/agents/pair-reviewer.md`, `pair/loop.toml`, `pair/DIRECAO.md`,
-`docs/visao.md` ou `docs/origem/`. Isso é garantido por código, em duas
-camadas: o hook `tools/pairloop/guard.py`, que o orquestrador instala em
-toda sessão por `--settings` e que bloqueia a ação antes de ela rodar; e
-as conferências do orquestrador no histórico git depois de cada sessão,
-que pegam o que um comando de shell conseguiu esconder do hook.
+`docs/visao.md` ou `docs/origem/`. Configuração do git fica de fora
+porque executa código depois, inclusive nos comandos do próprio
+orquestrador (`core.hooksPath`, `core.fsmonitor`, `core.sshCommand`,
+`alias.*`). Isso é garantido por código, em três camadas: o hook
+`tools/pairloop/guard.py`, que o orquestrador instala em toda sessão por
+`--settings` e que bloqueia a ação antes de ela rodar; as conferências do
+orquestrador no histórico git depois de cada sessão, que pegam o que um
+comando de shell conseguiu esconder do hook; e a conferência do conteúdo
+dos arquivos protegidos na árvore de trabalho, que pega a escrita feita
+por um programa do agente sem passar pelo git.
+
+O que nenhuma camada pega: um programa escrito por um agente pode gravar
+fora do repositório. Fechar isso exige um ambiente isolado, fora do
+escopo atual (risco aceito em `docs/decisoes.md`).
 
 O revisor não decide, e leva ao relatório como decisão sua: mudança de
 escopo (contrariar `docs/visao.md` ou reabrir o que ficou de fora),
@@ -113,7 +130,7 @@ Edite `pair/loop.toml`:
   tokens e tempo de sessão da rodada;
 - `[session.reviewer]` e `[session.executor]`: turnos e minutos por
   sessão; `[session] model`, o modelo (vazio: o padrão do Claude Code);
-- `[git]`: branch base, remoto e se há push;
+- `[git]`: branch base, remoto e se o orquestrador faz push;
 - `[checks] test_command`: os testes que o orquestrador roda depois das
   junções;
 - `[claude]`: comando, diretório de configuração, modo de permissão,

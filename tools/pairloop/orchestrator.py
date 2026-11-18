@@ -5,6 +5,10 @@ sessions through an injected runner, applies the limits, checks what each
 session left in git and decides when the round stops. It never discards
 work: on any stop, branches and worktrees stay as they are.
 
+Only the orchestrator pushes the base branch, after the tests, the checks
+on git history and the check of the protected files by content. Sessions
+never push it.
+
 A round is a sequence of phases kept in a state file, so an interrupted
 round can be resumed or closed with a report:
 
@@ -14,6 +18,7 @@ round can be resumed or closed with a report:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -61,8 +66,14 @@ STOP_LABELS = {
     "reviewer_stop": "o revisor parou a rodada",
     "no_batches": "não há lote executável (o resto espera o usuário)",
     "user_closed": "rodada encerrada pelo usuário",
+    "push_failed": "o push da branch base falhou",
 }
 LIMIT_STOPS = {"token_limit", "time_limit"}
+# Stops that mean something went wrong: after one of them, the orchestrator
+# pushes nothing more in the round.
+PROBLEM_STOPS = {"tests_failed", "merge_conflict", "session_limit",
+                 "session_error", "missing_diary", "invalid_review",
+                 "privacy", "guard_violation", "push_failed"}
 
 VERDICTS = {"accepted", "accepted_with_fixes", "rejected"}
 _BRANCH_RE = re.compile(r"^[A-Za-z0-9._][A-Za-z0-9._/-]*$")
@@ -214,6 +225,53 @@ def default_privacy_patterns() -> list[str]:
     return [home] if home not in ("/", "") else []
 
 
+# --- protected files checked by content --------------------------------------
+
+def _fingerprint(path: Path) -> str:
+    if path.is_symlink():
+        return "link:" + os.readlink(path)
+    if path.is_dir():
+        return "dir"
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        return f"unreadable:{exc.__class__.__name__}"
+
+
+def protected_snapshot(root: Path) -> dict[str, str]:
+    """Content of the protected files in the working tree, by relative path.
+
+    Covers files that git does not track (a new file under a protected
+    directory counts). Python bytecode caches are left out: running the
+    tests writes them.
+    """
+    out: dict[str, str] = {}
+    for pattern in guard.LOOP_FILES + guard.USER_FILES:
+        rel = pattern.rstrip("/")
+        base = root / rel
+        if pattern.endswith("/") and base.is_dir() and not base.is_symlink():
+            for dirpath, dirnames, filenames in os.walk(base):
+                here = Path(dirpath)
+                for d in list(dirnames):
+                    if (here / d).is_symlink():
+                        out[(here / d).relative_to(root).as_posix()] = \
+                            _fingerprint(here / d)
+                dirnames[:] = sorted(d for d in dirnames
+                                     if d != "__pycache__"
+                                     and not (here / d).is_symlink())
+                for name in filenames:
+                    f = here / name
+                    out[f.relative_to(root).as_posix()] = _fingerprint(f)
+        elif base.exists() or base.is_symlink():
+            out[rel] = _fingerprint(base)
+    return out
+
+
+def snapshot_changes(before: dict[str, str], after: dict[str, str]) -> list[str]:
+    return sorted(k for k in set(before) | set(after)
+                  if before.get(k) != after.get(k))
+
+
 # --- orchestrator ------------------------------------------------------------
 
 @dataclass
@@ -242,6 +300,7 @@ class Orchestrator:
         self.clock = clock
         self.out = out
         self.state: dict | None = None
+        self._phase_failed = False
 
     # ---- public commands ----
 
@@ -313,6 +372,8 @@ class Orchestrator:
                        f"{st['elapsed_seconds'] / 60:.0f} minutos")
 
     def _stop(self, code: str, detail: str) -> None:
+        if code in PROBLEM_STOPS:
+            self._phase_failed = True
         if self.state["stop"]:
             return
         self.state["stop"] = {"code": code, "detail": detail,
@@ -406,8 +467,11 @@ class Orchestrator:
         tag = "fechamento" if closing else f"ciclo-{cycle}"
         output = f"{self._round_dir()}/{tag}.json"
         diary = f"{self._round_dir()}/revisao-{tag.removeprefix('ciclo-')}.md"
+        self._phase_failed = False
         if st["phase_base"] is None:
             st["phase_base"] = self.git.rev(base)
+            st["phase_remote_base"] = self.git.remote_rev(self.cfg.remote, base)
+            st["phase_protected"] = protected_snapshot(self.repo)
             self._save()
         before = st["phase_base"]
 
@@ -454,6 +518,9 @@ class Orchestrator:
             elif result.status == ERROR:
                 self._stop("session_error", f"revisor, {tag}")
 
+        problem = self._check_protected_content()
+        if problem:
+            self._stop(*problem)
         problem = self._check_reviewer_history(before)
         if problem:
             self._stop(*problem)
@@ -485,7 +552,13 @@ class Orchestrator:
         if data is not None:
             self._apply_review(data, closing)
 
+        earlier = (st["stop"] or {}).get("code") in PROBLEM_STOPS
+        if self.cfg.push and not self._phase_failed and not earlier:
+            self._push_base(data.get("merged", []) if data else [])
+
         st["phase_base"] = None
+        st["phase_remote_base"] = None
+        st["phase_protected"] = None
         if closing:
             self._after_close()
         elif st["stop"]:
@@ -527,6 +600,12 @@ class Orchestrator:
                         f"commit {commit[:8]} do revisor fora de pair/ e "
                         "docs/decisoes.md, docs/roteiro.md: "
                         + ", ".join(bad[:5]))
+        remote_now = self.git.remote_rev(self.cfg.remote, base)
+        if remote_now != self.state.get("phase_remote_base") and \
+                remote_now != self.state.get("pushed_rev"):
+            return ("guard_violation",
+                    f"{self.cfg.remote}/{base} mudou durante a revisão; o "
+                    "revisor não faz push")
         hits = privacy_hits(self.git.added_lines(before, after), self.privacy)
         if hits:
             return ("privacy", f"caminho pessoal em {base}")
@@ -536,6 +615,45 @@ class Orchestrator:
             return ("guard_violation", "main mudou durante uma rodada de "
                     f"base {base}")
         return None
+
+    def _check_protected_content(self) -> tuple[str, str] | None:
+        """Protected files must have the same content as before the phase.
+
+        Catches writes the hook cannot see (a program written by the agent),
+        in the working tree and not only in the history.
+        """
+        before = self.state.get("phase_protected")
+        if before is None:
+            return None
+        changed = snapshot_changes(before, protected_snapshot(self.repo))
+        if not changed:
+            return None
+        return ("guard_violation",
+                "arquivos protegidos mudaram na árvore de trabalho, fora do "
+                "git: " + ", ".join(changed[:5]))
+
+    def _push_base(self, merged: list[str]) -> None:
+        """Push the base branch and delete merged branches from the remote."""
+        base, remote = self.cfg.base_branch, self.cfg.remote
+        local = self.git.rev(base)
+        if not local or local == self.git.remote_rev(remote, base):
+            return
+        self.state["pushed_rev"] = local
+        self._save()
+        try:
+            self.git.run("push", remote, f"refs/heads/{base}:refs/heads/{base}")
+        except GitError as exc:
+            self._stop("push_failed", str(exc)[:300])
+            return
+        self.out(f"Push de {base} para {remote}.")
+        for branch in merged:
+            if branch in (base, "main") or not self.git.remote_rev(remote, branch):
+                continue
+            try:
+                self.git.run("push", remote, "--delete", branch)
+            except GitError as exc:
+                self._note(f"branch {branch} não foi apagada de {remote}: "
+                           f"{str(exc)[:200]}")
 
     def _tests_pass(self) -> bool:
         try:
@@ -604,10 +722,12 @@ class Orchestrator:
         st = self.state
         cycle = st["cycle"]
         base = self.cfg.base_branch
+        self._phase_failed = False
         if st["phase_base"] is None:
             st["phase_base"] = self.git.rev(base)
             st["phase_remote_base"] = (self.git.remote_rev(self.cfg.remote, base)
                                        if self.cfg.push else None)
+            st["phase_protected"] = protected_snapshot(self.repo)
             self._save()
         before = st["phase_base"]
         todo = [b for b in st["batches"].get(str(cycle), [])
@@ -671,6 +791,9 @@ class Orchestrator:
             if problem:
                 b["status"] = "failed"
                 self._stop(*problem)
+        problem = self._check_protected_content()
+        if problem:
+            self._stop(*problem)
         if self.git.rev(base) != before:
             self._stop("guard_violation",
                        f"{base} mudou durante a fase dos executores")
@@ -682,6 +805,7 @@ class Orchestrator:
 
         st["phase_base"] = None
         st["phase_remote_base"] = None
+        st["phase_protected"] = None
         if st["stop"]:
             st["phase"] = CLOSE
         elif cycle >= st["cycles"]:
@@ -768,4 +892,4 @@ def hook_settings_file(directory: Path) -> Path:
 
 
 __all__ = ["Orchestrator", "StateStore", "STOP_LABELS", "hook_settings_file",
-           "validate_review", "GitError"]
+           "validate_review", "protected_snapshot", "GitError"]

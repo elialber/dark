@@ -576,7 +576,8 @@ def test_reviewer_deleting_protected_file_outside_git_stops_round(repo):
     fake = FakeSessions(repo)
 
     def sneak(info):
-        info["after_commit"] = lambda: (info["cwd"] / "pair/loop.toml").unlink()
+        info["after_commit"] = lambda: (info["cwd"] / "pair/loop.toml").unlink(
+            missing_ok=True)
     fake.on_review = sneak
     st = orchestrator(repo, fake).start()
     assert st["stop"]["code"] == "guard_violation"
@@ -925,6 +926,8 @@ def test_guard_reviewer_never_pushes(roots, base, cmd):
     "git config -e",
     "git config --global user.name x",
     "git config --system user.email x",
+    "git config --file /tmp/x user.name y",
+    "git config --file=/tmp/x user.name y",
     "bash -c 'git config core.hooksPath x'",
 ])
 def test_guard_blocks_git_config_that_runs_code(roots, role, cmd):
