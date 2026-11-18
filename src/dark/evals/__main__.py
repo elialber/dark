@@ -9,6 +9,10 @@
 
 `validar` runs the acceptance command: use it only on your own repositories.
 
+Exit code 2 means bad input (a case or records file that is missing,
+unreadable or malformed, or an output that cannot be written); every such
+error is a message naming the file, never a traceback.
+
 `calibrar` and `rodar` run the agent. Authentication comes from the
 environment (CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY); without it the
 command stops as blocked (exit code 3). The credential is read once,
@@ -33,6 +37,7 @@ from dark import console
 from . import case as m_case
 from . import mining, rounds, run_record, runner, validation
 
+EXIT_INPUT = 2
 EXIT_BLOCKED = 3
 
 
@@ -74,7 +79,12 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(run_record.RECORD_SCHEMA, ensure_ascii=False, indent=2))
         return 0
     if a.action == "resumir":
-        print(rounds.describe_summary(rounds.summarize(rounds.load_records(a.records))))
+        try:
+            records = rounds.load_records(a.records)
+        except rounds.RecordsFileError as e:
+            print(e)
+            return EXIT_INPUT
+        print(rounds.describe_summary(rounds.summarize(records)))
         return 0
     return _run(a, runs=1 if a.action == "calibrar" else a.runs)
 
@@ -88,30 +98,53 @@ def _mine(a) -> int:
         print(f"- {c.solution_commit[:7]} {KIND_LABELS[c.kind]:<16} base {c.base_commit[:7]}  "
               f"{pair}{len(c.test_files)} arquivo(s) de teste  | {c.subject}")
     if a.save:
-        a.save.mkdir(parents=True, exist_ok=True)
-        for c in cands:
-            r = c.draft(command=a.command)
-            destination = a.save / f"{r.id}.toml"
-            if destination.exists():
-                print(f"  {destination}: já existe, mantido")
-                continue
-            destination.write_text(m_case.to_toml(r), encoding="utf-8")
-            print(f"  {destination}: gravado")
+        try:
+            a.save.mkdir(parents=True, exist_ok=True)
+            for c in cands:
+                r = c.draft(command=a.command)
+                destination = a.save / f"{r.id}.toml"
+                if destination.exists():
+                    print(f"  {destination}: já existe, mantido")
+                    continue
+                destination.write_text(m_case.to_toml(r), encoding="utf-8")
+                print(f"  {destination}: gravado")
+        except OSError as e:
+            where = e.filename or a.save
+            print(f"não foi possível gravar em {where}: {e.strerror or e}")
+            return EXIT_INPUT
     return 0
+
+
+def _load_case(path: Path) -> tuple[m_case.Case | None, str]:
+    """The case, or None and a message naming the file."""
+    try:
+        return m_case.load(path), ""
+    except m_case.CaseFormatError as e:
+        # load() prefixes the path; keep the inner message so it is not repeated.
+        inner = e.__cause__ if isinstance(e.__cause__, m_case.CaseFormatError) else e
+        return None, f"{path}: formato inválido: {inner}"
+    except FileNotFoundError:
+        return None, f"{path}: arquivo não encontrado"
+    except UnicodeDecodeError:
+        return None, f"{path}: formato inválido: não está em UTF-8"
+    except OSError as e:
+        return None, f"{path}: não foi possível ler ({e.strerror or e})"
 
 
 def _validate(a) -> int:
     all_valid = True
+    unreadable = False
     for fpath in a.cases:
-        try:
-            c = m_case.load(fpath)
-        except m_case.CaseFormatError as e:
-            print(f"{fpath}: formato inválido: {e}")
-            all_valid = False
+        c, error = _load_case(fpath)
+        if c is None:
+            print(error)
+            unreadable = True
             continue
         r = validation.validate(c, a.repo, workdir=a.workdir)
         print(validation.describe(r))
         all_valid &= r.valid
+    if unreadable:
+        return EXIT_INPUT
     return 0 if all_valid else 1
 
 
@@ -146,14 +179,13 @@ def _run(a, runs: int) -> int:
             return 2
     cases = []
     for path in a.cases:
-        try:
-            c = m_case.load(path)
-        except m_case.CaseFormatError as e:
-            print(f"{path}: formato inválido: {e}")
-            return 2
+        c, error = _load_case(path)
+        if c is None:
+            print(error)
+            return EXIT_INPUT
         if not c.prompt.strip():
             print(f"{path}: caso sem pedido")
-            return 2
+            return EXIT_INPUT
         cases.append(c)
 
     try:
