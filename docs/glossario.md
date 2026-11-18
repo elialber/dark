@@ -169,6 +169,23 @@ requisição à API nos registros (`api-request`).
 | ligação com o Claude Code | wiring | as três entradas do `.claude/settings.json` |
 | gancho (do plugin) | hook | o `langfuse_hook.py` do plugin oficial |
 
+### Acrescentados no goal 047 (módulo `graphify`)
+
+| Português | Inglês | Observação |
+|---|---|---|
+| Na máquina (o módulo não instala nada) | notes | primeira linha de `NOTES` do `graphify`: o cabeçalho dos passos fora do repositório |
+| skill oficial, copiada sem alteração | skill files | `SKILL_FILES`, os textos da versão fixada, chaveados pelo caminho dentro de `.claude/skills/graphify/` |
+| marcador de versão | version marker | `.graphify_version`, gravado com `VERSION` |
+| origem (da skill copiada) | origin | `ORIGIN`, o texto do `ORIGEM.md` |
+| hooks oficiais | hooks | `HOOKS`, por evento (`PreToolUse`, `SessionStart`); os nomes dos eventos e o `hook-guard` aparecem como estão |
+| executável | executable | `EXECUTABLE` (`graphify`), procurado no `PATH` sem ser executado |
+| comando de instalação | install command | `INSTALL_COMMAND`; o pacote é `PACKAGE` (`graphifyy`) |
+| linha do grafo no `.gitignore` | output line | `OUTPUT_LINE` (`graphify-out/`) |
+| ausente, ilegível | missing, unreadable | motivos de `dark verificar graphify`, por arquivo |
+| alterado depois da aplicação | changed after applying | arquivo do módulo cujo conteúdo não é mais o aplicado |
+| hook ausente | missing hook | `hooks.<evento>` sem a entrada do módulo no `.claude/settings.json` |
+| o módulo não foi aplicado | not applied | `dark verificar` antes de qualquer `--aplicar` |
+
 ## Valores internos e texto impresso
 
 Os valores internos (tipos de intervenção, desfechos de hook, origens,

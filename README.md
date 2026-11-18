@@ -168,7 +168,7 @@ Códigos de saída:
 | Comando | 0 | 1 | 2 |
 |---|---|---|---|
 | `dark iniciar`, `dark adicionar` | plano mostrado ou aplicado | conflito com um arquivo existente (nada é aplicado) ou erro ao gravar (o que foi gravado é desfeito) | módulo desconhecido, caminho que não é a raiz de um repositório git, manifesto ilegível |
-| `dark verificar` | `ok` | o módulo não está aplicado ou falta algo dele (um arquivo; no `langfuse`, também variáveis) | módulo desconhecido, caminho que não é a raiz |
+| `dark verificar` | `ok` | o módulo não está aplicado ou falta algo dele (um arquivo; no `langfuse`, também variáveis; no `graphify`, também o executável no `PATH`) | módulo desconhecido, caminho que não é a raiz |
 | `dark remover` | tudo desfeito (ou nada a desfazer) | remoção parcial: algo alterado depois ficou | módulo desconhecido, caminho que não é a raiz |
 
 ### Módulo `langfuse`
@@ -245,6 +245,87 @@ próximo commit, para os segredos não entrarem nele.
 >
 > O gancho do plugin grava estado e log em `~/.claude/state/`, ou na
 > pasta de `CC_LANGFUSE_STATE_DIR`, se a variável existir.
+
+### Módulo `graphify`
+
+Opcional. Liga o Claude Code ao Graphify (edição open source, licença
+Apache-2.0), que monta um grafo do repositório para o agente consultar
+antes de explorar arquivo por arquivo. A versão fixada é a 0.9.112, do
+pacote [`graphifyy`](https://pypi.org/project/graphifyy/) (com dois "y")
+no PyPI; o endereço do repositório de origem fica no `ORIGEM.md` que o
+módulo cria. O indicador do módulo é `cost_per_task`.
+
+```bash
+dark adicionar graphify            # mostra o plano e os passos seguintes
+dark adicionar graphify --aplicar  # cria
+```
+
+O que ele cria, o equivalente no projeto de `graphify claude install
+--project` dessa versão, sem o que essa instalação escreve no
+`CLAUDE.md` e no `.claude/CLAUDE.md`:
+
+- `.claude/skills/graphify/`: a skill oficial do Graphify, copiada **sem
+  alteração** da versão fixada (`.claude/skills/graphify/SKILL.md` e os
+  arquivos de `.claude/skills/graphify/references/`), com
+  `.claude/skills/graphify/LICENSE` e `.claude/skills/graphify/NOTICE`
+  da mesma versão (a licença os exige junto da cópia),
+  `.claude/skills/graphify/ORIGEM.md` (de onde a cópia veio: projeto,
+  pacote, versão e licença) e `.claude/skills/graphify/.graphify_version`,
+  o marcador que a instalação oficial grava e que o Graphify lê para
+  avisar quando skill e programa têm versões diferentes;
+- os hooks oficiais no `.claude/settings.json` do projeto: dois em
+  `PreToolUse` (antes de `Bash` e `Grep`, e antes de `Read` e `Glob`) e
+  um em `SessionStart` (depois de uma compactação), todos chamando o
+  executável `graphify`;
+- a linha `graphify-out/` no `.gitignore`: é onde o Graphify grava o
+  grafo.
+
+O módulo **não** instala o Graphify, **não** gera o grafo e **não**
+escreve no `CLAUDE.md`: a instalação oficial acrescenta lá regras de uso,
+e regras aqui nascem de falhas observadas (veja
+[docs/metodo.md](docs/metodo.md)). Sem elas, o agente chega ao grafo pela
+descrição da skill e pelos lembretes dos hooks.
+
+Depois de aplicar (os mesmos passos que o comando imprime):
+
+1. Instale o Graphify na máquina, com a versão fixa:
+
+   ```bash
+   uv tool install "graphifyy==0.9.112"
+   ```
+
+   ou `pipx install "graphifyy==0.9.112"`, ou
+   `python -m pip install "graphifyy==0.9.112"`. O `dark` não instala
+   nada.
+2. Gere o grafo pela primeira vez, na raiz do repositório:
+
+   ```bash
+   graphify extract . --code-only
+   ```
+
+   Esse comando lê só o código, localmente, sem chave de API. Numa
+   sessão do Claude Code, `/graphify .` gera o grafo completo; para
+   documentos, artigos e imagens, a skill copiada usa o modelo da própria
+   sessão (o que gasta tokens) ou o Gemini, se `GEMINI_API_KEY` ou
+   `GOOGLE_API_KEY` estiver no ambiente.
+3. Confira com `dark verificar graphify`.
+
+`dark verificar graphify` só lê e nunca executa o `graphify`. Confere que
+os arquivos da skill estão como foram aplicados, que os três hooks estão
+no `.claude/settings.json`, que a linha `graphify-out/` está no
+`.gitignore` e que o executável `graphify` está no `PATH`. O que faltar
+sai no motivo, um por linha, por exemplo:
+
+```
+o executável graphify não está no PATH (instale: uv tool install "graphifyy==0.9.112")
+```
+
+`dark remover graphify` desfaz o que o manifesto registra para o módulo;
+o que você acrescentou ao `.claude/settings.json` fica.
+
+O ganho do Graphify ainda não foi medido: o módulo tem de provar que
+reduz custo e passos de exploração, com e sem ele, e a medição depende
+dos evals com credencial.
 
 ## Recomendações
 
