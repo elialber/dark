@@ -236,6 +236,7 @@ class Changes:
     inventory: InventoryChange | None = None
     inventory_note: str | None = None
     evals: tuple[EvalRun, ...] = ()      # every eval run in the store (goal 038)
+    session_model: str | None = None     # model of the latest session in the store (goal 039)
 
 
 @dataclass

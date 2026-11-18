@@ -215,6 +215,7 @@ class SessionRecord(Record):
     local_command_only: bool = declared("flag", default=False)
     parts: tuple[PartUsage, ...] = declared("records", default=(), item=PartUsage)
     commit_links: tuple[CommitLink, ...] = declared("records", default=(), item=CommitLink)
+    model: str | None = declared("name", default=None, optional=True)   # goal 039: name only
 
     def _check(self) -> None:
         where = f"SessionRecord {self.session_id}"

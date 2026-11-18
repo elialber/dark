@@ -310,10 +310,11 @@ def eval_runs(store: AggregateStore) -> tuple[EvalRun, ...]:
 def changes(store: AggregateStore, root: str | None) -> Changes:
     """The latest ISO week with data against the one before it, from the store.
 
-    Also carries the eval runs, which the recommendation rules read.
+    Also carries the eval runs and the latest session model, which the rules read.
     """
     from dataclasses import replace
-    return replace(_changes(store, root), evals=eval_runs(store))
+    return replace(_changes(store, root), evals=eval_runs(store),
+                   session_model=store.latest_session_model())
 
 
 def _changes(store: AggregateStore, root: str | None) -> Changes:

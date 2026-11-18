@@ -34,7 +34,7 @@ _SESSION_SCALARS = (
     "claude_code_version", "requests", "fixed_weight", "fixed_platform", "fixed_harness",
     "fixed_request", "fixed_unexplained", "chars_per_token", "interruptions", "rejections",
     "rejections_with_comment", "rejections_without_comment", "mid_turn_messages",
-    "unknown_record_types", "unknown_fields", "is_fork", "local_command_only")
+    "unknown_record_types", "unknown_fields", "is_fork", "local_command_only", "model")
 _SESSION_COLUMNS = (
     ("session_id", "repository_id", "started_at", "ended_at")
     + _SESSION_SCALARS[:2]
@@ -239,6 +239,12 @@ class AggregateStore:
         """Every session in the store, with or without a repository."""
         return [r[0] for r in self._query(
             "SELECT session_id FROM sessions ORDER BY started_at, session_id")]
+
+    def latest_session_model(self) -> str | None:
+        """Model of the most recent session (by start) that has one, in any repository."""
+        rows = self._query("SELECT model FROM sessions WHERE model IS NOT NULL "
+                           "ORDER BY started_at DESC, session_id DESC LIMIT 1")
+        return rows[0][0] if rows else None
 
     def read_session(self, session_id: str) -> SessionRecord | None:
         columns = ("id",) + _SESSION_COLUMNS

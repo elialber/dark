@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from .kinds import KINDS, check_sql, SQL
 from .records import EVAL_CONDITIONS, EVAL_END_REASONS, LINK_KINDS, PART_KINDS
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 APPLICATION_ID = 0x6461726B          # "dark", in the SQLite file header
 
 
@@ -86,6 +86,7 @@ TABLES: dict[str, Table] = {
         "unknown_fields": _COUNT,
         "is_fork": _c("flag"),
         "local_command_only": _c("flag"),
+        "model": _c("name", nullable=True),     # last, so that the migration can append it
     }),
     "session_permission_modes": Table({
         "session_ref": _SESSION,
@@ -215,4 +216,10 @@ def _v1_to_v2(con: sqlite3.Connection) -> None:
     con.execute(table_ddl("eval_runs"))
 
 
-MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2}
+def _v2_to_v3(con: sqlite3.Connection) -> None:
+    """Adds `sessions.model`, null for the sessions already stored."""
+    con.execute("ALTER TABLE sessions ADD COLUMN "
+                + _column_sql("model", TABLES["sessions"].columns["model"]))
+
+
+MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2, 2: _v2_to_v3}

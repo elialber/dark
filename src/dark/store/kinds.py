@@ -26,6 +26,8 @@ _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
 UTC = timezone.utc
 
+INT_MIN, INT_MAX = -(2**63), 2**63 - 1      # what an SQLite INTEGER holds
+
 # kind -> (SQL type, CHECK template). `{c}` is the column name.
 SQL = {
     "key": ("INTEGER", "typeof({c}) = 'integer'"),
@@ -69,10 +71,14 @@ def validate(kind: str, value: object, where: str, choices: tuple[str, ...] = ()
             raise _fail(where, f"expected an integer count, got {value!r}")
         if kind == "count" and value < 0:
             raise _fail(where, f"negative count {value}")
+        if not INT_MIN <= value <= INT_MAX:
+            raise _fail(where, f"integer outside the 64-bit range of the database: {value}")
         return value
     if kind in ("amount", "signed_amount"):
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise _fail(where, f"expected a number, got {value!r}")
+        if isinstance(value, int) and not INT_MIN <= value <= INT_MAX:
+            raise _fail(where, f"number outside the range of the database: {value}")
         if not math.isfinite(value):
             raise _fail(where, f"not a finite number: {value!r}")
         if kind == "amount" and value < 0:
