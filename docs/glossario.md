@@ -147,6 +147,28 @@ requisição à API nos registros (`api-request`).
 | ligação registrada | recorded link | forma `hash` da ligação, no banco |
 | todos (`--todos` de `dark coletar`) | all | todas as sessões, de qualquer repositório |
 
+### Acrescentados no goal 046 (scaffold e módulo `langfuse`)
+
+| Português | Inglês | Observação |
+|---|---|---|
+| módulo | module | `dark.scaffold.module.Module`; o nome do módulo é o mesmo nas duas línguas (`base`, `langfuse`) |
+| plano, operação | plan, operation | `Plan`; `CreateFile`, `AppendLine`, `JsonEntry` |
+| manifesto | manifest | `.dark-scaffold.json` |
+| indicador (do módulo) | indicator | código do indicador, impresso como está (`adherence`, `cost_per_task`) |
+| motivo (de cada caminho do plano) | reason | `Module.reasons` |
+| depois de aplicar (passos impressos) | notes | `Module.notes`; o cabeçalho impresso é "Depois de aplicar:" |
+| criar (aplicado, com `--aplicar`), já aplicado, já presente, conflito | new, already_applied, already_present, conflict | situação de cada operação no plano (`dark adicionar`) |
+| revertido, mantido | reverted, kept | situação de cada operação em `dark remover` |
+| conferência (`dark verificar`) | check, verify | `Check(ok, detail)`; `detail` é o motivo impresso |
+| aplicado, não aplicado (`--listar`) | applied, not applied | |
+| segredos do compose | compose secrets | `COMPOSE_SECRETS`, as sete variáveis do `.dark/langfuse/.env` |
+| chaves da integração | integration vars | `INTEGRATION_VARS`, as duas chaves de API do plugin |
+| exemplo do `.env` (`env.exemplo`) | env example | `ENV_EXAMPLE`, `ENV_EXAMPLE_PATH` |
+| variáveis ausentes | missing | motivo de `dark verificar langfuse` |
+| diferente do aplicado | not the same as applied | arquivo do módulo alterado depois |
+| ligação com o Claude Code | wiring | as três entradas do `.claude/settings.json` |
+| gancho (do plugin) | hook | o `langfuse_hook.py` do plugin oficial |
+
 ## Valores internos e texto impresso
 
 Os valores internos (tipos de intervenção, desfechos de hook, origens,

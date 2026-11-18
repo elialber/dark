@@ -432,8 +432,8 @@ como montar; aqui está só o ponto de partida.
 | Verificação | a suíte de testes e o CI que você já tem | subagente revisor; saída estruturada com validação quando o resultado é um dado |
 | Observabilidade e evals | Langfuse e um conjunto de evals | LangSmith (LangChain); Braintrust (evals como trava de CI); Arize Phoenix (RAG); Datadog LLM Observability |
 
-Dois dos módulos de terceiros previstos pelo projeto, Langfuse e Graphify,
-são opcionais e ainda não estão no `dark`: o comando que os aplicaria,
-`dark adicionar`, existe, mas por enquanto só o módulo `base` vem
-registrado. Os temas custo e latência, gestão da janela e
+Dois módulos de terceiros previstos pelo projeto são opcionais. O
+Langfuse já é um módulo do `dark`: `dark adicionar langfuse` prepara a
+instância local e o plugin (detalhes no README, seção "Preparar o
+repositório"). O Graphify ainda não está na `main`. Os temas custo e latência, gestão da janela e
 guardrails de ação estão no guia, sem tabela de ferramentas.

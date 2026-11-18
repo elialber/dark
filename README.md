@@ -153,8 +153,8 @@ raiz.
 `dark adicionar <módulo> [<caminho>]` faz o mesmo para qualquer módulo
 registrado (`dark iniciar` é `dark adicionar base`), também com
 `--aplicar`. `dark adicionar --listar [<caminho>]` lista os módulos, com
-versão, indicador e se estão aplicados no repositório. Por enquanto só o
-`base` vem registrado.
+versão, indicador e se estão aplicados no repositório; é por ele que você
+sabe quais módulos estão registrados na versão instalada.
 
 `dark verificar <módulo> [<caminho>]` só lê e imprime `ok` ou o motivo
 (por exemplo, um arquivo do módulo que sumiu).
@@ -168,8 +168,83 @@ Códigos de saída:
 | Comando | 0 | 1 | 2 |
 |---|---|---|---|
 | `dark iniciar`, `dark adicionar` | plano mostrado ou aplicado | conflito com um arquivo existente (nada é aplicado) ou erro ao gravar (o que foi gravado é desfeito) | módulo desconhecido, caminho que não é a raiz de um repositório git, manifesto ilegível |
-| `dark verificar` | `ok` | o módulo não está aplicado ou falta um arquivo dele | módulo desconhecido, caminho que não é a raiz |
+| `dark verificar` | `ok` | o módulo não está aplicado ou falta algo dele (um arquivo; no `langfuse`, também variáveis) | módulo desconhecido, caminho que não é a raiz |
 | `dark remover` | tudo desfeito (ou nada a desfazer) | remoção parcial: algo alterado depois ficou | módulo desconhecido, caminho que não é a raiz |
+
+### Módulo `langfuse`
+
+Opcional. Liga o Claude Code a uma instância do
+[Langfuse](https://langfuse.com) que roda na sua máquina, para ver os
+rastros de cada sessão (turnos, chamadas de ferramenta, tokens e custo).
+O indicador do módulo é `cost_per_task`.
+
+```bash
+dark adicionar langfuse            # mostra o plano e os passos seguintes
+dark adicionar langfuse --aplicar  # cria
+```
+
+O que ele cria:
+
+- `.dark/langfuse/docker-compose.yml`: o compose oficial do Langfuse
+  4.82.0 (edição community, licença MIT), com toda imagem em etiqueta
+  exata e toda senha e segredo exigidos do `.dark/langfuse/.env`, sem
+  valor padrão;
+- `.dark/langfuse/env.exemplo`: os nomes das sete variáveis do `.env`,
+  sem valor, cada uma com o comando que a gera;
+- a linha `.dark/langfuse/.env` no `.gitignore`, para os segredos
+  ficarem fora do git;
+- três entradas no `.claude/settings.json` do projeto: a marketplace do
+  plugin oficial `langfuse-observability@langfuse-observability`,
+  fixada na etiqueta `v1.2.2` (`extraKnownMarketplaces`), o plugin ligado
+  (`enabledPlugins`) e o endereço da instância local
+  (`env.LANGFUSE_BASE_URL`). As chaves de API **não** vão para esse
+  arquivo, que é versionado.
+
+Depois de aplicar (os mesmos passos que o comando imprime):
+
+1. Crie o `.env` da instância e preencha cada valor:
+
+   ```bash
+   cp .dark/langfuse/env.exemplo .dark/langfuse/.env
+   ```
+
+2. Suba a instância (precisa de Docker; o `dark` não sobe nada):
+
+   ```bash
+   docker compose -f .dark/langfuse/docker-compose.yml --env-file .dark/langfuse/.env up -d
+   ```
+
+   A interface fica em `http://localhost:3000`; crie lá um projeto e as
+   chaves de API.
+3. Ponha as chaves, `LANGFUSE_PUBLIC_KEY` e `LANGFUSE_SECRET_KEY`, no
+   ambiente de onde o Claude Code é aberto, ou use `/plugin configure`
+   no Claude Code (a secreta fica no chaveiro do sistema).
+4. O gancho do plugin roda com `uv` no `PATH`; sem `uv`, com `python3`
+   3.10 ou mais novo e `pip install "langfuse==4.18.0"`. O `dark` não
+   instala nenhum dos dois.
+
+`dark verificar langfuse` só lê, sem rede e sem Docker, e nunca mostra
+um valor. Confere que o compose e o `env.exemplo` estão como foram
+aplicados, que a linha do `.gitignore` e as três entradas do
+`.claude/settings.json` estão lá, e que as variáveis existem: as sete do
+compose no ambiente ou com valor no `.dark/langfuse/.env`; as duas chaves,
+só no ambiente (ele não lê o chaveiro). O que faltar sai no motivo, por
+exemplo `variáveis ausentes: LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY`.
+`dark remover langfuse` desfaz os arquivos, a linha e as entradas. O
+`.env` que você criou não é do módulo e fica, mas a linha que o ignorava
+sai do `.gitignore`: apague o `.env` (ou volte a ignorá-lo) antes do
+próximo commit, para os segredos não entrarem nele.
+
+> **Atenção.** O Langfuse guarda o **conteúdo das conversas** (pedidos,
+> respostas, entradas e saídas de ferramentas) na sua instância. O `dark`
+> continua sem guardar conteúdo de conversas, só agregados.
+>
+> O compose oficial liga por padrão a **telemetria anônima** do Langfuse:
+> `TELEMETRY_ENABLED` vale `true` quando ausente. Para desligá-la, ponha
+> `TELEMETRY_ENABLED=false` no `.dark/langfuse/.env`; a escolha é sua.
+>
+> O gancho do plugin grava estado e log em `~/.claude/state/`, ou na
+> pasta de `CC_LANGFUSE_STATE_DIR`, se a variável existir.
 
 ## Recomendações
 
