@@ -1174,3 +1174,51 @@ de worktree, `/dev/null` no hook, encerramento das sessões do laço sem
 avaliação. Detalhes no [diário 021](../pair/diario/021.md).
 
 **Motivo:** critério 1 do goal 021.
+
+## Decisões do goal 021
+
+**Data:** 2026-11-17 ([revisão da rodada 001, ciclo 1](../pair/rodadas/001/revisao-1.md))
+
+Confirmadas pelo revisor do laço, como estão: os itens 1 a 6 de
+"Decisões tomadas aqui, para confirmar" do
+[diário 021](../pair/diario/021.md), já registrados nas seções "Goal
+021" acima (push pelo orquestrador e bloqueio depois de parada por
+problema; push do revisor detectado pela mudança do remoto; configuração
+do git por lista permitida; retrato dos protegidos na raiz;
+`runner_cli` removido e encerramento por `process.kill_tree`; correções
+de Windows dentro do goal).
+
+**Motivo:** conferidas pelo revisor: 844 testes passam numa cópia
+limpa; os seis jobs do workflow passam no commit `e76641e` (run
+`44212538235`); as sondagens do hook com configuração do git, escrita
+em `.git/` e push deram o resultado esperado nos dois papéis.
+
+## Laço: defeitos que só o usuário pode corrigir
+
+**Data:** 2026-11-17 ([revisão da rodada 001, ciclo 1](../pair/rodadas/001/revisao-1.md))
+
+`tools/pairloop/` é protegido: nenhum agente do laço o edita, nem um
+executor. Os defeitos do laço não entram em lote; vão para o relatório
+da rodada como decisão do usuário (D1 da rodada 001), com a lista do
+diário 021 ("O que eu ainda mudaria") e o defeito que o revisor achou:
+o rascunho do revisor (`$PAIRLOOP_SCRATCH`) fica dentro de
+`local/pairloop/`, dentro da raiz do repositório, e o hook confere as
+raízes antes do rascunho; por isso bloqueia toda escrita do revisor no
+próprio rascunho. Padrão a confirmar, até a decisão: o revisor faz as
+cópias limpas fora do repositório, onde o hook deixar, e registra onde.
+
+**Motivo:** regra do laço (só o usuário edita `tools/pairloop/`);
+mudança no hook é regra de segurança, que o revisor não decide.
+
+## Executores no laço não atualizam `pair/ESTADO.md`
+
+**Data:** 2026-11-17 ([revisão da rodada 001, ciclo 1](../pair/rodadas/001/revisao-1.md))
+
+O `CLAUDE.md` manda quem conclui um goal atualizar `pair/ESTADO.md`; no
+laço, os lotes dizem o contrário, porque o revisor atualiza o estado ao
+juntar e branches paralelas que mexem no mesmo arquivo conflitam. Padrão
+a confirmar: os lotes do laço prevalecem; o `CLAUDE.md` só muda se um
+executor errar por causa disso.
+
+**Motivo:** três lotes paralelos neste ciclo; a regra do revisor proíbe
+regra nova no `CLAUDE.md` sem falha observada.

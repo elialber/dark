@@ -1,0 +1,27 @@
+{
+  "cycle": 1,
+  "verdicts": [
+    {"goal": "021", "branch": "main", "verdict": "accepted_with_fixes",
+     "reason": "844 testes passam numa cópia limpa e os seis jobs do workflow passam em e76641e; há teste para cada item e as sondagens do hook deram o esperado. Correções: os erros da CLI de evals (traceback em resumir e validar com entrada ruim) entram no goal 022; os defeitos do laço listados no diário 021 e os três achados na revisão exigem editar tools/pairloop/, que só o usuário pode (D1)."}
+  ],
+  "merged": [],
+  "tests_passed": true,
+  "merge_conflict": false,
+  "privacy_violation": false,
+  "pending_decisions": [
+    {"id": "D1",
+     "question": "Como corrigir os defeitos do laço de par, que nenhum agente do laço pode editar (tools/pairloop/ é protegido): git do orquestrador com configuração neutralizada e .git/ no retrato, arquivo de hooks regerado, bytecode, comando de testes conferido na partida, caminhos do Git Bash, rascunho do revisor dentro das raízes do hook, destino de git clone não conferido, variáveis não expandidas pelo hook?",
+     "options": ["a: o usuário abre uma sessão fora do laço, entre rodadas, com um goal de endurecimento do laço",
+                 "b: liberar tools/pairloop/ para um executor numa rodada, com o revisor conferindo",
+                 "c: aceitar os riscos e seguir"],
+     "recommendation": "a",
+     "blocks": []}
+  ],
+  "batches": [
+    {"batch": "010", "file": "pair/entrada/lote-010.md", "goal": "022", "branch": "goal-022"},
+    {"batch": "010b", "file": "pair/entrada/lote-010b.md", "goal": "023", "branch": "goal-023"},
+    {"batch": "010c", "file": "pair/entrada/lote-010c.md", "goal": "024", "branch": "goal-024"}
+  ],
+  "stop": false,
+  "stop_reason": ""
+}

@@ -43,31 +43,29 @@ Fase 3 em andamento; laço de par disponível
 | [018 — Laço de par](goals/018-pair-loop.md) | Aceito no [lote 009](entrada/lote-009.md) e incorporado à `main` |
 | [019 — Correções de portabilidade](goals/019-portability-fixes.md) | Aceito pelo revisor no [lote 009](entrada/lote-009.md) |
 | [020 — Executor de evals](goals/020-eval-runner.md) | Aceito no [lote 009](entrada/lote-009.md) e incorporado à `main`; critério 2 (calibração) bloqueado por credencial |
-| [021 — Laço pronto para rodar](goals/021-loop-readiness.md) | Concluído, aguarda revisão ([diário](diario/021.md)) |
+| [021 — Laço pronto para rodar](goals/021-loop-readiness.md) | Aceito com correções na [revisão 1 da rodada 001](rodadas/001/revisao-1.md); correções do laço dependem do usuário (D1), as da CLI de evals vão no goal 022 |
+| 022 — Casos de eval deste repositório | Lote [010](entrada/lote-010.md), branch `goal-022`, em execução |
+| 023 — Distribuição | Lote [010b](entrada/lote-010b.md), branch `goal-023`, em execução |
+| 024 — Coleta | Lote [010c](entrada/lote-010c.md), branch `goal-024`, em execução |
 
 ## Decisões pendentes
 
-Nenhuma. As decisões dos goals 018, 019 e 020 foram confirmadas no
-[lote 009](entrada/lote-009.md), com duas alterações (o revisor do laço
-não faz push; nova regra das sessões de teste). As branches `goal-018`
-e `goal-020` foram incorporadas e apagadas, e os worktrees removidos.
+- **D1 da rodada 001:** como corrigir os defeitos do laço de par, que
+  nenhum agente do laço pode editar (`tools/pairloop/` é protegido).
+  Opções e recomendação na [revisão 1](rodadas/001/revisao-1.md) e no
+  relatório da rodada. Nenhum goal da fila espera por ela.
 
 ## Pedidos ao usuário
 
 - Token dedicado no ambiente para a calibração dos evals
   (`CLAUDE_CODE_OAUTH_TOKEN`, gerado por `claude setup-token`, ou
-  `ANTHROPIC_API_KEY`). Sem ele, a poda por ablação e a medição de
-  módulos não começam.
+  `ANTHROPIC_API_KEY`). Sem ele, a calibração, a linha de base, a poda
+  por ablação e a medição de módulos não começam. O goal 022 deixa os
+  casos prontos para quando ele chegar.
 
 ## Próximo passo
 
-Revisão do goal 021. Os seis jobs do workflow passam na `main` (run
-`44211507723`: 844 testes em Linux e macOS; 843 e 1 pulado no Windows).
-O revisor não faz mais push; o orquestrador publica depois das
-conferências. O hook bloqueia configuração do git, e a rodada para se
-um arquivo protegido muda na árvore de trabalho. O executor de evals
-está em `python -m dark.evals`. O workflow mostrou quatro defeitos de
-Windows nos goals 018 e 020, corrigidos no goal. O diário 021 lista o
-que ainda mudar antes de três ciclos; o primeiro item são os comandos
-git do próprio orquestrador. A primeira rodada do laço só começa quando
-o usuário pedir.
+Rodada 001 do laço em andamento. Três executores em paralelo: goal 022
+(casos de eval, Fase 3), goal 023 (instalação e README, item 8) e goal
+024 (`dark coletar`, item 2). A revisão de fechamento julga e junta as
+três branches.

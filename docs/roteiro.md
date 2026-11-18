@@ -1,6 +1,7 @@
 # Roteiro
 
-Escrito pelo revisor externo em 2026-11-17. Diz **o que falta fazer e em
+Escrito pelo revisor externo em 2026-11-17 e mantido pelo revisor do
+laço. Diz **o que falta fazer e em
 que ordem**. O revisor mantém este arquivo atualizado a cada ciclo:
 marca o que foi concluído, ajusta a ordem com o motivo e acrescenta o
 que descobrir. O porquê do projeto está em `docs/visao.md`.
@@ -37,12 +38,21 @@ que descobrir. O porquê do projeto está em `docs/visao.md`.
   histórico posterior à base, condições `bare` e `project`, limites,
   aceite, registro em JSON Lines e rodadas. A calibração ficou
   bloqueada por credencial (item 3).
+- **Laço pronto para rodar** (goal 021). Push só pelo orquestrador,
+  configuração do git bloqueada para os agentes, conferência dos
+  arquivos protegidos por conteúdo, defeitos de Windows corrigidos, e o
+  executor de evals nos subcomandos de `python -m dark.evals`. Aceito
+  com correções na rodada 001: os defeitos do laço que restam só o
+  usuário pode corrigir (D1 da rodada 001); os erros da CLI de evals
+  entram no goal 022.
 
 ## Em andamento
 
 | Goal | O que é | Branch |
 |---|---|---|
-| 021 | Laço pronto para rodar e executor no comando `python -m dark.evals` | `main` |
+| 022 | Casos de eval deste repositório (pelo menos 10, validados), conjunto e tolerância da primeira rodada, erros da CLI de evals (item 3) | `goal-022` |
+| 023 | Instalação em um comando, versão 0.1.0, registro de mudanças, README para quem chega de fora e instalação conferida no workflow (item 8, sem o plugin) | `goal-023` |
+| 024 | Comando `dark coletar` (item 2, primeira parte; a auditoria lendo do banco fica para o goal seguinte) | `goal-024` |
 
 ## Fila, em ordem
 
@@ -62,6 +72,9 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
 - **Pronto quando:** duas coletas seguidas deixam o banco igual; a
   auditoria sobre o banco dá os mesmos números da auditoria direta; e o
   comando leva segundos.
+- **Situação:** dividido em dois goals. O 024 entrega o comando e a
+  idempotência; o seguinte faz a auditoria ler do banco, com a seção "o
+  que mudou desde a última semana", e a seção do README.
 
 ### 3. Executor de evals
 
@@ -69,6 +82,10 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
   Falta a calibração, bloqueada por credencial: depende de o usuário
   gerar um token dedicado e colocá-lo no ambiente. Até lá, os itens 4 e
   a medição dos módulos do item 6 não começam.
+  O goal 022 prepara o que não depende da credencial: os casos deste
+  repositório, os 5 da primeira rodada e a tolerância declarada antes
+  de medir. Com a credencial no ambiente, o próximo goal do item é a
+  calibração seguida da linha de base.
 - **Entrega:** roda o agente, em modo não interativo, sobre um caso de
   eval, em cópia limpa do repositório, várias vezes, em duas condições:
   sem harness e com harness. Aplica o orçamento da decisão E17, começando
@@ -153,6 +170,12 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
 - **Depende de:** 1 (concluído no goal 019).
 - **Pronto quando:** instalado do zero em uma segunda máquina, `dark
   auditar` roda sem ajuste manual.
+- **Situação:** o goal 023 entrega a instalação, a versão, o registro
+  de mudanças, o README e a conferência da instalação no workflow (que
+  faz o papel da segunda máquina nos três sistemas). Falta o plugin do
+  Claude Code, num goal seguinte. Motivo da ordem: direção do usuário
+  ("tornar a ferramenta utilizável em outros ambientes"), acima da ordem
+  da fila.
 
 ### 9. Piloto final
 
@@ -200,6 +223,13 @@ ou quando destravarem um item acima.
 - Unificar o git do pacote de evals com o módulo de histórico.
 - Histórico de mais de uma máquina.
 - Interface gráfica para o cockpit.
+- Endurecimento do laço de par: comandos git do orquestrador com
+  configuração neutralizada, `.git/config` e `.git/hooks/` no retrato,
+  arquivo de hooks regerado a cada sessão, bytecode, comando de testes
+  conferido na partida, rascunho do revisor fora das raízes do hook,
+  destino de `git clone` conferido pelo hook (diário 021 e revisão da
+  rodada 001). Só o usuário pode fazer: `tools/pairloop/` é protegido
+  (D1 da rodada 001).
 
 ## Como manter este arquivo
 
