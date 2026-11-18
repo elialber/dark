@@ -83,11 +83,95 @@ não prova sai**.
   nada; ele indica por onde começar.
 - **Ablação** é o teste que decide: remover a peça, rodar os evals, manter a
   remoção só se o resultado não cair. Faça de novo a cada modelo novo.
-- **Estado hoje:** o comando de ablação (`python -m dark.evals ablacao`) está
-  **em construção** (goal 034). Quando existir, as opções estarão em
-  [evals/README.md](../evals/README.md); até lá, não conte com elas. Sem o
-  comando, a remoção é à mão: tire o arquivo, rode seus evals antes e
-  depois e compare.
+- **O comando.** `python -m dark.evals ablacao` faz a remoção por você, na
+  cópia: roda os mesmos casos com o harness completo e com o mesmo harness
+  menos uma peça, e imprime uma de quatro respostas, com os números. Seu
+  repositório só é lido. As opções estão em
+  [evals/README.md](../evals/README.md#ablação) e em
+  `python -m dark.evals ablacao --help`; aqui não se repetem.
+- **Peças que ele aceita** (`--tipo`): `skill` (a pasta inteira),
+  `subagent` (o arquivo) e `instruction` (um arquivo de instrução inteiro,
+  como `CLAUDE.md` ou `rules/estilo.md`). Recusa `hook`, `mcp` e
+  `permission`: vivem dentro de `settings.json` ou `.mcp.json`, junto de
+  outras peças, e tirar um deles exige editar JSON, onde um erro muda mais
+  que a peça. Um trecho de instrução (uma linha de um `CLAUDE.md`) também
+  não: não tem identidade própria. O nome tem de ser o do inventário, no
+  escopo do projeto.
+
+### Antes de gastar: `--simular`
+
+A ablação roda o agente de verdade, e isso custa tokens e pede credencial
+no ambiente (sem ela, o comando para, com código 3, sem gravar nada).
+Antes, veja o tamanho da conta; `--simular` não roda nada e não pede
+credencial. Neste repositório, para a peça `pair-reviewer`:
+
+```bash
+python -m dark.evals ablacao --repo . --tipo subagent --nome pair-reviewer \
+  --saida /tmp/ablacao.jsonl --execucoes 3 --simular evals/cases/*.toml
+```
+
+```
+peça: subagent:pair-reviewer; arquivos retirados da cópia: 1
+  .claude/agents/pair-reviewer.md
+96 execuções (16 caso(s) × 3 × 2 condições); no máximo 105.000.000 tokens (por execução 5.000.000, por rodada 100.000.000)
+simulação: nada foi rodado
+```
+
+São `casos × execuções × 2` execuções. O "no máximo" é um teto, não uma
+previsão: o menor entre todas as execuções gastando o limite de cada uma
+e o limite da rodada (100 milhões) mais uma execução. Se o teto for
+grande demais, use menos casos ou limite `--tokens`, `--teto-rodada`,
+`--max-turnos` e `--tempo`. Um limite estourado no meio deixa os
+registros parciais no arquivo de saída, e a resposta sai `inconclusivo`.
+
+### As quatro respostas e o que fazer com cada uma
+
+Por condição, `n` são as execuções válidas e `p` as que passaram.
+Execução que termina em erro (falha de API, de preparação) não mede a
+peça e sai da conta; tempo, orçamento e turnos esgotados contam como
+falha. A queda é `p` com a peça menos `p` sem ela. Os números vêm de
+`src/dark/evals/ablation.py`:
+
+| Constante | Valor | Significado |
+|---|---|---|
+| `TOLERANCE_RUNS` | 4 | a queda tolerada... |
+| `TOLERANCE_BASE` | 15 | ...a cada 15 execuções por condição (para outro `n`, a mesma proporção: queda × 15 > 4 × n passa da tolerância) |
+| `MIN_RUNS` | 15 | mínimo de execuções válidas por condição, em número igual nas duas |
+
+A ordem da decisão: primeiro o mínimo, depois a tolerância, depois teto e
+piso.
+
+| Saída | Quando | O que fazer |
+|---|---|---|
+| `inconclusivo` | menos de 15 execuções válidas em uma condição, ou números diferentes entre elas | rode mais execuções (`--execucoes`) ou mais casos até chegar a 15 por condição; se foi erro, resolva a causa antes. Não decida nada com esta saída |
+| `mantenha` | a queda passa da tolerância (com 15 por condição, 5 ou mais) | mantenha a peça: ela faz diferença medida nos seus casos. Não há o que remover; reveja só se o modelo mudar |
+| `não discrimina` | queda dentro da tolerância, mas as duas condições em 100% (teto) ou as duas em 0% (piso) | o caso não separa as condições; não é prova de que a peça sobra. Acrescente casos que o agente sem a peça ainda falhe (ou, no piso, que ele ainda possa resolver) e rode de novo |
+| `pode remover` | queda dentro da tolerância (inclusive negativa) e fora do teto e do piso | remova a peça à mão, no seu repositório, rode seus evals de novo e confira que o resultado se mantém; só então fique com a remoção |
+
+O comando nunca apaga nada no seu repositório: a remoção, quando a
+resposta for `pode remover`, é um passo seu. Com 15 execuções por
+condição, uma queda de 4 está dentro da tolerância e a de 5 passa dela.
+
+A recomendação `unused_piece` do relatório (seção 5) leva a este comando:
+a peça sem uso há semanas é a candidata; a ablação é o teste que decide.
+
+### O que ainda não foi medido
+
+- **Nenhuma ablação real foi rodada:** faltou credencial no ambiente em
+  que o comando foi construído. A regra de decisão foi exercitada com um
+  agente falso (testes e demonstração), não com o Claude Code; os números
+  de tolerância são padrões a confirmar, não resultado medido.
+- **`pode remover` vale só para os casos rodados.** Sem a peça, o agente
+  passou nos seus casos tanto quanto com ela; isso não diz que a peça
+  sobra em tarefas que os casos não cobrem. Quanto mais variados os
+  casos, mais a resposta vale. Faça de novo a cada modelo novo.
+- Uso raro não é uso nulo: uma peça pode servir a uma tarefa que seus
+  casos nunca exercitam. Por isso a resposta não vira nota nem
+  promessa de ganho.
+
+Sem o comando (outro tipo de peça, por exemplo), o caminho é à mão: tire o
+arquivo, rode seus evals antes e depois e compare.
+
 - Plataforma não é harness. Parte do que o agente carrega vem do Claude
   Code e da conta, e você não pode mudar. O relatório separa as duas coisas e
   só recomenda sobre o que tem arquivo.

@@ -32,6 +32,17 @@ podem mudar entre versões menores.
   derivação, o de poda, como ler cada seção do relatório, as regras de
   recomendação e um exemplo de ponta a ponta; um teste falha se o texto
   citar comando, opção, regra ou arquivo que não existe.
+- **Nomes de configuração do pytest 9 protegidos no aceite** (goal 033):
+  `.pytest.ini`, `pytest.toml` e `.pytest.toml` entram na lista de
+  arquivos que o agente não pode alterar durante um eval, junto de
+  `pytest.ini` e `pyproject.toml`.
+- **Ablação de uma peça do harness** (goal 034): `python -m dark.evals
+  ablacao --tipo T --nome N` roda os casos com e sem uma skill, subagente
+  ou arquivo de instrução e responde `pode remover`, `mantenha`,
+  `inconclusivo` ou `não discrimina`, com os números; `--simular` mostra
+  o custo máximo sem rodar nada. Nenhuma medição real foi feita ainda
+  (falta credencial). O documento do método e o README foram atualizados
+  (goal 037).
 - **Correção:** três coletas no mesmo segundo não perdem mais o registro
   das anteriores (a coleta usa o próximo segundo livre).
 - As mensagens de erro do banco saem em português.
