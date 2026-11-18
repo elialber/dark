@@ -149,6 +149,9 @@ def resolve(raw: str, cwd: Path) -> Path:
     return _real(p)
 
 
+_NULL_DEVICES = {"/dev/null"}
+
+
 def check_path(path: Path, ctx: Context) -> str | None:
     """Return why writing ``path`` is not allowed, or None."""
     path = _real(path)
@@ -533,6 +536,8 @@ def check_bash(command: str, ctx: Context) -> str | None:
     for simple in commands:
         argv = _strip_wrappers(simple.argv)
         for target in simple.redirects:
+            if target in _NULL_DEVICES:      # also in Git Bash on Windows
+                continue
             reason = check_path(resolve(target, cwd), ctx)
             if reason:
                 return reason
@@ -558,6 +563,8 @@ def check_bash(command: str, ctx: Context) -> str | None:
                 return reason
             continue
         for target in written_paths(argv):
+            if target in _NULL_DEVICES:
+                continue
             reason = check_path(resolve(target, cwd), ctx)
             if reason:
                 return reason

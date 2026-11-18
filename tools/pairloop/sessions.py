@@ -31,6 +31,43 @@ _KEEP_ENV = {"CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK",
              "CLAUDE_CODE_MAX_OUTPUT_TOKENS"}
 
 
+IS_WINDOWS = os.name == "nt"
+# subprocess.CREATE_NEW_PROCESS_GROUP exists only on Windows.
+_CREATE_NEW_PROCESS_GROUP = 0x00000200
+
+
+def popen_group_kwargs() -> dict:
+    """Start the session in its own process group, to stop its whole tree."""
+    if IS_WINDOWS:
+        return {"creationflags": _CREATE_NEW_PROCESS_GROUP}
+    return {"start_new_session": True}
+
+
+def stop_tree(proc, hard: bool) -> None:
+    """Stop the session and its children.
+
+    POSIX: SIGINT to the group (Claude Code ends its own commands), or
+    SIGKILL when ``hard``. Windows has no group signal for this:
+    ``taskkill /T /F`` ends the tree at once, and the direct child is
+    killed in any case.
+    """
+    if IS_WINDOWS:
+        try:
+            subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError:
+            pass
+        try:
+            proc.kill()
+        except OSError:
+            pass
+        return
+    try:
+        os.killpg(proc.pid, signal.SIGKILL if hard else signal.SIGINT)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
 @dataclass
 class SessionRequest:
     role: str
@@ -180,17 +217,17 @@ class ClaudeCliRunner:
                                 stdin=subprocess.DEVNULL,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                 text=True, encoding="utf-8", errors="replace",
-                                start_new_session=True)
+                                **popen_group_kwargs())
         try:
             stdout, stderr = proc.communicate(timeout=request.timeout_s)
             timed_out = False
         except subprocess.TimeoutExpired:
             timed_out = True
-            os.killpg(proc.pid, signal.SIGINT)
+            stop_tree(proc, hard=False)
             try:
                 stdout, stderr = proc.communicate(timeout=60)
             except subprocess.TimeoutExpired:
-                os.killpg(proc.pid, signal.SIGKILL)
+                stop_tree(proc, hard=True)
                 stdout, stderr = proc.communicate()
         duration = time.monotonic() - start
         if self.log_dir:

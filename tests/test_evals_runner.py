@@ -379,6 +379,17 @@ def test_agent_starts_with_clean_tree(repo, fake, monkeypatch):
     assert info["git_status"] == ""
 
 
+def test_agent_starts_with_clean_tree_whatever_the_callers_git_config(repo, fake, monkeypatch):
+    """Git for Windows sets core.autocrlf=true in the system config; the agent
+    runs without the system config. The copy must look the same to both."""
+    system = repo["tmp"] / "system.gitconfig"
+    system.write_text("[core]\n\tautocrlf = true\n", encoding="utf-8")
+    monkeypatch.setenv("GIT_CONFIG_SYSTEM", str(system))
+    monkeypatch.delenv("GIT_CONFIG_NOSYSTEM", raising=False)
+    _, info = _inspect(repo, fake, "project", monkeypatch)
+    assert info["git_status"] == ""
+
+
 def test_copy_has_base_but_not_the_solution(repo, fake, monkeypatch):
     _, info = _inspect(repo, fake, "bare", monkeypatch)
     assert info["objects"] == {repo["sol"]: False, repo["base"]: True}

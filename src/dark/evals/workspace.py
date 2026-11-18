@@ -106,6 +106,10 @@ def prepare_copy(source: Path, base_sha: str, dest: Path, harness_sha: str | Non
     """
     dest.mkdir(parents=True)
     git(dest, "init", "-q", "-b", "eval")
+    # The copy's own config wins over the caller's (Git for Windows sets
+    # core.autocrlf=true in the system config, which the agent does not
+    # read): files are checked out as stored, for the runner and the agent.
+    git(dest, "config", "core.autocrlf", "false")
     # The branch is unborn and checked out: --update-head-ok lets the fetch fill it.
     git(dest, "fetch", "-q", "--no-tags", "--no-write-fetch-head", "--update-head-ok",
         str(source.resolve()), f"{base_sha}:refs/heads/eval")

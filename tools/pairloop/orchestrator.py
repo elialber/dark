@@ -225,6 +225,18 @@ def default_privacy_patterns() -> list[str]:
     return [home] if home not in ("/", "") else []
 
 
+def known_worktree(path: Path, listed: dict[str, str]) -> bool:
+    """Whether ``path`` is among the worktrees git lists.
+
+    git writes paths with forward slashes on Windows too; compare resolved,
+    case-normalized paths.
+    """
+    def norm(p: str | Path) -> str:
+        return os.path.normcase(str(Path(p).resolve()))
+    target = norm(path)
+    return any(norm(p) == target for p in listed)
+
+
 # --- protected files checked by content --------------------------------------
 
 def _fingerprint(path: Path) -> str:
@@ -734,7 +746,7 @@ class Orchestrator:
                 if b["status"] in ("pending", "running")]
         for b in todo:
             path = self.worktree_path(b["branch"])
-            if str(path) not in self.git.worktrees():
+            if not known_worktree(path, self.git.worktrees()):
                 if path.exists():
                     self._stop("guard_violation",
                                f"{path} existe e não é worktree")

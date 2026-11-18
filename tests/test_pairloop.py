@@ -802,8 +802,16 @@ def test_guard_executor_write_scope(roots):
     assert edit(wt / "pair/diario/019.md", c, "Write") is None
     assert edit(main / "src/x.py", c, "Write") is not None   # main checkout
     assert edit(scratch / "probe.py", c, "Write") is None
-    assert bash(f"echo x > {scratch}/a.txt", c) is None
+    assert bash(f"echo x > {scratch.as_posix()}/a.txt", c) is None
     assert bash("echo x > /dev/null", c) is None
+    assert bash("cmd 2>/dev/null > /dev/null", c) is None
+
+
+def test_guard_dev_null_is_allowed_where_devnull_has_another_name(roots, monkeypatch):
+    """On Windows os.devnull is 'nul'; Git Bash still writes to /dev/null."""
+    monkeypatch.setattr(guard.os, "devnull", "nul")
+    assert bash("echo x > /dev/null", ctx("executor", roots)) is None
+    assert bash("echo x > /dev/null", ctx("reviewer", roots)) is None
 
 
 @pytest.mark.parametrize("role", ["reviewer", "executor"])
@@ -811,8 +819,8 @@ def test_guard_blocks_writes_outside_repository(roots, role, tmp_path):
     c = ctx(role, roots)
     outside = tmp_path / "elsewhere" / "f.txt"
     assert edit(outside, c, "Write") is not None
-    assert bash(f"echo x > {outside}", c) is not None
-    assert bash(f"touch {outside}", c) is not None
+    assert bash(f"echo x > {outside.as_posix()}", c) is not None
+    assert bash(f"touch {outside.as_posix()}", c) is not None
     assert guard.check_tool("NotebookEdit", {"notebook_path": str(outside)},
                             c) is not None
 
@@ -865,7 +873,7 @@ def test_guard_executor_allowed_git(roots):
     assert bash("git log --oneline main..HEAD", c) is None
     assert bash("git diff main...HEAD", c) is None
     main = roots[0]
-    assert bash(f"git -C {main} commit -m x", c) is not None
+    assert bash(f"git -C {main.as_posix()} commit -m x", c) is not None
 
 
 def test_guard_reviewer_allowed_git(roots):
@@ -1048,6 +1056,35 @@ def test_runner_argv_and_environment(tmp_path, monkeypatch):
                           "CLAUDE_CODE_SESSION_ID": None,
                           "CLAUDE_CONFIG_DIR": str(tmp_path / "cfg"),
                           "CLAUDE_CODE_OAUTH_TOKEN": "keep"}
+
+
+def test_runner_kill_on_windows_uses_taskkill(monkeypatch):
+    from tools.pairloop import sessions
+    calls = []
+
+    class Proc:
+        pid = 4321
+        killed = False
+
+        def kill(self):
+            self.killed = True
+    monkeypatch.setattr(sessions, "IS_WINDOWS", True)
+    monkeypatch.setattr(sessions.subprocess, "run",
+                        lambda argv, **kw: calls.append(argv))
+    proc = Proc()
+    sessions.stop_tree(proc, hard=False)
+    assert calls == [["taskkill", "/PID", "4321", "/T", "/F"]]
+    assert proc.killed
+    assert sessions.popen_group_kwargs() == {"creationflags": 0x00000200}
+
+
+def test_known_worktree_matches_paths_as_git_lists_them(tmp_path):
+    from tools.pairloop.orchestrator import known_worktree
+    wt = tmp_path / "proj-goal-1"
+    wt.mkdir()
+    assert known_worktree(wt, {wt.as_posix(): "goal-1"})
+    assert known_worktree(wt, {str(wt): "goal-1"})
+    assert not known_worktree(wt, {(tmp_path / "outro").as_posix(): "x"})
 
 
 def test_runner_timeout(tmp_path):
