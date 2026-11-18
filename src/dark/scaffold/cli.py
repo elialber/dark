@@ -50,7 +50,7 @@ def _describe(op) -> str:
 def _print_outcome(out: Outcome, plan: Plan, done: bool) -> None:
     print(f"Plano {plan.module} {plan.version}: {len(out.steps)} operação(ões)")
     for s in out.steps:
-        status = "aplicado" if done and s.status == "new" else _STATUS[s.status]
+        status = "aplicado" if out.applied and s.status == "new" else _STATUS[s.status]
         line = f"  [{status}] {_describe(s.op)}"
         if s.reason:
             line += f": {s.reason}"

@@ -23,6 +23,10 @@ when it is back to empty; handed over to another entry still in the
 manifest that lives inside it; or left in place and reported, when what
 keeps it non-empty is not ours. The hand-over is what makes reverting one
 module safe when another one wrote into the same file or directory.
+
+A line of a ``.gitignore`` that names a literal path is kept while that
+path exists (goal 048): removing it would let ``git add`` pick up what it
+ignored, such as secrets. Directories kept busy by that path go with it.
 """
 
 from __future__ import annotations
@@ -571,6 +575,42 @@ def _undo_create_dir(ov, rel, op, entry):
     return ("reverted", "") if ov.is_dir(rel) else ("already_gone", "")
 
 
+GITIGNORE_NAME = ".gitignore"
+_GLOB_CHARS = frozenset("*?[\\")
+
+
+def ignored_path(rel: str, line: str) -> str | None:
+    """The path a ``.gitignore`` line names literally, or None.
+
+    Only for a line of a file named ``.gitignore``. A literal line has no
+    glob character, does not negate (``!``), is not a comment and does not
+    climb; it is read relative to the directory of the ``.gitignore``. A
+    final ``/`` (directory only) is dropped from the returned path.
+    """
+    if PurePosixPath(rel).name != GITIGNORE_NAME:
+        return None
+    text = line.rstrip()
+    if not text or text[0] in "#!" or _GLOB_CHARS.intersection(text):
+        return None
+    text = text.strip("/")
+    parts = [p for p in text.split("/") if p not in ("", ".")]
+    if not parts or ".." in parts:
+        return None
+    base = PurePosixPath(rel).parent
+    return (base / PurePosixPath(*parts)).as_posix()
+
+
+def _exists(ov: Overlay, rel: str, dir_only: bool) -> bool:
+    """Whether ``rel`` exists after the pending changes (links count)."""
+    if ov.is_dir(rel):
+        return True
+    if dir_only:
+        return False
+    if rel in ov.files:
+        return ov.files[rel] is not None
+    return os.path.lexists(ov._disk(rel))
+
+
 def _undo_append_line(ov, rel, op, entry):
     data = ov.read(rel)
     if data is None:
@@ -579,6 +619,11 @@ def _undo_append_line(ov, rel, op, entry):
     i = textfile.find_line(dec.text, op.line)
     if i is None:
         return "already_gone", ""
+    guarded = ignored_path(rel, op.line)
+    if guarded is not None and _exists(ov, guarded, op.line.strip().endswith("/")):
+        # Removing the line would expose what it ignores (secrets, output).
+        return "kept", (f"{guarded} ainda existe e deixaria de ser ignorado pelo git; "
+                        "apague-o e rode `dark remover` de novo")
     ov.write(rel, dec.encode(textfile.remove_lines(dec.text, i, 1)))
     return "reverted", ""
 
@@ -699,6 +744,20 @@ def _depends(entry: dict, res: dict) -> bool:
     return tk[:len(rk)] == rk and (len(tk) > len(rk) or op.key is None)
 
 
+def _guards(entry: dict, directory: str) -> bool:
+    """Whether ``entry`` is a .gitignore line naming a path inside ``directory``."""
+    spec = entry["op"]
+    if spec.get("op") != AppendLine.kind:
+        return False
+    try:
+        rel = paths.normalize(spec.get("path", ""), MANIFEST_NAME)
+    except PathRefused:
+        return False
+    guarded = ignored_path(rel, spec.get("line", ""))
+    return guarded is not None and (guarded == directory
+                                    or paths.is_under(guarded, directory))
+
+
 def _release(ov: Overlay, res: dict, remaining: list[dict], notes: list[str]) -> None:
     try:
         state, info = _release_state(ov, res)
@@ -716,6 +775,13 @@ def _release(ov: Overlay, res: dict, remaining: list[dict], notes: list[str]) ->
     if state == "empty":
         _release_one(ov, res, info)
         return
+    # A directory kept busy by what a kept .gitignore line still ignores
+    # goes with that line, so the next revert cleans it up.
+    if res["kind"] == "dir":
+        for other in remaining:
+            if _guards(other, res["path"]):
+                other.setdefault("owned", []).insert(0, res)
+                return
     note = f"{res['path']}: deixado no lugar, contém conteúdo que não veio do motor"
     if note not in notes:
         notes.append(note)
