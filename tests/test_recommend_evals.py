@@ -90,3 +90,42 @@ def test_report_line_format_matches_the_others():
     assert len(line) == 1
     assert "Ação:" in line[0] and "Verificação:" in line[0] and "3 rodadas" in line[0]
     assert "`evals_at_100_percent` (" not in text.split("Regras adiadas")[1]
+
+
+# Goal 054: `with_module` runs reach the store; the two rules read `project` only.
+
+def test_with_module_runs_do_not_count_for_the_100_percent_rule():
+    assert fired(audit_with(*[r(d, condition="with_module") for d in (1, 2, 3)])) == []
+    failing = [r(d, condition="with_module", passed=False) for d in (1, 2, 3)]
+    assert fired(audit_with(*rounds(3), *failing)) == ["evals_at_100_percent"]
+
+
+def test_with_module_runs_do_not_count_for_the_model_rule():
+    def with_model(*runs):
+        return dataclasses.replace(base(), changes=au.Changes(
+            False, "n", evals=tuple(runs), session_model="m2"))
+    # The last round with the session's model is a with_module one: still fires.
+    runs = [r(1, model="m1"), r(2, condition="with_module", model="m2")]
+    assert "model_changed_since_last_evals" in fired(with_model(*runs))
+    assert "model_changed_since_last_evals" not in fired(with_model(r(1, model="m2"), *runs[1:]))
+    assert fired(with_model(r(2, condition="with_module", model="m1"))) == []
+
+
+def test_project_runs_of_a_module_measurement_count_like_any_project_run(tmp_path):
+    from dark import store_audit
+    from dark.evals import rounds as ev_rounds
+    from dark.store import open_store
+    from test_evals_store import jl, run as eval_run, write_lines
+    lines = []
+    for day in (1, 2, 3):
+        at = f"2026-11-0{day}T12:00:00+00:00"
+        lines += [jl(eval_run(started_at=at)),
+                  jl(eval_run(started_at=at, condition="with_module", passed=False,
+                              applied_module="graphify:1.0"))]
+    plan = ev_rounds.plan_import(write_lines(tmp_path / "m.jsonl", lines))
+    assert not plan.refused
+    with open_store(tmp_path / "db.sqlite3") as s:
+        s.write_eval_runs(plan.runs)
+        runs = store_audit.eval_runs(s)
+    assert {x.condition for x in runs} == {"project", "with_module"}
+    assert fired(audit_with(*runs)) == ["evals_at_100_percent"]

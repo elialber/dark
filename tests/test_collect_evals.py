@@ -134,3 +134,29 @@ def test_collect_refuses_the_store_inside_a_repository_before_the_evals(
     inside = repo / "banco.sqlite3"
     assert run(config, inside, "--todos", "--evals", str(evals_file)) == 1
     assert not inside.exists()
+
+
+def test_mixed_file_counts_project_and_with_module(config, db, tmp_path, capsys):
+    # Goal 054: no valid with_module line disappears from the count.
+    mixed = write_lines(tmp_path / "mixed.jsonl", [
+        jl(eval_run()), jl(eval_run(run=2)),
+        jl(eval_run(condition="with_module", applied_module="graphify:1.0", turns=3)),
+        jl(eval_run(condition="with_module", applied_module="graphify:1.0", run=2, turns=2)),
+        jl(eval_run(condition="with_module", run=3))])                # no module: refused
+    assert run(config, db, "--todos", "--sem-git", "--evals", str(mixed)) == 0
+    assert "evals: 4 novas, 0 já existiam, 1 recusada (linha 5)" in capsys.readouterr().out
+    con = sqlite3.connect(db)
+    counts = dict(con.execute("SELECT condition, count(*) FROM eval_runs GROUP BY 1"))
+    con.close()
+    assert counts == {"project": 2, "with_module": 2}
+
+
+def test_guardar_and_coletar_store_the_same_rows_for_a_mixed_file(config, db, tmp_path,
+                                                                   capsys):
+    mixed = write_lines(tmp_path / "mixed.jsonl", [
+        jl(eval_run()),
+        jl(eval_run(condition="with_module", applied_module="graphify:1.0", turns=3))])
+    other = tmp_path / "other.sqlite3"
+    assert run(config, db, "--todos", "--sem-git", "--evals", str(mixed)) == 0
+    assert evals_cli.main(["guardar", str(mixed), "--banco", str(other)]) == 0
+    assert eval_rows(db) == eval_rows(other) and len(eval_rows(db)) == 2

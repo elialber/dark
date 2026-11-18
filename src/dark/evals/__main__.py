@@ -154,13 +154,6 @@ def _save(a) -> int:
     if refusal:
         print(refusal, file=sys.stderr)
         return 1
-    if plan.with_module:
-        lines = ", ".join(str(n) for n in plan.with_module[:10])
-        more = "..." if len(plan.with_module) > 10 else ""
-        print(f"{a.records}: {_count(len(plan.with_module), 'registro', 'registros')} da "
-              f"condição with_module (linhas {lines}{more}); o banco de agregados ainda não "
-              "guarda essa condição (o esquema do banco não a tem). Nada foi gravado.")
-        return EXIT_INPUT
     if plan.runs:
         if target.is_dir():
             print(f"{target} é um diretório; use --banco com o caminho de um arquivo. "

@@ -192,8 +192,6 @@ class ImportPlan:
     """What a records file holds: runs ready for the store and the lines refused."""
     runs: list = field(default_factory=list)      # dark.store.EvalRunRecord
     refused: list[tuple[int, str]] = field(default_factory=list)   # (line number, reason)
-    # Goal 050: lines of the `with_module` condition, which the store does not take yet.
-    with_module: list[int] = field(default_factory=list)
 
 
 def to_store_record(d: dict):
@@ -205,11 +203,13 @@ def to_store_record(d: dict):
         started_at=started, case_name=d["case"], condition=d["condition"],
         run_number=d["run"], passed=d["passed"], end_reason=d["end_reason"],
         model=d.get("model"), tokens=d.get("tokens"),
-        cost_usd_estimate=d.get("cost_usd_estimate"), ablated_piece=d.get("ablated_piece"))
+        cost_usd_estimate=d.get("cost_usd_estimate"), ablated_piece=d.get("ablated_piece"),
+        turns=d.get("turns"), applied_module=d.get("applied_module"),
+        harness_commit=d.get("harness_commit"))
 
 
 # Fields of the record that become integer or decimal columns of the store.
-_STORED_NUMBERS = ("run", "tokens", "cost_usd_estimate")
+_STORED_NUMBERS = ("run", "tokens", "cost_usd_estimate", "turns")
 _INT_RANGE = (-(2**63), 2**63 - 1)      # what an SQLite INTEGER holds
 
 
@@ -226,6 +226,20 @@ def check_limits(d: dict) -> None:
             raise ValueError(f"{name}: inteiro fora do limite de 64 bits do banco")
         if isinstance(v, float) and not math.isfinite(v):
             raise ValueError(f"{name}: número não finito ({v!r}); o banco só guarda decimais finitos")
+
+
+def check_module(d: dict) -> None:
+    """`applied_module` is filled if and only if the condition is `with_module` (goal 054).
+
+    Raises ValueError. A record without the field (older than goal 050) has no module.
+    """
+    module = d.get("applied_module")
+    if d.get("condition") == "with_module" and module is None:
+        raise ValueError("applied_module: obrigatório na condição with_module "
+                         "(nome:versão do módulo aplicado)")
+    if d.get("condition") != "with_module" and module is not None:
+        raise ValueError(f"applied_module: só vale na condição with_module, "
+                         f"não em {d.get('condition')}")
 
 
 def plan_import(path: Path) -> ImportPlan:
@@ -263,9 +277,7 @@ def plan_import(path: Path) -> ImportPlan:
             continue
         try:
             run_record.validate_record(d)
-            if d["condition"] == "with_module":
-                plan.with_module.append(number)
-                continue
+            check_module(d)
             check_limits(d)
             plan.runs.append(to_store_record(d))
         except (run_record.RecordError, ValueError, StoreError) as e:
