@@ -1,0 +1,26 @@
+{
+  "cycle": 1,
+  "verdicts": [
+    {"goal": "039", "branch": "goal-039", "verdict": "accepted",
+     "reason": "Limites de 64 bits recusam a linha com motivo, modelo das sessões no esquema 3 com migração e regra model_changed_since_last_evals ligada; sondagens adversas sem traceback."},
+    {"goal": "040", "branch": "goal-040", "verdict": "accepted",
+     "reason": "Documentos conferem com --help e recommend.py, com teste de deriva; junção adiada porque o README.md da main tem alteração local não commitada que conflita."},
+    {"goal": "041", "branch": "goal-041", "verdict": "accepted",
+     "reason": "coletar --evals aborta com código 2 antes de coletar em arquivo ruim e a recusa de banco em repositório git vale também no guardar."}
+  ],
+  "merged": ["goal-039", "goal-041"],
+  "tests_passed": true,
+  "merge_conflict": false,
+  "privacy_violation": false,
+  "pending_decisions": [
+    {"id": "D1", "question": "Os módulos Langfuse e Graphify do scaffold instalam código de terceiros: qual origem e versão fixada de cada um, e o Langfuse é auto-hospedado?",
+     "options": ["a) Langfuse auto-hospedado e Graphify, com versões que o usuário indicar", "b) só Graphify primeiro", "c) adiar os dois módulos"],
+     "recommendation": "a, com as versões indicadas pelo usuário",
+     "blocks": ["043"]}
+  ],
+  "batches": [
+    {"batch": "016", "file": "pair/entrada/lote-016.md", "goal": "042", "branch": "goal-042"}
+  ],
+  "stop": false,
+  "stop_reason": ""
+}

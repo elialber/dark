@@ -95,6 +95,13 @@ que descobrir. O porquê do projeto está em `docs/visao.md`.
   evals no banco** (goal 038: tabela `eval_runs`, `guardar`, regra
   `evals_at_100_percent`).
 
+- **Limites do `guardar`, modelo das sessões e `coletar --evals`** (goals
+  039 e 041): inteiro acima de 64 bits recusado com a linha e o motivo;
+  banco no esquema 3 com `sessions.model`; regra
+  `model_changed_since_last_evals` ligada (só `third_party_module_without_gain`
+  segue adiada); `dark coletar --evals` e a recusa de banco dentro de
+  repositório git também no `guardar`.
+
 ## Em andamento
 
 Rodada 002, ciclo 5 (escritos): goal 039 (limites do `guardar`, modelo
@@ -184,8 +191,7 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
 - **Depende de:** 2; as regras de ablação dependem de 4.
 - **Situação:** o goal 032 entregou as regras que os dados de hoje
   sustentam; o 038 ligou `evals_at_100_percent`; `model_changed_since_last_evals`
-  espera o modelo das sessões no banco (goal 039); a de módulo de
-  terceiro espera módulos medidos.
+  foi ligada no goal 039; a de módulo de terceiro espera módulos medidos.
 - **Pronto quando:** uma recomendação seguida produz melhora medida
   (critério da Fase 5).
 
@@ -207,6 +213,9 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
 - **Situação:** o goal 036 entregou `dark iniciar` e `dark remover` com
   o módulo `base` (sem terceiros; `dark adicionar` e os módulos Langfuse
   e Graphify faltam; padrão a confirmar: Langfuse auto-hospedado).
+- **Próximo:** goal 042 (registro, `adicionar`, `verificar`) com módulo de
+  teste; os módulos Langfuse e Graphify esperam a decisão D1 da rodada 003
+  (origem e versão do que instalar).
 - **Cuidado:** módulo de terceiro executa código na máquina do usuário.
   Versão fixada, e o que mudou é lido antes de atualizar.
 - **Depende de:** 016 e do inventário; a medição dos módulos depende

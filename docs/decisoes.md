@@ -1541,3 +1541,27 @@ depois do merge real); sondagens do revisor (`iniciar` em pasta com
 espaço, `remover` duas vezes, `CLAUDE.md` editado depois, link quebrado;
 `guardar` com linhas inválidas e com `tokens=10**30`; `--inexistente`
 no método falha o teste).
+
+## Rodada 003, ciclo 1 (goals 039, 040 e 041)
+
+**Goal 039:** aceito. Limites de 64 bits conferidos em `plan_import`;
+`sessions.model` (esquema 3, migração 2 → 3 com cópia `.v2.bak`); modelo da
+sessão = mais frequente no arquivo principal, sem `<synthetic>`, sem
+histórico copiado de fork e sem subagentes, desempate pelo mais recente;
+`model_changed_since_last_evals` compara texto exato, a sessão mais recente
+do banco contra a última rodada `project`; a regra só cala se a **última**
+rodada tem o modelo atual. Tudo **padrão a confirmar**.
+
+**Goal 040:** aceito (documentos). Junção adiada: a `main` tem alteração
+local do usuário no `README.md` (não commitada), que conflita com o
+parágrafo inicial que o goal reescreveu. O revisor não mexe nela.
+
+**Goal 041:** aceito. `--evals` repetível; arquivo ruim aborta com código 2
+antes de coletar; a recusa de banco em repositório git agora é
+`store_path.py`, usada por `coletar` e `guardar`. **Padrão a confirmar.**
+
+**Motivo:** merge de ensaio dos três sem conflito (1212 testes); sondagens
+do revisor: `guardar` com `tokens` negativo, booleano, `1e30`, `2**63`, modelo
+de 5000 caracteres, caractere nulo, campo extra, data impossível;
+`--evals` em diretório, binário, vazio, inexistente, arquivo repetido;
+`guardar --banco` dentro de repositório git. Nenhum traceback.
