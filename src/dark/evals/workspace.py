@@ -158,7 +158,14 @@ def change_stats(copy: Path, start: str, test_files: Sequence[str]) -> tuple[int
 # Files pytest reads its configuration and plugins from (goal 030). A copy
 # of the agent's making of any of these could make a `pytest` acceptance
 # pass without fixing anything, so they go back to the starting commit.
-PYTEST_CONFIG_NAMES = ("conftest.py", "pytest.ini", "tox.ini", "setup.cfg", "pyproject.toml")
+# Goal 033: pytest 9.2 also reads `.pytest.ini`, `pytest.toml` and
+# `.pytest.toml` (`_pytest/config/findpaths.py`, CONFIG_LOADERS_BY_NAME).
+# The list is deliberately conservative: restoring a name the installed
+# pytest does not read is harmless, so names stay even if a version drops them.
+# Only `pyproject.toml` is partial (its `tool.pytest*` tables); every other
+# name is configuration as a whole file.
+PYTEST_CONFIG_NAMES = ("conftest.py", "pytest.ini", ".pytest.ini", "pytest.toml",
+                       ".pytest.toml", "tox.ini", "setup.cfg", "pyproject.toml")
 
 
 def _start_entries(copy: Path, start: str) -> dict[str, tuple[str, str]]:

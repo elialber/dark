@@ -144,8 +144,9 @@ python -m dark.evals esquema
   descartáveis. Os comandos do agente podem lê-la: use um token dedicado
   às evals e revogue-o depois.
 - **Configuração do pytest:** além dos `files` do aceite, o executor
-  protege `conftest.py` (em qualquer pasta), `pytest.ini`, `tox.ini`,
-  `setup.cfg` e `pyproject.toml`. Depois da sessão do agente e antes do
+  protege `conftest.py` (em qualquer pasta), `pytest.ini`,
+  `.pytest.ini`, `pytest.toml`, `.pytest.toml`, `tox.ini`, `setup.cfg` e
+  `pyproject.toml` (lista do pytest 9.2). Depois da sessão do agente e antes do
   aceite, o que ele criou, mudou, apagou ou trocou por link simbólico ou
   diretório volta ao conteúdo do commit de partida (o que é novo é
   apagado); no `pyproject.toml` só conta a seção `[tool.pytest*]`, e
