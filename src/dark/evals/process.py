@@ -44,7 +44,8 @@ def _popen_kwargs() -> dict:
 def _descendants_posix(root: int) -> list[int]:
     try:
         out = subprocess.run(["ps", "-A", "-o", "pid=", "-o", "ppid="], capture_output=True,
-                             text=True, timeout=10).stdout
+                             text=True, encoding="utf-8", errors="replace",
+                             timeout=10).stdout
     except (OSError, subprocess.SubprocessError):
         return []
     children: dict[int, list[int]] = {}
