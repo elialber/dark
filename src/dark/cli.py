@@ -409,6 +409,8 @@ def _add_module(name: str, path: Path | None, apply_: bool, command: str) -> int
         print(line + (f": {step.reason}" if step.reason else f": {why}" if why else ""))
     for guard in dict.fromkeys(left):
         print(f"  [já existe, fica como está] {guard}")
+    if outcome.ok and module.notes:
+        print("\n".join(module.notes))
     if not outcome.ok:
         print("Há conflitos: nada foi aplicado.")
         return 1
