@@ -23,6 +23,15 @@ podem mudar entre versões menores.
 - **Skills do plugin em dia com o comando** (goal 031): `dark --versao`, a
   linha "Fonte" do relatório, `--direto`, `--coletar` e `--banco`; um teste
   falha se uma skill citar opção que o comando não tem.
+- **Seção "Recomendações"** no relatório (goal 032): regras fixas (peça sem
+  uso há semanas, arquivo de instruções grande, peso do inventário que subiu,
+  bloqueios repetidos de hook, commits sem hash), cada uma com a evidência
+  que a dispara, uma ação e como verificar. Sem nota única e sem texto
+  gerado; os limites são padrões a confirmar.
+- **Documento do método** em `docs/metodo.md` (goal 035): o ciclo de
+  derivação, o de poda, como ler cada seção do relatório, as regras de
+  recomendação e um exemplo de ponta a ponta; um teste falha se o texto
+  citar comando, opção, regra ou arquivo que não existe.
 - **Correção:** três coletas no mesmo segundo não perdem mais o registro
   das anteriores (a coleta usa o próximo segundo livre).
 - As mensagens de erro do banco saem em português.
