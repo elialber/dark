@@ -25,6 +25,9 @@ from .kinds import validate
 
 PART_KINDS = ("skill", "subagent_type", "tool", "mcp_server")
 LINK_KINDS = ("recorded", "window", "ambiguous", "unlinked")
+# Mirrors `dark.evals.run_record` (the store imports nothing from dark; a test compares them).
+EVAL_CONDITIONS = ("bare", "project", "ablated")
+EVAL_END_REASONS = ("completed", "time", "budget", "turns", "error")
 LINKED = frozenset({"recorded", "window"})
 
 _DECLARED: set[type] = set()
@@ -295,3 +298,23 @@ class CollectionRecord(Record):
     def _check(self) -> None:
         if self.finished_at is not None and self.finished_at < self.started_at:
             raise SchemaError("CollectionRecord: finishes before it starts")
+
+
+@_declare
+@dataclass(frozen=True)
+class EvalRunRecord(Record):
+    """One run of an eval case: numbers and closed values, nothing the agent wrote."""
+    started_at: datetime = declared("instant")
+    case_name: str = declared("name")
+    condition: str = declared("enum", choices=EVAL_CONDITIONS)
+    run_number: int = declared("count")
+    passed: bool = declared("flag")
+    end_reason: str = declared("enum", choices=EVAL_END_REASONS)
+    model: str | None = declared("name", default=None, optional=True)
+    tokens: int | None = declared("count", default=None, optional=True)
+    cost_usd_estimate: float | None = declared("amount", default=None, optional=True)
+    ablated_piece: str | None = declared("name", default=None, optional=True)
+
+    def _check(self) -> None:
+        if self.run_number < 1:
+            raise SchemaError("EvalRunRecord: run numbers start at 1")

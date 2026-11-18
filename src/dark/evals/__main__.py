@@ -6,6 +6,7 @@
     python -m dark.evals rodar --repo . --saida ARQ.jsonl [--execucoes 3] CASO.toml ...
     python -m dark.evals ablacao --tipo T --nome N --saida ARQ.jsonl [--simular] CASO.toml ...
     python -m dark.evals resumir ARQ.jsonl
+    python -m dark.evals guardar ARQ.jsonl [--banco CAMINHO]
     python -m dark.evals esquema
 
 `validar` runs the acceptance command: use it only on your own repositories.
@@ -25,6 +26,11 @@ one of four answers: pode remover, mantenha, inconclusivo, não discrimina.
 `--simular` prints the number of runs and the most tokens the round can
 spend, and runs nothing. It needs the same credential as `rodar`.
 
+`guardar` (goal 038) reads the records of a round and writes them to the aggregate
+store (the default path is the one of `dark coletar`). A line that does not match
+`dark.eval_run/1` is refused and counted, and the others are kept; importing the same
+file again adds nothing.
+
 WARNING: `calibrar`, `rodar` and `ablacao` run an agent that edits files and runs
 commands, and then the acceptance command of the evaluated repository. Use
 them only on your own repositories.
@@ -40,6 +46,7 @@ import sys
 from pathlib import Path
 
 from dark import console
+from dark.store import StoreError, default_store_path, open_store
 
 from . import case as m_case
 from . import ablation, mining, rounds, run_record, runner, validation
@@ -82,6 +89,10 @@ def main(argv: list[str] | None = None) -> int:
                     help="só mostra o custo máximo; não roda nada")
     r = sub.add_parser("resumir", help="resume um arquivo de registros")
     r.add_argument("records", metavar="registros", type=Path)
+    g = sub.add_parser("guardar", help="grava os registros de uma rodada no banco de agregados")
+    g.add_argument("records", metavar="registros", type=Path)
+    g.add_argument("--banco", dest="store", metavar="BANCO", type=Path, default=None,
+                   help="arquivo do banco (padrão: o mesmo do `dark coletar`)")
     sub.add_parser("esquema", help="imprime o esquema do registro de execução")
 
     a = ap.parse_args(argv)
@@ -94,6 +105,8 @@ def main(argv: list[str] | None = None) -> int:
     if a.action == "esquema":
         print(json.dumps(run_record.RECORD_SCHEMA, ensure_ascii=False, indent=2))
         return 0
+    if a.action == "guardar":
+        return _save(a)
     if a.action == "resumir":
         try:
             records = rounds.load_records(a.records)
@@ -103,6 +116,37 @@ def main(argv: list[str] | None = None) -> int:
         print(rounds.describe_summary(rounds.summarize(records)))
         return 0
     return _run(a, runs=1 if a.action == "calibrar" else a.runs)
+
+
+def _count(n: int, one: str, many: str) -> str:
+    return f"{n} {one if n == 1 else many}"
+
+
+def _save(a) -> int:
+    try:
+        plan = rounds.plan_import(a.records)
+    except rounds.RecordsFileError as e:
+        print(e)
+        return EXIT_INPUT
+    new = existing = 0
+    if plan.runs:
+        target = Path(os.path.abspath(a.store if a.store is not None else default_store_path()))
+        if target.is_dir():
+            print(f"{target} é um diretório; use --banco com o caminho de um arquivo. "
+                  "Nada foi gravado.")
+            return 1
+        try:
+            with open_store(target) as store:
+                new, existing = store.write_eval_runs(plan.runs)
+        except StoreError as e:
+            print(f"não foi possível gravar no banco {target}: {e}")
+            return 1
+    print(f"{_count(new, 'nova', 'novas')}, "
+          f"{_count(existing, 'já existia', 'já existiam')}, "
+          f"{_count(len(plan.refused), 'recusada', 'recusadas')}")
+    for number, reason in plan.refused:
+        print(f"  linha {number}: {reason}")
+    return 0
 
 
 def _mine(a) -> int:

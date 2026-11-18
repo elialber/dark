@@ -14,9 +14,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from .kinds import KINDS, check_sql, SQL
-from .records import LINK_KINDS, PART_KINDS
+from .records import EVAL_CONDITIONS, EVAL_END_REASONS, LINK_KINDS, PART_KINDS
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 APPLICATION_ID = 0x6461726B          # "dark", in the SQLite file header
 
 
@@ -148,6 +148,22 @@ TABLES: dict[str, Table] = {
         "snapshots_written": _COUNT,
         "failures": _COUNT,
     }),
+    # Version 2 (goal 038): one row per eval run, numbers and closed values only.
+    # A run is identified by when it started, its case, condition and run number:
+    # importing the same file again hits this key and adds nothing.
+    "eval_runs": Table({
+        "id": _KEY,
+        "started_at": _c("instant"),
+        "case_name": _c("name"),
+        "condition": _c("enum", choices=EVAL_CONDITIONS),
+        "run_number": _COUNT,
+        "passed": _c("flag"),
+        "end_reason": _c("enum", choices=EVAL_END_REASONS),
+        "model": _c("name", nullable=True),
+        "tokens": _c("count", nullable=True),
+        "cost_usd_estimate": _c("amount", nullable=True),
+        "ablated_piece": _c("name", nullable=True),
+    }, unique=(("started_at", "case_name", "condition", "run_number"),)),
 }
 
 COLUMNS: dict[str, dict[str, Column]] = {t: spec.columns for t, spec in TABLES.items()}
@@ -175,19 +191,28 @@ def _column_sql(name: str, col: Column) -> str:
     return " ".join(parts)
 
 
+def table_ddl(name: str) -> str:
+    table = TABLES[name]
+    lines = [_column_sql(c, col) for c, col in table.columns.items()]
+    if table.primary_key:
+        lines.append(f"PRIMARY KEY ({', '.join(table.primary_key)})")
+    lines += [f"UNIQUE ({', '.join(u)})" for u in table.unique]
+    suffix = " WITHOUT ROWID" if table.primary_key else ""
+    return f"CREATE TABLE {name} (\n  " + ",\n  ".join(lines) + f"\n){suffix}"
+
+
 def ddl() -> list[str]:
     """Statements that create the current schema in an empty database."""
-    statements = []
-    for name, table in TABLES.items():
-        lines = [_column_sql(c, col) for c, col in table.columns.items()]
-        if table.primary_key:
-            lines.append(f"PRIMARY KEY ({', '.join(table.primary_key)})")
-        lines += [f"UNIQUE ({', '.join(u)})" for u in table.unique]
-        suffix = " WITHOUT ROWID" if table.primary_key else ""
-        statements.append(f"CREATE TABLE {name} (\n  " + ",\n  ".join(lines) + f"\n){suffix}")
-    return statements + list(INDEXES)
+    return [table_ddl(name) for name in TABLES] + list(INDEXES)
 
 
 # Version n -> function that takes an open transaction from n to n + 1.
 Migration = Callable[[sqlite3.Connection], None]
-MIGRATIONS: dict[int, Migration] = {}
+
+
+def _v1_to_v2(con: sqlite3.Connection) -> None:
+    """Adds the table of eval runs; nothing existing is touched."""
+    con.execute(table_ddl("eval_runs"))
+
+
+MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2}

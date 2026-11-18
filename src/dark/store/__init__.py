@@ -18,7 +18,8 @@ from .kinds import NAME_MAX
 from .paths import default_data_dir, default_store_path
 from .queries import (InventoryDiff, InventoryEntry, InventoryKey, Median, PartKey,
                       SizeChange, UnusedStreak, UsageChanges, WeekComparison, WeekSummary)
-from .records import (LINK_KINDS, PART_KINDS, CollectionRecord, CommitLink, HookOutcome,
+from .records import (LINK_KINDS, PART_KINDS, CollectionRecord, CommitLink, EvalRunRecord,
+                      HookOutcome,
                       InventoryItem, InventorySnapshot, PartUsage, PermissionModeCount,
                       RepositoryRecord, SessionRecord, TokenCounts)
 from .schema import SCHEMA_VERSION
@@ -31,7 +32,7 @@ __all__ = [
     "StoreLocationError", "StoreLocked", "StoreCorrupt", "StoreTooNew", "MigrationError",
     "SessionRecord", "TokenCounts", "PermissionModeCount", "HookOutcome", "PartUsage",
     "CommitLink", "RepositoryRecord", "InventoryItem", "InventorySnapshot",
-    "CollectionRecord", "PART_KINDS", "LINK_KINDS",
+    "CollectionRecord", "EvalRunRecord", "PART_KINDS", "LINK_KINDS",
     "IsoWeek", "WeekSummary", "WeekComparison", "Median", "PartKey", "UsageChanges",
     "UnusedStreak", "InventoryKey", "InventoryEntry", "SizeChange", "InventoryDiff",
 ]
