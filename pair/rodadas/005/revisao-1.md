@@ -16,7 +16,9 @@ rodada 004).
   o Langfuse "não melhora indicador diretamente". Base do goal 054 e do
   seguinte.
 - **Suíte local na `main` (`a208e15`):** `python -m pytest -q` no macOS
-  (Docker ausente aqui, o teste do compose é pulado): **1419 passaram**.
+  **1419 passaram**, inclusive o teste do `docker compose config`: o
+  compose desta máquina acusa `SALT` primeiro, o do runner não (a ordem
+  das variáveis no erro varia com a versão).
 - **Workflow de testes da `main`** (`gh run list --branch main`): as
   últimas 14 execuções falharam. Na execução 44370611205 (`a208e15`):
 
@@ -58,6 +60,9 @@ revisão.
   ser conferido; as revisões citavam só a suíte local. O registro fica;
   a regra do roteiro passa a pedir a conferência da `main` toda revisão,
   e o lote 022 põe a regra equivalente para o executor no `CLAUDE.md`.
+- Escrevi primeiro que o Docker estava ausente aqui e o teste do compose
+  era pulado; conferi com `which docker` e o teste roda e passa. Corrigido
+  antes do commit final.
 - Duas chamadas minhas usaram `ls` sem caminho absoluto, que neste
   ambiente é outro programa e falhou; sem efeito.
 
