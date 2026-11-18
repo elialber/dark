@@ -15,6 +15,8 @@ import pytest
 from dark import cli
 from dark.scaffold import (JsonEntry, Module, Plan, Check, get_module, list_modules,
                            register, unregister)
+from dark.scaffold.module import validate
+from dark.scaffold.registry import _MODULES
 from dark.scaffold import graphify as g
 
 # sha256 of the original files of graphify 0.9.112 (Graphify-Labs/graphify, tag
@@ -304,3 +306,74 @@ def test_verify_reports_an_edited_file_and_invalid_settings(repo, capsys, fake_g
     code, out, err = run(capsys, "verificar", "graphify", str(repo))
     assert code == 1 and "SKILL.md" in out and "settings.json" in out
     assert "Traceback" not in out + err
+
+
+# --- batch 018b: notes printed once, graphify next to langfuse ---------------
+
+def test_modules_in_the_initial_table_pass_the_contract():
+    # base and graphify skip ``register`` (they start in the table).
+    for cls in _MODULES.values():
+        validate(cls)
+
+
+@pytest.mark.parametrize("apply_", [False, True])
+def test_each_note_is_printed_exactly_once(repo, capsys, apply_):
+    argv = ["adicionar", "graphify", str(repo)] + (["--aplicar"] if apply_ else [])
+    code, out, err = run(capsys, *argv)
+    assert code == 0, out + err
+    lines = out.splitlines()
+    assert g.NOTES
+    for note in g.NOTES:
+        for line in note.splitlines():
+            if line.strip():
+                assert lines.count(line) == 1, line
+
+
+def test_notes_are_not_printed_when_there_is_a_conflict(repo, capsys):
+    (repo / SKILL_DIR).mkdir(parents=True)
+    (repo / SKILL_DIR / "SKILL.md").write_text("mine\n")
+    code, out, _ = run(capsys, "adicionar", "graphify", str(repo), "--aplicar")
+    assert code == 1
+    assert not any(line in out for note in g.NOTES for line in note.splitlines()
+                   if line.strip())
+
+
+def test_list_shows_base_graphify_and_langfuse(repo, capsys):
+    if get_module("langfuse") is None:
+        pytest.skip("langfuse arrives with the merge of main (goal 043)")
+    code, out, _ = run(capsys, "adicionar", "--listar", str(repo))
+    assert code == 0
+    for name in ("base", "graphify", "langfuse"):
+        assert name in out
+
+
+@pytest.mark.parametrize("langfuse_first", [True, False])
+def test_langfuse_and_graphify_round_trip_in_reverse_order(repo, capsys, langfuse_first):
+    if get_module("langfuse") is None:
+        pytest.skip("langfuse arrives with the merge of main (goal 043)")
+    (repo / ".gitignore").write_text("node_modules/\n")
+    (repo / ".claude").mkdir()
+    (repo / ".claude/settings.json").write_text('{\n  "model": "sonnet"\n}\n')
+    before = snapshot(repo)
+    order = ["langfuse", "graphify"] if langfuse_first else ["graphify", "langfuse"]
+    for name in order:
+        code, out, err = run(capsys, "adicionar", name, str(repo), "--aplicar")
+        assert code == 0, out + err
+    settings = json.loads((repo / ".claude/settings.json").read_text())
+    assert settings["hooks"] and settings["enabledPlugins"]
+    for name in reversed(order):
+        code, out, err = run(capsys, "remover", name, str(repo))
+        assert code == 0, out + err
+    assert snapshot(repo) == before
+
+
+def test_removing_langfuse_first_keeps_graphify_whole(repo, capsys, fake_graphify):
+    if get_module("langfuse") is None:
+        pytest.skip("langfuse arrives with the merge of main (goal 043)")
+    for name in ("langfuse", "graphify"):
+        assert run(capsys, "adicionar", name, str(repo), "--aplicar")[0] == 0
+    hooks = json.loads((repo / ".claude/settings.json").read_text())["hooks"]
+    assert run(capsys, "remover", "langfuse", str(repo))[0] == 0
+    settings = json.loads((repo / ".claude/settings.json").read_text())
+    assert settings == {"hooks": hooks}
+    assert run(capsys, "verificar", "graphify", str(repo)) == (0, "ok\n", "")

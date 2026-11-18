@@ -1,16 +1,19 @@
 """The module registry (goal 042): the one place that knows which modules exist.
 
-Only ``base`` is registered at import. ``register`` and ``unregister`` exist
-so a module can be added in one place; the tests use them for a fake module
-and never leave it behind.
+Every module of the package is registered at import: ``base`` and
+``graphify`` start in the table (a test checks that both pass ``validate``);
+other modules call ``register`` at the end of this file. ``register`` and
+``unregister`` exist so a module can be added in one place; the tests use
+them for a fake module and never leave it behind.
 """
 
 from __future__ import annotations
 
 from .base import Base
+from .graphify import Graphify
 from .module import Module, validate
 
-_MODULES: dict[str, type[Module]] = {Base.name: Base}
+_MODULES: dict[str, type[Module]] = {Base.name: Base, Graphify.name: Graphify}
 
 
 def register(module: type[Module]) -> None:
@@ -32,8 +35,3 @@ def get_module(name: str) -> Module | None:
 
 def list_modules() -> list[Module]:
     return [_MODULES[name]() for name in sorted(_MODULES)]
-
-
-from .graphify import Graphify  # noqa: E402  (after register: the module imports nothing from here)
-
-register(Graphify)
