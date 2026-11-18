@@ -24,6 +24,9 @@ from pathlib import Path
 
 from dark import audit, collect, console, inventory, reader, commit_linking, report
 from dark import store_audit
+from dark.scaffold import ManifestError, apply as scaffold_apply, inspect as scaffold_inspect
+from dark.scaffold import base as scaffold_base, load_manifest, uninstall
+from dark.scaffold.cli import _describe, _print_revert
 from dark.store import StoreError, default_store_path, open_store
 
 _GIT_READ_ONLY = {"GIT_OPTIONAL_LOCKS": "0"}
@@ -328,6 +331,110 @@ def _collect(args: argparse.Namespace) -> int:
     return _collect_into(args, root, store, sys.stdout)
 
 
+def _target_repository(path: Path | None, command: str) -> Path | None:
+    """The git repository to scaffold, or None after printing why not.
+
+    Git is required: the scaffold writes into a versioned tree so every change
+    can be reviewed and undone with git as well as with `dark remover`. The
+    path must be the root itself: a command that writes must not walk up to
+    some ancestor repository the user did not name.
+    """
+    given = Path(os.path.abspath(path if path is not None else Path.cwd()))
+    if not given.exists():
+        print(f"{command}: {path} não existe", file=sys.stderr)
+        return None
+    if not given.is_dir():
+        print(f"{command}: {path} não é um diretório", file=sys.stderr)
+        return None
+    if (given / ".git").exists():
+        return given
+    inside = _nearest_repository(given)
+    hint = (f"; a raiz do repositório é {inside}, informe-a" if inside is not None
+            else " (rode `git init` antes)")
+    print(f"{command}: {path or given} não é a raiz de um repositório git{hint}",
+          file=sys.stderr)
+    return None
+
+
+def _harness_state_line(root: Path) -> str:
+    """One read-only line about the harness the repository already has."""
+    nothing = Path(os.devnull) / "dark-sem-configuracao"
+    try:
+        inv = inventory.take_inventory(root, nothing, managed=nothing)
+    except Exception:       # a reading problem must not block the plan
+        return "Estado do harness: não consegui ler o inventário (o plano segue)."
+    count = sum(1 for p in inv.items if root in Path(p.source).parents or Path(p.source) == root)
+    return f"Estado do harness do projeto: {count} peça(s) de harness já existem."
+
+
+def _init(args: argparse.Namespace) -> int:
+    root = _target_repository(args.path, "dark iniciar")
+    if root is None:
+        return 2
+    module = scaffold_base.Base()
+    try:
+        print(_harness_state_line(root))
+        left = scaffold_base.existing(root)
+        outcome = (scaffold_apply if args.apply else scaffold_inspect)(root, module.plan(root))
+    except (ValueError, ManifestError) as error:
+        print(f"dark iniciar: {error}", file=sys.stderr)
+        return 2
+    except OSError as error:
+        print(f"dark iniciar: erro ao gravar; o que já tinha sido gravado foi desfeito: "
+              f"{error}", file=sys.stderr)
+        return 1
+    print(f"Módulo {module.name} {module.version} em {root}:")
+    labels = {"new": "aplicado" if args.apply else "criar", "already_applied": "já aplicado",
+              "already_present": "já presente", "conflict": "conflito"}
+    for step in outcome.steps:
+        why = scaffold_base.REASONS.get(step.op.path, "")
+        line = f"  [{labels[step.status]}] {_describe(step.op)}"
+        print(line + (f": {step.reason}" if step.reason else f": {why}" if why else ""))
+    for guard in dict.fromkeys(left):
+        print(f"  [já existe, fica como está] {guard}")
+    if not outcome.ok:
+        print("Há conflitos: nada foi aplicado.")
+        return 1
+    changed = any(s.status == "new" for s in outcome.steps)
+    if not args.apply:
+        print("Nada foi escrito. Use --aplicar para aplicar." if changed
+              else "Nada a criar.")
+    elif changed:
+        print("Aplicado. `dark remover base` desfaz.")
+    elif outcome.steps:
+        print("Nada a fazer: já aplicado.")
+    else:
+        print("Nada a criar.")
+    return 0
+
+
+def _remove(args: argparse.Namespace) -> int:
+    root = _target_repository(args.path, "dark remover")
+    if root is None:
+        return 2
+    try:
+        recorded = [e for e in load_manifest(root)["entries"] if e.get("module") == args.module]
+        if not recorded:
+            if args.module not in scaffold_base.MODULES:
+                print(f"dark remover: módulo desconhecido: {args.module} "
+                      f"(conhecidos: {', '.join(sorted(scaffold_base.MODULES))})",
+                      file=sys.stderr)
+                return 2
+            print(f"O módulo {args.module} nunca foi aplicado neste repositório; "
+                  f"nada a remover.")
+            return 0
+        outcome = uninstall(args.module, root)
+    except (ValueError, ManifestError) as error:
+        print(f"dark remover: {error}", file=sys.stderr)
+        return 2
+    except OSError as error:
+        print(f"dark remover: erro ao gravar; o que já tinha sido gravado foi desfeito: "
+              f"{error}", file=sys.stderr)
+        return 1
+    _print_revert(outcome, args.module)
+    return 0 if outcome.ok else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     console.utf8_output()
     parser = argparse.ArgumentParser(
@@ -385,16 +492,37 @@ def main(argv: list[str] | None = None) -> int:
                    help="não consulta o histórico git para ligar commits (mais rápido)")
     c.add_argument("--gerenciado", dest="managed", metavar="GERENCIADO", type=Path, default=None,
                    help="diretório de política gerenciada (conferência; padrão: o do sistema)")
+    i = commands.add_parser(
+        "iniciar", help="prepara a estrutura mínima de um repositório",
+        description="Mostra o que seria criado (CLAUDE.md com a seção de regras vazia e "
+                    "evals/cases com o formato do caso) e o que já existe e fica como está. "
+                    "Não escreve nada sem --aplicar, não sobrescreve nada e não inventa "
+                    "regras, skills nem hooks.")
+    i.add_argument("path", metavar="caminho", nargs="?", type=Path,
+                   help="repositório git (padrão: o diretório atual)")
+    i.add_argument("--aplicar", dest="apply", action="store_true",
+                   help="aplica o plano, tudo ou nada (padrão: só mostra)")
+    r = commands.add_parser(
+        "remover", help="desfaz o que `dark iniciar` aplicou",
+        description="Reverte o que o manifesto registra para o módulo. O que você mudou "
+                    "depois fica no lugar e é relatado.")
+    r.add_argument("module", metavar="modulo", help="nome do módulo (por exemplo: base)")
+    r.add_argument("path", metavar="caminho", nargs="?", type=Path,
+                   help="repositório git (padrão: o diretório atual)")
     args = parser.parse_args(argv)
     if args.version:
         print(f"dark {collect.tool_version()}")
         return 0
     if args.command is None:
-        parser.error("informe um comando (auditar ou coletar) ou --versao")
+        parser.error("informe um comando (auditar, coletar, iniciar ou remover) ou --versao")
     if args.command == "auditar":
         return _audit(args)
     if args.command == "coletar":
         return _collect(args)
+    if args.command == "iniciar":
+        return _init(args)
+    if args.command == "remover":
+        return _remove(args)
     return 2
 
 
