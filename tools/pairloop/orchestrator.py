@@ -250,32 +250,71 @@ def _fingerprint(path: Path) -> str:
         return f"unreadable:{exc.__class__.__name__}"
 
 
+# Git configuration the loop itself writes: the executor's ``push -u``
+# (branch.*), the reviewer's ``branch -d`` and the identity the hook allows.
+_LOOP_CONFIG_PREFIXES = ("branch.", "user.")
+
+
+def _config_fingerprint(path: Path) -> str:
+    """The repository's git config, without the keys the loop writes.
+
+    Read with ``git config --file``, which only parses the file (includes
+    are not followed and nothing runs).
+    """
+    if not path.exists() and not path.is_symlink():
+        return "absent"
+    if path.is_symlink() or not path.is_file():
+        return _fingerprint(path)
+    r = subprocess.run(["git", "config", "--file", str(path), "--no-includes",
+                        "--list", "-z"], capture_output=True)
+    if r.returncode != 0:
+        return "unparsable:" + _fingerprint(path)
+    entries = sorted(e for e in r.stdout.split(b"\0")
+                     if e and not e.lower().startswith(
+                         tuple(p.encode() for p in _LOOP_CONFIG_PREFIXES)))
+    return hashlib.sha256(b"\0".join(entries)).hexdigest()
+
+
+def _walk(base: Path, root: Path, out: dict[str, str]) -> None:
+    for dirpath, dirnames, filenames in os.walk(base):
+        here = Path(dirpath)
+        for d in list(dirnames):
+            if (here / d).is_symlink():
+                out[(here / d).relative_to(root).as_posix()] = \
+                    _fingerprint(here / d)
+        dirnames[:] = sorted(d for d in dirnames if not (here / d).is_symlink())
+        for name in filenames:
+            f = here / name
+            out[f.relative_to(root).as_posix()] = _fingerprint(f)
+
+
 def protected_snapshot(root: Path) -> dict[str, str]:
     """Content of the protected files in the working tree, by relative path.
 
     Covers files that git does not track (a new file under a protected
-    directory counts). Python bytecode caches are left out: running the
-    tests writes them.
+    directory counts), Python bytecode caches included: the loop runs
+    without writing bytecode, so a new ``.pyc`` was planted. Also covers
+    the repository's ``.git/config`` (without the keys the loop writes),
+    ``.git/hooks/`` and ``.git/info/``: configuration and hooks there run
+    code in the orchestrator's own git commands.
     """
     out: dict[str, str] = {}
     for pattern in guard.LOOP_FILES + guard.USER_FILES:
         rel = pattern.rstrip("/")
         base = root / rel
         if pattern.endswith("/") and base.is_dir() and not base.is_symlink():
-            for dirpath, dirnames, filenames in os.walk(base):
-                here = Path(dirpath)
-                for d in list(dirnames):
-                    if (here / d).is_symlink():
-                        out[(here / d).relative_to(root).as_posix()] = \
-                            _fingerprint(here / d)
-                dirnames[:] = sorted(d for d in dirnames
-                                     if d != "__pycache__"
-                                     and not (here / d).is_symlink())
-                for name in filenames:
-                    f = here / name
-                    out[f.relative_to(root).as_posix()] = _fingerprint(f)
+            _walk(base, root, out)
         elif base.exists() or base.is_symlink():
             out[rel] = _fingerprint(base)
+    git_dir = root / ".git"
+    if git_dir.is_dir() and not git_dir.is_symlink():
+        out[".git/config"] = _config_fingerprint(git_dir / "config")
+        for sub in ("hooks", "info"):
+            d = git_dir / sub
+            if d.is_dir() and not d.is_symlink():
+                _walk(d, root, out)
+            elif d.exists() or d.is_symlink():
+                out[f".git/{sub}"] = _fingerprint(d)
     return out
 
 
@@ -320,6 +359,11 @@ class Orchestrator:
         if self.store.open_round():
             raise RuntimeError("já existe uma rodada aberta; use continuar ou "
                                "encerrar")
+        if not self._tests_pass():
+            raise RuntimeError(
+                f"os testes não passam em {self.cfg.base_branch} "
+                f"({' '.join(self.cfg.test_command)}); corrija antes de "
+                "iniciar, ou a primeira junção pararia a rodada")
         reports = self.repo / self.cfg.reports_dir
         existing = [int(m.group(1)) for p in reports.glob("*.md")
                     if (m := re.match(r"(\d+)\.md$", p.name))] \
@@ -673,7 +717,8 @@ class Orchestrator:
                                capture_output=True, text=True, encoding="utf-8",
                                errors="replace", timeout=3600)
         except (OSError, subprocess.SubprocessError) as exc:
-            self._note(f"testes não rodaram: {exc}")
+            if self.state is not None:
+                self._note(f"testes não rodaram: {exc}")
             return False
         return r.returncode == 0
 

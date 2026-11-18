@@ -179,9 +179,13 @@ class ClaudeCliRunner:
                  permission_mode: str, model: str = "",
                  config_dir: str = "", persist_sessions: bool = True,
                  extra_env: dict[str, str] | None = None,
-                 log_dir: Path | None = None, setting_sources: str = ""):
+                 log_dir: Path | None = None, setting_sources: str = "",
+                 settings: dict | None = None):
         self.command = command
         self.settings_path = settings_path
+        # When given, written to settings_path before every session, so a
+        # changed or removed file cannot turn the limit hook off.
+        self.settings = settings
         self.permission_mode = permission_mode
         self.model = model
         self.config_dir = config_dir
@@ -206,7 +210,17 @@ class ClaudeCliRunner:
             argv += ["--setting-sources", self.setting_sources]
         return argv
 
+    def write_settings(self) -> None:
+        if self.settings is None:
+            return
+        path = Path(self.settings_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.is_symlink() or path.is_dir():
+            raise OSError(f"{path}: não é um arquivo comum")
+        path.write_text(json.dumps(self.settings, indent=2), encoding="utf-8")
+
     def run(self, request: SessionRequest) -> SessionResult:
+        self.write_settings()
         env = clean_env(dict(os.environ))
         env.update(self.extra_env)
         if self.config_dir:

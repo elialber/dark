@@ -8,7 +8,9 @@ relatório de uma página e dá a direção.
 
 ## Como usar
 
-Na raiz do repositório, na branch `main`, com o Claude Code autenticado:
+Na raiz do repositório, na branch `main`, com o Claude Code autenticado
+e um ambiente Python em que o comando de testes rode (por exemplo, o
+`.venv` ativado):
 
 ```
 python -m tools.pairloop iniciar     # começa uma rodada
@@ -21,6 +23,10 @@ Opções gerais: `--repo CAMINHO` (padrão: o diretório atual) e `--config
 ARQUIVO` (padrão: `pair/loop.toml`). `encerrar --sem-sessao` fecha sem
 abrir a sessão final do revisor; o relatório sai do orquestrador, só com
 os fatos do estado.
+
+`iniciar` só abre a rodada se o `claude` estiver no `PATH` e os testes
+passarem na branch base; sem isso, a primeira junção pararia a rodada
+por um defeito que não é dela.
 
 Ao fim, leia `pair/rodadas/NNN.md`. É o único arquivo de que você
 precisa: o que foi entregue e que item do roteiro cada entrega avançou,
@@ -82,7 +88,20 @@ orquestrador (`core.hooksPath`, `core.fsmonitor`, `core.sshCommand`,
 orquestrador no histórico git depois de cada sessão, que pegam o que um
 comando de shell conseguiu esconder do hook; e a conferência do conteúdo
 dos arquivos protegidos na árvore de trabalho, que pega a escrita feita
-por um programa do agente sem passar pelo git.
+por um programa do agente sem passar pelo git. Essa conferência inclui o
+bytecode dos diretórios protegidos (o laço roda sem gravar bytecode) e,
+do repositório, `.git/config` (fora `branch.*` e `user.*`, que o próprio
+laço grava), `.git/hooks/` e `.git/info/`. Os comandos git do
+orquestrador rodam com hooks, `core.fsmonitor` e ferramentas externas de
+diff desligados, e com o ssh do ambiente ou da sua configuração global,
+nunca do repositório. O arquivo que liga o hook é regravado antes de
+cada sessão.
+
+O hook expande variáveis (`$PAIRLOOP_SCRATCH` e as atribuídas no próprio
+comando), confere o destino de `git clone`, `git init` e `git worktree
+add` e deixa cada agente escrever no próprio rascunho, mesmo quando ele
+fica dentro do repositório. O executor pode remover e mover os
+worktrees que criou no rascunho.
 
 O que nenhuma camada pega: um programa escrito por um agente pode gravar
 fora do repositório. Fechar isso exige um ambiente isolado, fora do

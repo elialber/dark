@@ -30,7 +30,9 @@ round reports in Portuguese, following the existing files in `pair/` and
 ## Check each branch yourself
 
 Do not trust a diary. For every branch you review, in a clean copy (a new
-worktree or clone under `$PAIRLOOP_SCRATCH`):
+worktree or clone under `$PAIRLOOP_SCRATCH`, the only place outside
+`pair/` and the two documents where you may write; the hook checks the
+destination of `git clone`, `git init` and `git worktree add`):
 
 - the branch only changed the files its batch allowed;
 - all tests pass (the orchestrator gives you the test command);

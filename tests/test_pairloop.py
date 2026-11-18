@@ -656,7 +656,10 @@ def test_orchestrator_git_does_not_run_repository_hooks(repo):
     orchestrator's push."""
     marker = repo.parent / "hook-ran"
     hook = repo / ".git/hooks/pre-push"
-    write(hook, f"#!/bin/sh\ntouch '{marker.as_posix()}'\nexit 1\n")
+    write(hook, "#!/bin/sh\n"
+          "while read lref lsha rref rsha; do\n"
+          f"  [ \"$rref\" = refs/heads/main ] && touch '{marker.as_posix()}' && exit 1\n"
+          "done\nexit 0\n")
     hook.chmod(0o755)
     st = orchestrator(repo, FakeSessions(repo), cycles=1).start()
     assert st["stop"]["code"] == "cycles_done"

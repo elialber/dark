@@ -9,6 +9,9 @@
 from __future__ import annotations
 
 import argparse
+import json
+import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -85,6 +88,10 @@ def show_state(state: dict | None) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # The loop writes no bytecode, nor do the tests and sessions it starts:
+    # a new .pyc under a protected directory is then a planted one.
+    sys.dont_write_bytecode = True
+    os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
     args = build_parser().parse_args(argv)
     repo = Path(args.repo).resolve()
     try:
@@ -96,9 +103,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "estado":
         print(show_state(store.open_round() or store.latest()))
         return 0
+    if args.command == "iniciar" and not shutil.which(cfg.claude_command[0]):
+        print(f"Erro: {cfg.claude_command[0]} não encontrado no PATH; a "
+              "rodada não foi iniciada.", file=sys.stderr)
+        return 2
+    settings_path = hook_settings_file(repo / cfg.state_dir)
     runner = ClaudeCliRunner(
         command=cfg.claude_command,
-        settings_path=hook_settings_file(repo / cfg.state_dir),
+        settings_path=settings_path,
+        settings=json.loads(settings_path.read_text(encoding="utf-8")),
         permission_mode=cfg.permission_mode, model=cfg.model,
         config_dir=cfg.config_dir, persist_sessions=cfg.persist_sessions,
         extra_env=cfg.extra_env, log_dir=repo / cfg.state_dir / "sessions",

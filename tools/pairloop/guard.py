@@ -54,7 +54,8 @@ import re
 import shlex
 import subprocess
 import sys
-from dataclasses import dataclass, field
+from collections.abc import Mapping
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 REVIEWER = "reviewer"
@@ -118,6 +119,7 @@ class Context:
     base_branch: str = "main"
     remote: str = "origin"
     cwd: Path = field(default_factory=Path.cwd)
+    env: Mapping[str, str] = field(default_factory=dict)
 
     @property
     def protected_branches(self) -> set[str]:
@@ -142,14 +144,44 @@ def _inside(path: Path, root: Path) -> bool:
     return path == root or root in path.parents
 
 
+_GIT_BASH_DRIVE = re.compile(r"^/([A-Za-z])(/|$)")
+
+
+def from_git_bash(raw: str, windows: bool = os.name == "nt") -> str:
+    """Git Bash writes ``C:\\Users`` as ``/c/Users``; read it as Windows does."""
+    if not windows:
+        return raw
+    m = _GIT_BASH_DRIVE.match(raw)
+    if not m:
+        return raw
+    return f"{m.group(1).upper()}:/" + raw[3:]
+
+
 def resolve(raw: str, cwd: Path) -> Path:
-    p = Path(os.path.expanduser(raw))
+    p = Path(os.path.expanduser(from_git_bash(raw)))
     if not p.is_absolute():
         p = cwd / p
     return _real(p)
 
 
-_NULL_DEVICES = {"/dev/null"}
+_NULL_DEVICES = {"/dev/null", "/dev/stdout", "/dev/stderr", "/dev/stdin"}
+
+
+def _is_stream(target: str) -> bool:
+    """Null device and standard streams; also in Git Bash on Windows."""
+    return target in _NULL_DEVICES or bool(re.match(r"^/dev/fd/\d+$", target))
+
+
+_VAR = re.compile(r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))")
+_ASSIGNMENT = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$", re.S)
+
+
+def expand(token: str, variables: Mapping[str, str]) -> str:
+    """Expand ``$X`` and ``${X}`` that are known; leave the others as they are."""
+    def sub(m: re.Match) -> str:
+        name = m.group(1) or m.group(2)
+        return variables.get(name, m.group(0))
+    return _VAR.sub(sub, token)
 
 
 def check_path(path: Path, ctx: Context) -> str | None:
@@ -157,6 +189,11 @@ def check_path(path: Path, ctx: Context) -> str | None:
     path = _real(path)
     if str(path) == os.devnull:
         return None
+    # The scratch directory may sit inside a root (the reviewer's does):
+    # it is checked first.
+    for extra in ctx.scratch:
+        if _inside(path, _real(extra)):
+            return None
     roots = sorted((_real(r) for r in ctx.roots), key=lambda r: len(r.parts),
                    reverse=True)
     for root in roots:
@@ -173,9 +210,6 @@ def check_path(path: Path, ctx: Context) -> str | None:
             if ctx.role == REVIEWER and not matches(rel, REVIEWER_WRITABLE):
                 return (f"{rel}: o revisor só escreve em pair/, "
                         "docs/decisoes.md e docs/roteiro.md.")
-            return None
-    for extra in ctx.scratch:
-        if _inside(path, _real(extra)):
             return None
     return (f"{path}: fora do repositório, dos worktrees e do diretório de "
             "rascunho da sessão (use $PAIRLOOP_SCRATCH).")
@@ -376,6 +410,13 @@ def check_git(argv: list[str], cwd: Path, ctx: Context) -> str | None:
                 return reason
     if sub == "config":
         return _check_config(args)
+    if sub in ("clone", "init") or (sub == "worktree" and args
+                                    and args[0] == "add"):
+        target = _created_directory(sub, args, cwd)
+        if target is not None:
+            reason = check_path(target, ctx)
+            if reason:
+                return reason
     if sub == "push":
         if ctx.role == REVIEWER:
             return ("O revisor não faz push; o orquestrador faz, depois dos "
@@ -403,8 +444,61 @@ def check_git(argv: list[str], cwd: Path, ctx: Context) -> str | None:
                 return "O executor não muda para a branch base."
         if sub == "worktree" and args and args[0] in ("remove", "prune",
                                                       "move"):
-            return "O executor não remove nem move worktrees."
+            paths = _operands(args[1:])
+            in_scratch = paths and args[0] != "prune" and all(
+                any(_inside(resolve(p, cwd), _real(x)) for x in ctx.scratch)
+                for p in paths)
+            if not in_scratch:
+                return ("O executor só remove ou move worktrees do próprio "
+                        "rascunho ($PAIRLOOP_SCRATCH).")
     return None
+
+
+_CLONE_VALUE_OPTS = {
+    "-b", "--branch", "-o", "--origin", "-c", "--config", "--depth",
+    "--reference", "--reference-if-able", "--separate-git-dir", "-u",
+    "--upload-pack", "--template", "--filter", "-j", "--jobs",
+    "--shallow-since", "--shallow-exclude", "--server-option", "--bundle-uri",
+    "--ref-format",
+}
+_INIT_VALUE_OPTS = {"--template", "--separate-git-dir", "-b",
+                    "--initial-branch", "--object-format", "--ref-format"}
+_WORKTREE_VALUE_OPTS = {"-b", "-B", "--reason"}
+
+
+def _value_operands(args: list[str], value_opts: set[str]) -> list[str]:
+    out, i = [], 0
+    while i < len(args):
+        a = args[i]
+        if a in value_opts:
+            i += 2
+            continue
+        if not a.startswith("-") or a == "-":
+            out.append(a)
+        i += 1
+    return out
+
+
+def _created_directory(sub: str, args: list[str], cwd: Path) -> Path | None:
+    """Directory that git clone, git init or git worktree add writes."""
+    if sub == "clone":
+        ops = _value_operands(args, _CLONE_VALUE_OPTS)
+        if not ops:
+            return None
+        if len(ops) >= 2:
+            return resolve(ops[1], cwd)
+        source = ops[0].rstrip("/\\")
+        if source in (".", ""):
+            name = _real(cwd).name
+        else:
+            name = re.split(r"[/:\\]", source)[-1]
+        name = name.removesuffix(".git") or "repo"
+        return resolve(name, cwd)
+    if sub == "init":
+        ops = _value_operands(args, _INIT_VALUE_OPTS)
+        return resolve(ops[0], cwd) if ops else _real(cwd) / ".git"
+    ops = _value_operands(args[1:], _WORKTREE_VALUE_OPTS)
+    return resolve(ops[0], cwd) if ops else None
 
 
 def _check_push(args: list[str], cwd: Path, ctx: Context) -> str | None:
@@ -533,10 +627,21 @@ def check_bash(command: str, ctx: Context) -> str | None:
                     "Rode o push como comando separado.")
         return None
     cwd = ctx.cwd
+    local: dict[str, str] = {}
     for simple in commands:
-        argv = _strip_wrappers(simple.argv)
-        for target in simple.redirects:
-            if target in _NULL_DEVICES:      # also in Git Bash on Windows
+        variables = {**ctx.env, **local}
+        raw = [expand(a, variables) for a in simple.argv]
+        decl = raw[1:] if raw and raw[0] in ("export", "local", "declare",
+                                             "readonly") else raw
+        if decl and all(_ASSIGNMENT.match(a) for a in decl):
+            for a in decl:
+                name, value = _ASSIGNMENT.match(a).groups()
+                local[name] = value
+            if not simple.redirects:
+                continue
+        argv = _strip_wrappers(raw)
+        for target in (expand(t, variables) for t in simple.redirects):
+            if _is_stream(target):
                 continue
             reason = check_path(resolve(target, cwd), ctx)
             if reason:
@@ -551,8 +656,7 @@ def check_bash(command: str, ctx: Context) -> str | None:
         if name in ("bash", "sh", "zsh") and "-c" in argv:
             idx = argv.index("-c")
             if idx + 1 < len(argv):
-                inner = Context(ctx.role, ctx.roots, ctx.scratch,
-                                ctx.base_branch, ctx.remote, cwd)
+                inner = replace(ctx, cwd=cwd, env={**ctx.env, **local})
                 reason = check_bash(argv[idx + 1], inner)
                 if reason:
                     return reason
@@ -563,7 +667,7 @@ def check_bash(command: str, ctx: Context) -> str | None:
                 return reason
             continue
         for target in written_paths(argv):
-            if target in _NULL_DEVICES:
+            if _is_stream(target):
                 continue
             reason = check_path(resolve(target, cwd), ctx)
             if reason:
@@ -597,6 +701,7 @@ def context_from_env(env: dict[str, str], cwd: Path) -> Context:
         base_branch=env.get("PAIRLOOP_BASE_BRANCH", "main"),
         remote=env.get("PAIRLOOP_REMOTE", "origin"),
         cwd=cwd,
+        env=dict(env),
     )
 
 
