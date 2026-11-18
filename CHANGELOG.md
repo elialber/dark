@@ -91,6 +91,20 @@ podem mudar entre versões menores.
   mais recente dele no banco deu `sem ganho` ou `piora`. Nenhuma regra do
   roteiro fica adiada, e o relatório deixa de imprimir a lista de
   adiadas.
+- **`applied_module` no formato `nome:versão`** (goal 057): `python -m
+  dark.evals guardar` e `dark coletar --evals` recusam, linha a linha, um
+  `applied_module` que não seja um único `:` entre nome e versão não
+  vazios e sem espaço nas pontas, e a recusa mostra o valor recebido. O
+  esquema do registro (`python -m dark.evals esquema`) ganha um `pattern`
+  para o campo. Um banco com valor antigo fora do formato continua
+  abrindo.
+- **`pattern` do registro como no JSON Schema** (goal 058): o `$` dos
+  `pattern` do esquema passa a ser o fim do texto. Um `base_commit` ou
+  `harness_commit` que termina em quebra de linha (`\n` ou `\r\n`) é
+  recusado na sua linha com `formato inválido`; antes, um `base_commit`
+  assim entrava no banco. O `applied_module` assim já era recusado pela
+  conferência do goal 057, que continua dando a mensagem. Teste que falha
+  se um `pattern` do esquema perder a âncora `^` ou `$`.
 - **Documentos do módulo `graphify`** (goal 047): subseção no README,
   Anexo A de `docs/metodo.md` e glossário; teste que falha se o README
   citar versão, comando, caminho ou evento de hook diferente do código.

@@ -334,6 +334,27 @@ antes, o `dark` grava uma cópia dele ao lado, com o sufixo `.v3.bak`
 (`aggregates.sqlite3.v3.bak`, por exemplo). As execuções antigas ficam
 com os campos novos vazios.
 
+O `applied_module` também precisa estar no formato `nome:versão`
+(goal 057): um único `:`, nome e versão não vazios e sem espaço nas
+pontas. Fora dele, a linha é recusada e as outras do arquivo entram. Com
+`graphify` no lugar de `graphify:0.9.112`, o `guardar` imprime:
+
+```
+0 novas, 0 já existiam, 1 recusada
+  linha 1: applied_module: esperado nome:versão (um único ':', nome e versão não vazios, sem espaço nas pontas), recebido 'graphify'
+```
+
+O `dark coletar --evals` recusa a mesma linha. O esquema do registro
+(`python -m dark.evals esquema`) traz o formato no `pattern` do campo:
+
+```
+"pattern": "^[^:\\s](?:[^:]*[^:\\s])?:[^:\\s](?:[^:]*[^:\\s])?$",
+```
+
+Como num validador de JSON Schema, o `$` desse `pattern` e o dos commits
+(`base_commit`, `harness_commit`) é o fim do texto: um valor que termina
+em quebra de linha é recusado (goal 058).
+
 No banco, a medição de um módulo é o conjunto das execuções
 `with_module` do mesmo módulo e do mesmo commit do harness, cada uma
 pareada com a execução `project` do mesmo caso e número. A decisão
