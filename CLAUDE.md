@@ -29,10 +29,16 @@
   **Motivo:** sem `-q` o hash fica gravado na transcrição; com `-q`, a
   ligação entre sessão e commit depende de cruzar horários (experimento 3
   do goal 004).
-- Sessões de teste ou experimento rodam com `CLAUDE_CONFIG_DIR` apontando
-  para um diretório descartável.
+- Sessão de teste ou experimento do Claude Code não grava no histórico
+  real nem lê o harness pessoal do usuário. Duas formas atendem:
+  `CLAUDE_CONFIG_DIR` num diretório descartável, com a credencial vinda
+  do ambiente (`CLAUDE_CODE_OAUTH_TOKEN` ou `ANTHROPIC_API_KEY`); ou o
+  diretório padrão com `--no-session-persistence` e
+  `--setting-sources project`.
   **Motivo:** no goal 004, 14 sessões de experimento gravaram transcrições
-  no diretório do usuário e se misturaram ao histórico real.
+  no diretório do usuário e se misturaram ao histórico real. Nos goals
+  018 e 020, o diretório descartável ficou sem login, porque a credencial
+  fica presa ao diretório de configuração (lote 009).
 - Arquivos sintéticos que imitam harness (`CLAUDE.md`, `.claude/`,
   `.mcp.json`) ficam no repositório com nomes neutros e são montados em
   diretório temporário pelo teste.

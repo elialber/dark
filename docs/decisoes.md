@@ -1002,3 +1002,86 @@ O relatório escreve todo caminho com barra normal (`as_posix`), em
 qualquer sistema, como o inventário já fazia com os nomes.
 
 **Motivo:** o mesmo relatório misturava as duas barras no Windows (S1.2).
+
+## Decisões dos goals 018, 019 e 020
+
+**Data:** 2026-11-17 ([lote 009](../pair/entrada/lote-009.md))
+
+Confirmadas pelo revisor, como estão, com as alterações das seções
+seguintes:
+
+- [Diário 018](../pair/diario/018.md), "Decisões de projeto (para
+  confirmar)", itens 1 a 11: contrato revisor → orquestrador em arquivo,
+  revisão de fechamento além dos ciclos, limites em duas camadas, hooks
+  por `--settings`, modo `bypassPermissions` com o hook como limite,
+  raízes por papel, executor sem merge e com push só da própria branch,
+  orçamento pelos quatro campos de `usage`, sessões reais no diretório
+  padrão, numeração das rodadas e lotes acima do limite de executores.
+  O item 3 ganha a conferência por conteúdo do goal 021; quem faz push
+  muda (abaixo).
+- [Diário 019](../pair/diario/019.md), "Decisões tomadas aqui, para
+  confirmar", itens 1 a 6: já registradas nas seções "Goal 019" acima.
+- [Diário 020](../pair/diario/020.md): o diário não tem uma seção com o
+  título "para confirmar". As decisões são as da seção "Decisões de
+  projeto": cópia por `git init` e fetch só da base, condição aplicada
+  como commit, o que conta como harness, recusas, permissões
+  (`acceptEdits`, sem `bypassPermissions`), ferramentas padrão com web,
+  tokens pelos quatro campos com teto conferido por evento, motivos de
+  término (com turnos como motivo próprio), aceite pela validação,
+  registro em JSON Lines, execução como laço mais externo da rodada,
+  resumo e limites padrão. As mudanças em arquivos existentes propostas
+  no diário entram pelo goal 021.
+
+**Motivo:** o lote não traz motivo explícito; o de cada uma está no
+diário correspondente.
+
+## Laço de par: quem faz push
+
+**Data:** 2026-11-17 ([lote 009](../pair/entrada/lote-009.md)); altera o
+item 7 do diário 018 e o texto do revisor.
+
+O revisor do laço não faz push. O orquestrador faz, depois de rodar os
+testes e conferir o histórico. O executor continua fazendo push só da
+própria branch.
+
+**Motivo:** risco 5 do diário 018; uma violação detectada depois do push
+já estaria no remoto.
+
+## Sessões de teste e experimento do Claude Code
+
+**Data:** 2026-11-17 ([lote 009](../pair/entrada/lote-009.md)); altera a
+regra do `CLAUDE.md` criada no goal 004.
+
+Uma sessão de teste ou experimento do Claude Code não pode gravar no
+histórico real nem ler o harness pessoal do usuário. Duas formas
+atendem: diretório de configuração descartável com a credencial vinda do
+ambiente; ou o diretório padrão com as opções que desligam a gravação da
+sessão e restringem as configurações às do projeto.
+
+**Motivo:** goal 004, em que 14 sessões de experimento gravaram no
+histórico real; diários 018 e 020: com diretório descartável não há
+login, porque a credencial fica presa ao diretório de configuração.
+
+## Risco aceito: o hook do laço não vê tudo
+
+**Data:** 2026-11-17 ([lote 009](../pair/entrada/lote-009.md))
+
+Um agente do laço roda com permissões liberadas, e um programa escrito
+por ele (por exemplo, `python -c`) pode gravar onde quiser. Dentro do
+repositório, a conferência do orquestrador pega depois; fora, nada pega.
+Fechar isso exige um ambiente isolado, que está fora do escopo atual. O
+usuário foi avisado.
+
+**Motivo:** sondagem do revisor no lote 009 e risco listado no diário
+018.
+
+## Calibração de evals bloqueada por credencial
+
+**Data:** 2026-11-17 ([lote 009](../pair/entrada/lote-009.md))
+
+A calibração depende de o usuário gerar um token dedicado e colocá-lo no
+ambiente. Até lá, os itens do roteiro que dependem de rodar o agente em
+avaliação (poda por ablação, medição de módulos) não começam.
+
+**Motivo:** critério 2 do goal 020, bloqueado; o executor roda com
+configuração isolada, e nela a credencial tem de vir do ambiente.

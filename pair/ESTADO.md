@@ -17,7 +17,7 @@ recebeu acesso do dono. A cópia no repositório é a referência.
 
 ## Fase atual
 
-Fase 2 concluída; Fase 3 (evals) iniciada pelo goal 012
+Fase 3 em andamento; laço de par disponível
 
 ## Goals
 
@@ -40,23 +40,28 @@ Fase 2 concluída; Fase 3 (evals) iniciada pelo goal 012
 | [015 — Portabilidade](goals/015-portabilidade.md) | Aceito no [lote 008](entrada/lote-008.md) e incorporado à `main` |
 | [016 — Motor do scaffold](goals/016-scaffold-engine.md) | Aceito no [lote 008](entrada/lote-008.md) e incorporado à `main` |
 | [017 — Armazenamento de agregados](goals/017-aggregate-store.md) | Aceito no [lote 008](entrada/lote-008.md) e incorporado à `main` |
-| 018 — Laço de par | Em andamento em outra sessão, branch `goal-018` |
-| [019 — Correções de portabilidade](goals/019-portability-fixes.md) | Concluído, aguarda revisão ([diário](diario/019.md)) |
-| 020 — Executor de evals | Em andamento em outra sessão, branch `goal-020` |
+| [018 — Laço de par](goals/018-pair-loop.md) | Aceito no [lote 009](entrada/lote-009.md) e incorporado à `main` |
+| [019 — Correções de portabilidade](goals/019-portability-fixes.md) | Aceito pelo revisor no [lote 009](entrada/lote-009.md) |
+| [020 — Executor de evals](goals/020-eval-runner.md) | Aceito no [lote 009](entrada/lote-009.md) e incorporado à `main`; critério 2 (calibração) bloqueado por credencial |
+| [021 — Laço pronto para rodar](goals/021-loop-readiness.md) | Em andamento |
 
 ## Decisões pendentes
 
-Nenhuma. As decisões dos goals 014, 016 e 017 foram confirmadas no
-[lote 008](entrada/lote-008.md). As branches `goal-015` a `goal-017`
-foram apagadas, locais e remotas, e os worktrees removidos.
+Nenhuma. As decisões dos goals 018, 019 e 020 foram confirmadas no
+[lote 009](entrada/lote-009.md), com duas alterações (o revisor do laço
+não faz push; nova regra das sessões de teste). As branches `goal-018`
+e `goal-020` foram incorporadas e apagadas, e os worktrees removidos.
+
+## Pedidos ao usuário
+
+- Token dedicado no ambiente para a calibração dos evals
+  (`CLAUDE_CODE_OAUTH_TOKEN`, gerado por `claude setup-token`, ou
+  `ANTHROPIC_API_KEY`). Sem ele, a poda por ablação e a medição de
+  módulos não começam.
 
 ## Próximo passo
 
-Revisão do goal 019. Os seis jobs do workflow passam na `main` (Linux,
-macOS e Windows, Python 3.12 e 3.13; run `44202929352`); nenhum item que
-impedia o uso em Windows está em aberto em
-[docs/portabilidade.md](../docs/portabilidade.md). O relatório ganhou três
-avisos (retenção, versão fora do intervalo testado, skill embutida pela
-regra). O diário 019 lista o que não foi exercitado com dados reais em
-Windows e macOS, com recomendações, e um defeito do armazenamento achado
-pelo CI e corrigido. Os goals 018 e 020 seguem em outras sessões.
+Goal 021: push pelo orquestrador, bloqueio de configuração do git no
+hook, conferência dos arquivos protegidos por conteúdo e executor no
+comando `python -m dark.evals`. A primeira rodada do laço só começa
+quando o usuário pedir.

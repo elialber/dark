@@ -15,32 +15,41 @@ que descobrir. O porquê do projeto está em `docs/visao.md`.
   com relatório (goals 005 a 013).
 - **Fase 3, início.** Formato, validação e mineração de casos de eval,
   sem executar o agente (goal 012).
+- **Código em inglês** (goal 014). Código, testes e commits em inglês;
+  interface em português, com tabelas de rótulos na camada de
+  apresentação (decisão E18).
+- **Testes em três sistemas** (goal 015). Workflow em Ubuntu, macOS e
+  Windows, Python 3.12 e 3.13, e o levantamento das suposições de
+  ambiente em `docs/portabilidade.md`.
+- **Motor do scaffold** (goal 016). Operações reversíveis com manifesto,
+  plano e códigos de saída; base do item 6.
+- **Armazenamento de agregados** (goal 017). Banco local com os
+  agregados, retratos do inventário e comparação semanal; base do item
+  2.
+- **Laço de par** (goal 018). Orquestrador em `tools/pairloop`, revisor
+  do laço, hook de limites e `docs/laco-de-par.md`.
+- **Correções de portabilidade** (goal 019; era o item 1 da fila).
+  Saída em UTF-8, encerramento de processos e `sh` no Windows, caminhos
+  com barra normal, avisos de retenção, versão e skill embutida. Os seis
+  jobs do workflow passam e nada que impede o uso está em aberto em
+  `docs/portabilidade.md`.
+- **Executor de evals, construção** (goal 020). Cópia limpa sem
+  histórico posterior à base, condições `bare` e `project`, limites,
+  aceite, registro em JSON Lines e rodadas. A calibração ficou
+  bloqueada por credencial (item 3).
 
-## Em andamento (leva do lote 007)
+## Em andamento
 
 | Goal | O que é | Branch |
 |---|---|---|
-| 014 | Código em inglês | `main` |
-| 015 | Testes em três sistemas e levantamento das suposições de ambiente | `goal-015` |
-| 016 | Motor do scaffold: operações reversíveis com manifesto | `goal-016` |
-| 017 | Armazenamento de agregados e comparação semanal | `goal-017` |
-| 018 | Laço de par automático | `goal-018` |
-
-A junção das quatro branches só acontece depois do goal 014.
+| 021 | Laço pronto para rodar e executor no comando `python -m dark.evals` | `main` |
 
 ## Fila, em ordem
 
 Cada item traz o que entrega, do que depende e quando está pronto. Itens
-sem dependência entre si podem rodar em paralelo.
-
-### 1. Correções de portabilidade
-
-- **Entrega:** o código deixa de supor o ambiente do autor. Cada
-  suposição listada em `docs/portabilidade.md` é removida, tornada
-  configurável ou passa a degradar com aviso.
-- **Depende de:** 014 e 015.
-- **Pronto quando:** os testes passam em Ubuntu, macOS e Windows, e a
-  lista do que "impede o uso" em `docs/portabilidade.md` está vazia.
+sem dependência entre si podem rodar em paralelo. Os números dos itens
+não mudam quando um sai da fila, para que as referências continuem
+valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
 
 ### 2. Coleta
 
@@ -56,6 +65,10 @@ sem dependência entre si podem rodar em paralelo.
 
 ### 3. Executor de evals
 
+- **Situação:** construído no goal 020 (ligado ao comando no goal 021).
+  Falta a calibração, bloqueada por credencial: depende de o usuário
+  gerar um token dedicado e colocá-lo no ambiente. Até lá, os itens 4 e
+  a medição dos módulos do item 6 não começam.
 - **Entrega:** roda o agente, em modo não interativo, sobre um caso de
   eval, em cópia limpa do repositório, várias vezes, em duas condições:
   sem harness e com harness. Aplica o orçamento da decisão E17, começando
@@ -137,7 +150,7 @@ sem dependência entre si podem rodar em paralelo.
 - **Entrega:** instalação em um comando, em qualquer máquina; o plugin
   do Claude Code; versão e registro de mudanças; README para quem chega
   de fora.
-- **Depende de:** 1.
+- **Depende de:** 1 (concluído no goal 019).
 - **Pronto quando:** instalado do zero em uma segunda máquina, `dark
   auditar` roda sem ajuste manual.
 
@@ -149,6 +162,30 @@ sem dependência entre si podem rodar em paralelo.
 - **Observação:** é a única etapa que exige o usuário, porque são
   repositórios dele. Vai para o relatório da rodada como pedido, não
   como critério de aceite de um goal.
+
+## Regras de operação
+
+- **Numeração.** O próximo goal é o maior número existente mais um. O
+  lote principal de um ciclo leva o próximo número de lote; os paralelos
+  levam o mesmo número com uma letra (`010b`, `010c`).
+- **Ordem de junção.** Uma branch só entra depois de aceita. Entre
+  branches aceitas no mesmo ciclo, a ordem é a dos números dos goals.
+- **"Aceito com correções".** Se a branch ainda não entrou: lote novo na
+  mesma branch, só com as correções. Se já entrou: goal novo, pequeno.
+  Correção de uma linha que o merge de ensaio revela pode ser feita na
+  junção, em commit próprio, e fica registrada.
+- **Tolerância em conferência.** Tabela "esperado, obtido" tem de bater
+  exatamente, ou cada diferença tem explicação escrita. Para taxas de
+  acerto de evals, a tolerância é declarada pelo goal que as mede, antes
+  de medir.
+- **Testes em três sistemas.** O revisor não roda Windows nem macOS.
+  Confere pelo resultado do workflow de testes na `main` ou na branch,
+  lido da execução, e registra a tabela.
+- **Itens que dependem do usuário** (credencial para evals, repositórios
+  do piloto): vão para o relatório da rodada como pedido. Enquanto não
+  forem atendidos, o revisor segue com os itens que não dependem deles.
+- **Tamanho de lote.** Um lote que estoura o limite de turnos da sessão
+  estava grande demais: o próximo revisor o divide, em vez de repetir.
 
 ## Guardado para depois
 
