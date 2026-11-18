@@ -211,3 +211,94 @@ execuções em 21,9% das vezes. Diferença por caso é anotada, não reprova
 a comparação. Consequência: esta rodada só mostra efeitos grandes do
 harness, acima de 4 em 15 execuções; efeito menor pede mais execuções
 ou mais casos.
+
+## Segunda rodada (casos difíceis)
+
+Conjunto declarado no goal 029, antes de qualquer medida. A primeira
+rodada deu 44 de 44 (30 da rodada, 10 da calibração e 4 dos casos médios)
+e não separou as condições: efeito teto. Sem casos que o agente às vezes
+falhe, a ablação e a medição dos módulos não têm o que medir. Os cinco
+casos abaixo trocam a tarefa pequena por tarefas grandes ou dependentes de
+convenção, e a rodada diz se separam.
+
+### Casos
+
+| Caso | Módulo | Tipo | Linhas da solução fora de `tests/` |
+|---|---|---|---|
+| `goal-016-scaffold-engine` | motor do scaffold | implementação nova a partir de testes | 1641 |
+| `goal-017-aggregate-store` | armazenamento | implementação nova a partir de testes | 1572 |
+| `goal-020-eval-runner` | executor de evals | implementação nova a partir de testes | 1262 (1120 em `src/`) |
+| `goal-024-collect` | coleta | funcionalidade que liga cinco módulos | 501 (486 em `src/`) |
+| `goal-029-case-format-language` | casos de eval | mudança guiada por convenção | 152 |
+
+O que cada um testa e por que entrou:
+
+- `goal-016-scaffold-engine`, `goal-017-aggregate-store` e
+  `goal-020-eval-runner` (acima de 800 linhas, três módulos diferentes):
+  o agente recebe os testes e uma descrição do que construir, e escreve o
+  pacote inteiro. Os testes fixam nomes e interface; o resto (formato do
+  manifesto, esquema do banco, estrutura de módulos) é decisão dele. Um
+  erro pequeno derruba o aceite, que roda centenas de asserções.
+- `goal-024-collect`: tamanho médio, mas exige entender cinco módulos já
+  existentes (leitor, indicadores, ligação de commits, inventário e
+  armazenamento) e ligá-los sem texto de conversa no banco.
+- `goal-029-case-format-language`: a convenção de idioma do repositório
+  ("formato dos casos de eval (`evals/cases/`) ... em inglês", seção
+  "Convenções" do `CLAUDE.md`) é o que decide os nomes dos campos, o valor
+  de origem e o nome da pasta. A condição `project` leva o `CLAUDE.md` do
+  HEAD, que traz a convenção; o commit base não traz, então `bare` não a
+  tem. O nome `evals/cases` só está escrito ali. Limite conhecido: o
+  código já usa inglês por dentro, e um agente sem `CLAUDE.md` pode chegar
+  lá só por ele; se `bare` e `project` empatarem neste caso, o dado vale
+  como "a convenção escrita não pesou aqui", não como prova de que não
+  pesa.
+
+Todos passam na validação (`validar` diz VÁLIDO; o aceite falha na base,
+com os testes da solução, e passa na solução). Tempo declarado: 60 s, o
+menor múltiplo de 60 acima do triplo da maior duração medida (11 s).
+
+### Comando
+
+A partir da raiz, com `CLAUDE_CODE_OAUTH_TOKEN` ou `ANTHROPIC_API_KEY` no
+ambiente e os limites aprovados no goal 026 (não os aumente):
+
+```bash
+python -m dark.evals calibrar --repo . --saida /tmp/evals/segunda-calibracao.jsonl \
+  --tokens 1000000 --max-turnos 40 --tempo 600 --teto-rodada 10000000 \
+  evals/cases/goal-016-scaffold-engine.toml \
+  evals/cases/goal-017-aggregate-store.toml \
+  evals/cases/goal-020-eval-runner.toml \
+  evals/cases/goal-024-collect.toml \
+  evals/cases/goal-029-case-format-language.toml
+python -m dark.evals resumir /tmp/evals/segunda-calibracao.jsonl
+```
+
+São 10 execuções (5 casos, 2 condições, 1 de cada). O `CLAUDE.md` do HEAD
+precisa conter a convenção de idioma para a condição `project` do último
+caso. Estimativa pelos casos médios do goal 026 (de 490 mil a 785 mil
+tokens, de 76 s a 343 s por execução, cerca de US$ 0,70 por milhão de
+tokens): 6 a 8 milhões de tokens, de 30 a 60 minutos em série e de US$ 4
+a 6 como piso. Os casos de implementação nova escrevem de 1100 a 1600
+linhas; é provável que gastem mais que os médios e batam nos limites de
+tokens, turnos ou tempo, ou no teto de 10 milhões da rodada.
+
+### O que fazer com o resultado
+
+- **Término por tempo, orçamento ou turnos** é resultado: conta como
+  falha, entra no registro e o limite não sobe. Se acontecer em todas as
+  execuções de um caso, o caso é grande demais para os limites aprovados;
+  aí o usuário decide se quer limites maiores num goal próprio, com a
+  estimativa de custo antes.
+- **Alguma falha ou diferença entre as condições:** o conjunto passa a
+  discriminar. Rode `rodar --execucoes 3` neles com os mesmos limites e
+  compare com a tolerância de "Primeira rodada" (até 4 execuções de
+  diferença é ruído). Lembre que a tolerância foi calculada para 5 casos
+  e 15 execuções por condição; com outro número de casos, recalcule-a
+  antes de medir, nunca depois de ver o resultado.
+- **Ainda 100% nas duas condições:** os casos continuam a medir só o que
+  o agente já faz. O próximo goal tenta tarefas de várias etapas (por
+  exemplo, um goal inteiro com mais de um commit de solução e aceite
+  único no fim) e pedidos sem teste prévio, em que o agente escreve o
+  teste e um aceite escondido confere o comportamento.
+- A tolerância declarada em "Primeira rodada" vale; não a mude depois de
+  ver números.

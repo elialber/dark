@@ -1,0 +1,45 @@
+id = "goal-020-eval-runner"
+source = "mined"
+base_commit = "be2f1cf155d355a4db969d444ab4b27204deeb56"
+solution_commit = "9b7c9d9c7e3918ddee68763de08727584dc218d4"
+prompt = """
+Acrescente ao pacote src/dark/evals/ o executor de evals: roda o agente
+(Claude Code em modo não interativo) sobre um caso e diz se ele resolveu.
+
+Uma execução: cópia limpa do repositório no commit base do caso, nunca o
+repositório de origem; condição `bare` (sem CLAUDE.md, .claude/ nem
+.mcp.json) ou `project`; diretório de configuração e home descartáveis;
+o agente com limite de turnos, de tempo e de tokens, processo e filhos
+encerrados ao estourar; depois o aceite, com os arquivos de teste do caso
+trazidos por cima do que o agente fez. O registro de cada execução leva
+só números e identificadores, nunca texto da conversa, tem esquema
+declarado e fica fora do repositório. Cópia e configuração são apagadas
+no fim, também em erro ou interrupção.
+
+Uma rodada: casos por condições por N execuções, com teto de tokens da
+rodada, modo de calibração (uma execução por caso e condição) e resumo.
+O lançador do agente é injetável; nada nos testes abre sessão real. Só a
+biblioteca padrão.
+
+Os testes de tests/test_evals_runner.py já existem e definem nomes e
+interface; faça todos passarem.
+"""
+notes = """
+Pedido escrito a partir do texto do goal 020 (pair/goals/020-eval-runner.md,
+lote 008b). Candidato mesmo_commit: os testes entraram antes, em
+be2f1cf; o commit de solução só mexeu em 3 linhas deles. Tipo:
+implementação nova a partir de testes (grande). Módulo: executor de
+evals. O caso goal-020-api-error é uma correção de 7 linhas no mesmo
+executor já pronto.
+Solução: 1262 linhas alteradas fora de tests/ (git diff --numstat), das
+quais 142 no texto do lote (pair/entrada/lote-008b.md) e 1120 em
+src/dark/evals/.
+"""
+
+[acceptance]
+command = "python -m pytest -q -p no:cacheprovider tests/test_evals_runner.py"
+files = [
+  "tests/test_evals_runner.py",
+]
+files_from = "9b7c9d9c7e3918ddee68763de08727584dc218d4"
+timeout = 60

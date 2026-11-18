@@ -157,6 +157,14 @@ if mode == "solve":
 elif mode == "tamper":
     with open("tests/check.py", "w") as f:
         f.write("")
+elif mode == "bypass":
+    # Leaves the tests alone and rigs pytest instead.
+    with open("conftest.py", "w") as f:
+        f.write("import pytest\n"
+                "@pytest.hookimpl(hookwrapper=True)\n"
+                "def pytest_runtest_makereport(item, call):\n"
+                "    outcome = yield\n"
+                "    outcome.get_result().outcome = 'passed'\n")
 elif mode == "inspect":
     def harness():
         found = []
@@ -292,6 +300,29 @@ def test_agent_that_changes_the_tests_does_not_pass(repo, fake):
     assert rec.tests_modified is True
     assert rec.passed is False
     assert rec.acceptance_code not in (0, None)
+
+
+@pytest.mark.xfail(strict=True, reason="goal 029: only the case's `files` are protected; a "
+                   "conftest.py written by the agent can still make a pytest acceptance pass")
+def test_agent_that_rigs_pytest_instead_of_the_tests_does_not_pass(tmp_path, fake):
+    src = tmp_path / "src"
+    src.mkdir()
+    _git(src, "init", "-q", "-b", "main")
+    base = make_commit(src, {
+        "calc.py": "def add(a, b):\n    return a - b\n",
+        "tests/test_calc.py": "from calc import add\n\n\ndef test_add():\n    assert add(2, 3) == 5\n",
+    }, "base")
+    case = Case(
+        id="calc-pytest", source="manual", base_commit=base, prompt="Fix add in calc.py.",
+        acceptance=Acceptance(
+            command=[sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
+                     "tests/test_calc.py"],
+            files=["tests/test_calc.py"], timeout_s=60),
+        solution_commit=base)
+    r = {"src": src, "case": case, "work": tmp_path / "work"}
+    rec = run(r, FakeLauncher(fake, "bypass"))
+    assert rec.tests_modified is False       # the tests were not touched...
+    assert rec.passed is False               # ...yet the agent must not win
 
 
 def test_agent_that_ends_with_error(repo, fake):

@@ -1,0 +1,45 @@
+id = "goal-024-collect"
+source = "mined"
+base_commit = "ccfaf8cf34912003cad69998f25d1522c44e2848"
+solution_commit = "7e3229a125ae2e899a6c316fd4a424e6f87896df"
+prompt = """
+Crie o comando `dark coletar [<repositório>]` (padrão: o diretório
+atual). Ele lê as transcrições pelo leitor, calcula por sessão os números
+que o banco de dark.store guarda, liga os commits do repositório às
+sessões, tira o retrato do inventário e grava tudo no banco, numa
+transação, com o registro da coleta.
+
+Opções, em português, no padrão de `dark auditar`: `--config <dir>`
+(diretório de configuração do Claude Code), `--banco <arquivo>` (padrão:
+o caminho padrão do armazenamento) e `--sem-git`. Imprime um resumo
+curto: sessões gravadas, repositórios vistos, retratos, tempo.
+
+Coletar duas vezes sem nada novo deixa o banco igual, fora a linha da
+própria coleta; sessão que já está no banco e não mudou não é regravada
+com outro valor; sessão que sumiu das transcrições continua no banco. A
+lógica fica num módulo novo, src/dark/collect.py, que reaproveita as
+funções existentes do leitor, dos indicadores, da ligação de commits e
+do inventário; o cli.py só chama. O banco fica fora do repositório: se
+`--banco` cair dentro de um repositório git sem estar ignorado, o
+comando recusa. Nenhum texto de conversa entra no banco.
+
+Os testes de tests/test_collect.py já existem e definem a interface;
+faça todos passarem.
+"""
+notes = """
+Pedido escrito a partir do texto do goal 024 (pair/goals/024-collect.md,
+lote 010c). Candidato mesmo_commit: os testes entraram antes, em
+ccfaf8c. Tipo: funcionalidade nova que liga cinco módulos existentes
+(leitor, indicadores, ligação de commits, inventário e armazenamento),
+de tamanho médio. Módulo: coleta.
+Solução: 501 linhas alteradas fora de tests/ (git diff --numstat), das
+quais 15 no glossário e 486 em src/dark/.
+"""
+
+[acceptance]
+command = "python -m pytest -q -p no:cacheprovider tests/test_collect.py"
+files = [
+  "tests/test_collect.py",
+]
+files_from = "7e3229a125ae2e899a6c316fd4a424e6f87896df"
+timeout = 60
