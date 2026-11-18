@@ -51,7 +51,9 @@ def test_schema_version_and_table_declared():
 
 
 def test_closed_sets_match_the_run_record():
-    assert records.EVAL_CONDITIONS == run_record.CONDITIONS
+    # Goal 050: the store does not take `with_module` yet (its schema has a CHECK).
+    assert records.EVAL_CONDITIONS == tuple(c for c in run_record.CONDITIONS
+                                            if c != "with_module")
     assert records.EVAL_END_REASONS == run_record.END_REASONS
 
 

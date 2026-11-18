@@ -5,6 +5,7 @@
     python -m dark.evals calibrar --repo . --saida ARQ.jsonl CASO.toml ...
     python -m dark.evals rodar --repo . --saida ARQ.jsonl [--execucoes 3] CASO.toml ...
     python -m dark.evals ablacao --tipo T --nome N --saida ARQ.jsonl [--simular] CASO.toml ...
+    python -m dark.evals modulo --nome M --saida ARQ.jsonl [--simular] CASO.toml ...
     python -m dark.evals resumir ARQ.jsonl
     python -m dark.evals guardar ARQ.jsonl [--banco CAMINHO]
     python -m dark.evals esquema
@@ -26,12 +27,20 @@ one of four answers: pode remover, mantenha, inconclusivo, não discrimina.
 `--simular` prints the number of runs and the most tokens the round can
 spend, and runs nothing. It needs the same credential as `rodar`.
 
+`modulo` (goal 050) runs the cases with the project harness and with the same
+copy plus one scaffold module (applied by the scaffold engine, then prepared by
+the commands the module declares, then verified), and prints one of four
+answers: ganho, sem ganho, piora, inconclusivo. `--simular` prints the plan and
+runs nothing. Exit code 2: unknown module, missing executable, module already
+in the evaluated harness; exit code 1: the preparation failed or the module's
+verification did not pass in the copy.
+
 `guardar` (goal 038) reads the records of a round and writes them to the aggregate
 store (the default path is the one of `dark coletar`). A line that does not match
 `dark.eval_run/1` is refused and counted, and the others are kept; importing the same
 file again adds nothing.
 
-WARNING: `calibrar`, `rodar` and `ablacao` run an agent that edits files and runs
+WARNING: `calibrar`, `rodar`, `ablacao` and `modulo` run an agent that edits files and runs
 commands, and then the acceptance command of the evaluated repository. Use
 them only on your own repositories.
 """
@@ -50,7 +59,9 @@ from dark.store import StoreError, default_store_path, open_store
 from dark.store_path import store_refusal
 
 from . import case as m_case
-from . import ablation, mining, rounds, run_record, runner, validation
+from dark.scaffold import registry
+
+from . import ablation, mining, module_gain, rounds, run_record, runner, validation
 
 EXIT_INPUT = 2
 EXIT_BLOCKED = 3
@@ -88,6 +99,12 @@ def main(argv: list[str] | None = None) -> int:
     ab.add_argument("--nome", dest="name", required=True, help="nome da peça, como o inventário")
     ab.add_argument("--simular", dest="simulate", action="store_true",
                     help="só mostra o custo máximo; não roda nada")
+    mo = sub.add_parser("modulo", help="aplica um módulo numa cópia e mede o ganho")
+    _add_run_args(mo, 3, ablation=True)
+    mo.add_argument("--nome", dest="name", required=True,
+                    help="nome do módulo, como em `dark adicionar`")
+    mo.add_argument("--simular", dest="simulate", action="store_true",
+                    help="só mostra o plano e o custo máximo; não roda nada")
     r = sub.add_parser("resumir", help="resume um arquivo de registros")
     r.add_argument("records", metavar="registros", type=Path)
     g = sub.add_parser("guardar", help="grava os registros de uma rodada no banco de agregados")
@@ -103,6 +120,8 @@ def main(argv: list[str] | None = None) -> int:
         return _validate(a)
     if a.action == "ablacao":
         return _ablate(a)
+    if a.action == "modulo":
+        return _module(a)
     if a.action == "esquema":
         print(json.dumps(run_record.RECORD_SCHEMA, ensure_ascii=False, indent=2))
         return 0
@@ -135,6 +154,13 @@ def _save(a) -> int:
     if refusal:
         print(refusal, file=sys.stderr)
         return 1
+    if plan.with_module:
+        lines = ", ".join(str(n) for n in plan.with_module[:10])
+        more = "..." if len(plan.with_module) > 10 else ""
+        print(f"{a.records}: {_count(len(plan.with_module), 'registro', 'registros')} da "
+              f"condição with_module (linhas {lines}{more}); o banco de agregados ainda não "
+              "guarda essa condição (o esquema do banco não a tem). Nada foi gravado.")
+        return EXIT_INPUT
     if plan.runs:
         if target.is_dir():
             print(f"{target} é um diretório; use --banco com o caminho de um arquivo. "
@@ -258,6 +284,9 @@ def _run(a, runs: int) -> int:
         if c == "ablated":
             print("a condição ablated só existe no comando ablacao")
             return 2
+        if c == "with_module":
+            print("a condição with_module só existe no comando modulo")
+            return 2
         if c not in run_record.CONDITIONS:
             print(f"condição desconhecida: {c}")
             return 2
@@ -301,7 +330,73 @@ def _ablate(a) -> int:
     return code
 
 
-def _execute(a, cases, conditions, runs, piece=None):
+def _module(a) -> int:
+    module = registry.get_module(a.name)
+    if module is None:
+        known = ", ".join(m.name for m in registry.list_modules())
+        print(f"módulo desconhecido: {a.name}. Módulos: {known}")
+        return 2
+    cases, code = _load_cases(a.cases)
+    if cases is None:
+        return code
+    if a.runs < 1:
+        print("--execucoes precisa ser pelo menos 1")
+        return 2
+    setup = module_gain.ModuleSetup(module)
+    worst = ablation.worst_case(len(cases), a.runs, a.max_tokens, a.round_cap)
+    print(f"módulo: {setup.name} {setup.version}; indicador declarado: {module.indicator}")
+    if setup.commands:
+        print("preparação na cópia, depois de aplicar o módulo e antes do agente:")
+        for argv in setup.commands:
+            print(f"  {' '.join(argv)}")
+    else:
+        print("preparação na cópia: nenhuma")
+    print(f"{worst.runs} execuções ({len(cases)} caso(s) × {a.runs} × 2 condições); "
+          f"no máximo {rounds._fmt_tokens(worst.tokens)} tokens "
+          f"(por execução {rounds._fmt_tokens(a.max_tokens)}, "
+          f"por rodada {rounds._fmt_tokens(a.round_cap)})")
+    per_condition = len(cases) * a.runs
+    if per_condition < module_gain.MIN_RUNS:
+        print(f"com {per_condition} execuções por condição (menos de {module_gain.MIN_RUNS}) a "
+              "regra só pode dar inconclusivo")
+    if module.indicator != module_gain.GAIN_INDICATOR:
+        print(f"a regra mede custo (tokens) e passos (turnos), não o indicador declarado "
+              f"({module.indicator})")
+    missing = setup.missing_executables()
+    if a.simulate:
+        if missing:
+            print(f"aviso: executável ausente do PATH: {', '.join(missing)}; "
+                  "sem ele a rodada é recusada")
+        print("simulação: nada foi rodado")
+        return 0
+    if missing:
+        print(f"recusado: executável ausente do PATH: {', '.join(missing)}; a preparação do "
+              f"módulo {setup.name} precisa dele")
+        return 2
+    try:
+        runner.ClaudeLauncher.from_environ(os.environ, executable=a.claude)
+    except runner.AuthUnavailable as e:
+        print(f"bloqueado: {e}")
+        return EXIT_BLOCKED
+    print("conferindo o módulo numa cópia de teste...")
+    try:
+        module_gain.preflight(a.repo, [c.base_commit for c in cases], a.harness, setup,
+                              a.workdir, a.timeout)
+    except module_gain.SetupRefused as e:
+        print(f"recusado: {e}")
+        return 2
+    except module_gain.SetupFailed as e:
+        print(f"recusado: {e}; nada foi rodado")
+        return 1
+    print("módulo verificado na cópia de teste")
+    code, res = _execute(a, cases, ["project", "with_module"], a.runs, module=setup)
+    if res is not None:
+        print()
+        print(module_gain.describe(module_gain.decide_from_records(res.records), setup))
+    return code
+
+
+def _execute(a, cases, conditions, runs, piece=None, module=None):
     """Runs the round; returns (exit code, the round's result or None)."""
     try:
         launcher = runner.ClaudeLauncher.from_environ(os.environ, executable=a.claude)
@@ -317,7 +412,7 @@ def _execute(a, cases, conditions, runs, piece=None):
         source_repo=a.repo, harness_commit=a.harness, workdir=a.workdir, model=a.model,
         limits=runner.RunLimits(max_turns=a.max_turns, timeout_s=a.timeout,
                                 max_tokens=a.max_tokens),
-        ablation=piece)
+        ablation=piece, module=module)
 
     def on_record(d: dict) -> None:
         state = "PASSOU" if d["passed"] else "não passou"

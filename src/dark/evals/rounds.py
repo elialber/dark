@@ -192,6 +192,8 @@ class ImportPlan:
     """What a records file holds: runs ready for the store and the lines refused."""
     runs: list = field(default_factory=list)      # dark.store.EvalRunRecord
     refused: list[tuple[int, str]] = field(default_factory=list)   # (line number, reason)
+    # Goal 050: lines of the `with_module` condition, which the store does not take yet.
+    with_module: list[int] = field(default_factory=list)
 
 
 def to_store_record(d: dict):
@@ -261,6 +263,9 @@ def plan_import(path: Path) -> ImportPlan:
             continue
         try:
             run_record.validate_record(d)
+            if d["condition"] == "with_module":
+                plan.with_module.append(number)
+                continue
             check_limits(d)
             plan.runs.append(to_store_record(d))
         except (run_record.RecordError, ValueError, StoreError) as e:
