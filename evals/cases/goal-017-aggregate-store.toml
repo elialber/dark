@@ -1,0 +1,51 @@
+id = "goal-017-aggregate-store"
+source = "mined"
+base_commit = "43c01f3a751cf1ce507058742fd0442c86c87271"
+solution_commit = "eae536950b80be51bdb689fb3bea7b15ad98f373"
+prompt = """
+Crie o pacote src/dark/store/: um banco SQLite, só com a biblioteca
+padrão e sem importar nenhum módulo existente de dark, que guarda fora
+das transcrições os números de cada sessão e de cada coleta, para que a
+auditoria compare uma semana com a anterior.
+
+Guarda: repositórios (identidade e último caminho visto); sessões
+(identificador, repositório, início, fim, versão do Claude Code, pedidos,
+tokens, peso fixo total e por grupo, contagens de intervenção, pedidos
+por modo de permissão, desfechos de hook, contagens de formato
+desconhecido); uso de peças por sessão; ligações de commit; retratos do
+inventário; coletas.
+
+Regras: o esquema é declarado e a gravação recusa campo fora dele; não
+há coluna de texto livre e nome acima de um tamanho máximo é recusado;
+gravar duas vezes a mesma sessão ou coleta deixa o banco igual; banco de
+versão de esquema mais nova que o código é erro claro; banco ilegível ou
+bloqueado dá erro que diz o que fazer, sem perder dados. O local do banco
+é um parâmetro e nunca fica dentro do repositório auditado.
+
+Consultas por repositório e por semana ISO, com resultado tipado: o
+resumo da semana e o da anterior; o que mudou no inventário entre dois
+retratos; peças que passaram a ficar sem uso e as que voltaram; há
+quantas semanas seguidas uma peça está sem uso, contando só as semanas
+com sessão.
+
+Os testes de tests/test_store.py já existem e definem nomes, tipos e
+comportamento; faça todos passarem.
+"""
+notes = """
+Pedido escrito a partir do texto do goal 017 (pair/goals/017-aggregate-store.md,
+lote 007d). Candidato mesmo_commit: os testes entraram antes, em
+43c01f3; o commit de solução acrescentou 33 linhas aos testes e todo o
+pacote. Tipo: implementação nova a partir de testes (grande). Módulo:
+armazenamento de agregados. O caso goal-019-store-header trata de uma
+correção pequena no mesmo pacote; este parte do zero.
+Solução: 1572 linhas alteradas fora de tests/ (git diff --numstat), todas
+em src/dark/store/.
+"""
+
+[acceptance]
+command = "python -m pytest -q -p no:cacheprovider tests/test_store.py"
+files = [
+  "tests/test_store.py",
+]
+files_from = "eae536950b80be51bdb689fb3bea7b15ad98f373"
+timeout = 60

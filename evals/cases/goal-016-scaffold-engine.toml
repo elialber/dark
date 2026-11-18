@@ -1,0 +1,55 @@
+id = "goal-016-scaffold-engine"
+source = "mined"
+base_commit = "dfdd4603cb9c83c0fec2dfacc31a2b0024b5eaa3"
+solution_commit = "637a0a0cf7ed64fc49fa2ea0c2bda1b34fbb79b1"
+prompt = """
+Crie o motor do scaffold em src/dark/scaffold/: o mecanismo que aplica
+mudanças a um repositório qualquer, de forma não destrutiva, idempotente
+e reversível, registrando tudo em um manifesto. Ele não pode supor nada
+sobre o repositório além de ser um diretório, e só usa a biblioteca
+padrão.
+
+Operações: criar arquivo; criar diretório; acrescentar uma entrada em um
+arquivo JSON, em um caminho de chaves; acrescentar uma linha a um arquivo
+de texto se ainda não existir; inserir um bloco delimitado por marcadores
+em um arquivo de texto.
+
+Ciclo: o plano (lista de operações) pode ser inspecionado sem alterar
+nada; a aplicação é tudo ou nada; o manifesto, um arquivo no repositório,
+registra cada operação aplicada com o necessário para desfazê-la e a
+versão de quem a pediu; a reversão desfaz exatamente o que o manifesto
+registra.
+
+Garantias: nunca sobrescreve conteúdo diferente (conflito, nada
+aplicado); aplicar de novo não muda nada; aplicar e reverter deixa a
+árvore idêntica byte a byte, inclusive em JSON existente; edição do
+usuário em algo aplicado é respeitada na reversão; caminho que sai do
+repositório (`..`, absoluto, link simbólico) é recusado; quebras de
+linha, ausência de quebra no fim e codificação são mantidas; reverter um
+módulo não afeta o que outro aplicou. Um módulo declara nome, versão,
+plano, verificação e o indicador que pretende melhorar. Há também um
+comando mínimo, com mensagens em português, para inspecionar, aplicar e
+reverter um plano descrito em arquivo.
+
+Os testes de tests/test_scaffold.py já existem e definem nomes e
+interface; faça todos passarem.
+"""
+notes = """
+Pedido escrito a partir do texto do goal 016 (pair/goals/016-scaffold-engine.md,
+lote 007c), sem o formato do manifesto, que o agente decide. Candidato
+mesmo_commit: os testes entraram antes, em dfdd460, e o commit de
+solução só acrescentou 30 linhas a eles; o motor inteiro é código novo.
+Tipo: implementação nova a partir de testes e de uma descrição (grande).
+Módulo: motor do scaffold. O caso de goal-016-whole-file-owner parte do
+motor pronto; este parte do zero.
+Solução: 1641 linhas alteradas fora de tests/ (git diff --numstat), todas
+em src/dark/scaffold/.
+"""
+
+[acceptance]
+command = "python -m pytest -q -p no:cacheprovider tests/test_scaffold.py"
+files = [
+  "tests/test_scaffold.py",
+]
+files_from = "637a0a0cf7ed64fc49fa2ea0c2bda1b34fbb79b1"
+timeout = 60

@@ -1,0 +1,47 @@
+id = "goal-029-case-format-language"
+source = "mined"
+base_commit = "765ff2be0744101698bbca91ca7d25c65e9275f4"
+solution_commit = "42acd994a634c3bae1ed3a8eef711b4bdaeb003a"
+prompt = """
+Os arquivos dos casos de eval ainda têm campos, tabela de aceite, valor
+de origem e pasta em português (evals/casos/, campos como commit_base e
+pedido, valor minerado). O leitor em src/dark/evals/case.py já usa
+nomes em inglês por dentro.
+
+Passe o formato dos casos para o idioma que as convenções deste
+repositório pedem para ele: os nomes dos campos e da tabela de aceite,
+o valor que diz de onde o caso veio e o nome da pasta dos casos. Leitura
+e gravação em src/dark/evals/ passam a usar o novo formato, o caso já
+gravado é convertido (o id e o texto do pedido ficam como estão) e o
+evals/README.md documenta os novos nomes; o texto corrido do README
+continua em português.
+
+Os testes de tests/test_evals.py devem continuar passando.
+"""
+notes = """
+Pedido escrito a partir da mensagem do commit 42acd99. Candidato
+commits_seguidos segundo a mineração; na prática o commit trouxe o
+código, o caso gravado renomeado, o README e 8 linhas de teste.
+Tipo: mudança guiada por convenção, pequena. Módulo: casos de eval.
+Convenção: "formato dos casos de eval (`evals/cases/`) ... em inglês",
+na seção "Convenções" do CLAUDE.md. Ela só existe de `CLAUDE.md` em
+diante: no commit base o CLAUDE.md não tem a seção, então a condição
+`project` (que leva o CLAUDE.md do HEAD) a recebe e a `bare` não. O nome
+`evals/cases` aparece só ali. Os testes fixam só `source`, `base_commit`,
+`prompt`, `acceptance` e a pasta `evals/cases`; os demais nomes são
+livres, desde que o leitor, o caso gravado e o README concordem.
+Risco: o leitor e a classe `Case` já usam inglês, então um agente sem
+CLAUDE.md pode chegar ao mesmo resultado só pelo código; o caso mede se
+a convenção escrita pesa, não garante que pese.
+Solução: 152 linhas alteradas fora de tests/ (git diff --numstat), das
+quais 76 em src/dark/evals/, 20 no caso gravado, 54 em evals/README.md e
+2 em README.md.
+"""
+
+[acceptance]
+command = "python -m pytest -q -p no:cacheprovider tests/test_evals.py"
+files = [
+  "tests/test_evals.py",
+]
+files_from = "42acd994a634c3bae1ed3a8eef711b4bdaeb003a"
+timeout = 60
