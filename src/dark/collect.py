@@ -163,6 +163,27 @@ def _links_from_transcript(s: reader.Session) -> tuple[list[CommitLink], int]:
     return out, dropped
 
 
+def session_model(s: reader.Session) -> str | None:
+    """Name of the model that answered most in the session, or None.
+
+    Counts the main file's own responses (not the copied history of a fork, not the
+    subagents'), without `<synthetic>`. A tie goes to the model of the latest response
+    (padrão a confirmar). A name the schema refuses is dropped, not fatal.
+    """
+    count: Counter[str] = Counter()
+    latest: dict[str, datetime] = {}
+    for r in s.responses:
+        if r.copied or r.synthetic or not isinstance(r.model, str) or r.model == "<synthetic>":
+            continue
+        count[r.model] += 1
+        latest[r.model] = max(latest.get(r.model, r.timestamp), r.timestamp)
+    if not count:
+        return None
+    top = max(count.values())
+    best = max((m for m, k in count.items() if k == top), key=lambda m: (latest[m], m))
+    return best if _valid("name", best) else None
+
+
 def session_record(s: reader.Session, repository: str | None, *,
                    origins: dict[str, dict[str, str]] | None = None,
                    links: list[CommitLink] | None = None
@@ -199,7 +220,7 @@ def session_record(s: reader.Session, repository: str | None, *,
             unknown_record_types=sum(s.unknowns.kinds.values()),
             unknown_fields=sum(s.unknowns.fields.values()),
             is_fork=s.copied_from is not None, local_command_only=s.local_command_only,
-            parts=parts, commit_links=links, **_breakdown(s))
+            parts=parts, commit_links=links, model=session_model(s), **_breakdown(s))
     except SchemaError:
         return None, dropped
     return record, dropped

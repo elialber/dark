@@ -79,11 +79,9 @@ def test_no_evals_fires_nothing_and_old_changes_default():
     assert fired(base()) == []
 
 
-def test_model_rule_stays_deferred_with_updated_reason():
-    assert "model_changed_since_last_evals" in rec.DEFERRED
+def test_model_rule_is_no_longer_deferred():
+    assert "model_changed_since_last_evals" not in rec.DEFERRED
     assert "evals_at_100_percent" not in rec.DEFERRED
-    assert "modelo" in rec.DEFERRED["model_changed_since_last_evals"]
-    assert "sessões" in rec.DEFERRED["model_changed_since_last_evals"]
 
 
 def test_report_line_format_matches_the_others():

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -43,8 +44,8 @@ def jl(d) -> str:
 # Schema and migration
 # --------------------------------------------------------------------------
 
-def test_schema_version_is_two_and_table_declared():
-    assert schema.SCHEMA_VERSION == 2
+def test_schema_version_and_table_declared():
+    assert schema.SCHEMA_VERSION >= 2
     assert "eval_runs" in schema.TABLES
     assert 1 in schema.MIGRATIONS
 
@@ -58,7 +59,9 @@ def make_v1(path: Path) -> None:
     con = sqlite3.connect(path)
     for statement in schema.ddl():
         if "eval_runs" not in statement:
-            con.execute(statement)
+            # the sessions table as it was before goal 039 (no `model` column)
+            con.execute(re.sub(r",\n  model TEXT[^\n]*", "", statement)
+                        if "CREATE TABLE sessions" in statement else statement)
     con.execute(f"PRAGMA application_id = {schema.APPLICATION_ID}")
     con.execute("PRAGMA user_version = 1")
     con.execute("INSERT INTO repositories(last_path, last_seen) VALUES ('/work/a', 5)")
@@ -77,7 +80,7 @@ def test_version_1_database_migrates_and_keeps_its_data(tmp_path):
             dict(started_at=datetime(2026, 1, 1, tzinfo=UTC), case_name="c",
                  condition="bare", run_number=1, passed=False, end_reason="error"))])
     con = sqlite3.connect(db)
-    assert con.execute("PRAGMA user_version").fetchone()[0] == 2
+    assert con.execute("PRAGMA user_version").fetchone()[0] == schema.SCHEMA_VERSION
     assert con.execute("SELECT last_path, last_seen FROM repositories").fetchall() == [("/work/a", 5)]
     assert con.execute("SELECT count(*) FROM eval_runs").fetchone()[0] == 1
     con.close()
@@ -235,3 +238,64 @@ def test_default_store_path_is_the_collect_one(tmp_path, monkeypatch):
 def test_schema_command_is_unchanged(capsys):
     assert cli.main(["esquema"]) == 0
     assert json.loads(capsys.readouterr().out)["$id"] == run_record.SCHEMA_ID
+
+
+# --------------------------------------------------------------------------
+# Goal 039: numeric limits are checked when the file is read
+# --------------------------------------------------------------------------
+
+def plan_of(tmp_path, *lines: str):
+    from dark.evals import rounds
+    return rounds.plan_import(write_lines(tmp_path / "in.jsonl", list(lines)))
+
+
+def test_tokens_beyond_64_bits_refused_with_line_number_and_reason(tmp_path):
+    plan = plan_of(tmp_path, jl(run(run=1)), jl(run(run=2, tokens=2**63)), jl(run(run=3)))
+    assert len(plan.runs) == 2
+    assert [n for n, _ in plan.refused] == [2]
+    assert "tokens" in plan.refused[0][1]
+
+
+def test_largest_64_bit_tokens_accepted_and_stored(tmp_path):
+    plan = plan_of(tmp_path, jl(run(tokens=2**63 - 1)))
+    assert plan.refused == [] and len(plan.runs) == 1
+    with open_store(tmp_path / "db") as s:
+        assert s.write_eval_runs(plan.runs) == (1, 0)
+        assert s.eval_runs()[0].tokens == 2**63 - 1
+
+
+def test_run_number_beyond_64_bits_refused(tmp_path):
+    plan = plan_of(tmp_path, jl(run(run=2**63)))
+    assert plan.runs == [] and plan.refused[0][0] == 1 and "run" in plan.refused[0][1]
+
+
+def test_cost_read_as_infinity_refused(tmp_path):
+    plan = plan_of(tmp_path, jl(run()).replace('"cost_usd_estimate": 0.5',
+                                               '"cost_usd_estimate": 1e999'))
+    assert plan.runs == [] and "cost_usd_estimate" in plan.refused[0][1]
+
+
+@pytest.mark.parametrize("literal", ["NaN", "Infinity"])
+def test_literal_nan_and_infinity_refused(tmp_path, literal):
+    line = jl(run()).replace('"cost_usd_estimate": 0.5', f'"cost_usd_estimate": {literal}')
+    plan = plan_of(tmp_path, line, jl(run(run=2)))
+    assert len(plan.runs) == 1 and [n for n, _ in plan.refused] == [1]
+
+
+def test_guardar_with_huge_tokens_has_no_traceback(tmp_path, capsys):
+    f = write_lines(tmp_path / "x.jsonl", [jl(run(tokens=10**30)), jl(run(run=2))])
+    assert cli.main(["guardar", str(f), "--banco", str(tmp_path / "db")]) == 0
+    out = capsys.readouterr()
+    assert "1 recusada" in out.out and "linha 1" in out.out + out.err
+    assert "Traceback" not in out.out + out.err
+
+
+def test_store_itself_refuses_values_beyond_64_bits():
+    with pytest.raises(SchemaError):
+        EvalRunRecord(started_at=datetime(2026, 1, 1, tzinfo=UTC), case_name="c",
+                      condition="bare", run_number=1, passed=True, end_reason="completed",
+                      tokens=10**30)
+    with pytest.raises(SchemaError):
+        EvalRunRecord(started_at=datetime(2026, 1, 1, tzinfo=UTC), case_name="c",
+                      condition="bare", run_number=1, passed=True, end_reason="completed",
+                      cost_usd_estimate=10**400)

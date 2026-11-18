@@ -9,6 +9,7 @@ by at most one run (whose own cap is the per-run limit).
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
@@ -205,6 +206,26 @@ def to_store_record(d: dict):
         cost_usd_estimate=d.get("cost_usd_estimate"), ablated_piece=d.get("ablated_piece"))
 
 
+# Fields of the record that become integer or decimal columns of the store.
+_STORED_NUMBERS = ("run", "tokens", "cost_usd_estimate")
+_INT_RANGE = (-(2**63), 2**63 - 1)      # what an SQLite INTEGER holds
+
+
+def check_limits(d: dict) -> None:
+    """Refuses a number the database cannot hold: integer beyond 64 bits, non-finite decimal.
+
+    Raises ValueError naming the field. Runs before the store record is built.
+    """
+    for name in _STORED_NUMBERS:
+        v = d.get(name)
+        if v is None or isinstance(v, bool):
+            continue
+        if isinstance(v, int) and not _INT_RANGE[0] <= v <= _INT_RANGE[1]:
+            raise ValueError(f"{name}: inteiro fora do limite de 64 bits do banco")
+        if isinstance(v, float) and not math.isfinite(v):
+            raise ValueError(f"{name}: número não finito ({v!r}); o banco só guarda decimais finitos")
+
+
 def plan_import(path: Path) -> ImportPlan:
     """Reads the file line by line; a bad line is refused, never fatal.
 
@@ -240,6 +261,7 @@ def plan_import(path: Path) -> ImportPlan:
             continue
         try:
             run_record.validate_record(d)
+            check_limits(d)
             plan.runs.append(to_store_record(d))
         except (run_record.RecordError, ValueError, StoreError) as e:
             plan.refused.append((number, str(e)))

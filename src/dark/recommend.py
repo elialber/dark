@@ -10,6 +10,7 @@ never becomes a recommendation.
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -31,8 +32,6 @@ USER_SCOPES = ("user", "project")     # a managed or plugin file is not the user
 
 # Rules of the roadmap that today's data does not support, and the missing data.
 DEFERRED = {
-    "model_changed_since_last_evals": "modelo das sessões coletadas (o banco guarda só a "
-                                      "versão do Claude Code, não o modelo das sessões)",
     "third_party_module_without_gain": "módulos de terceiros medidos (ainda não há módulo)",
 }
 
@@ -165,9 +164,40 @@ def evals_at_100_percent(a: Audit) -> list[Recommendation]:
         "a rodada tiver falha ou o conjunto de casos crescer")]
 
 
+def model_changed_since_last_evals(a: Audit) -> list[Recommendation]:
+    """Latest session model against the model of the last round's `project` runs.
+
+    A round is one UTC day, as in `evals_at_100_percent`; the model of a round is its most
+    frequent one among runs that have a model (a tie goes to the name that sorts first, padrão
+    a confirmar). Names are compared as exact text (padrão a confirmar).
+    """
+    c = a.changes
+    if c is None or c.session_model is None:
+        return []
+    by_day: dict[str, Counter[str]] = {}
+    for r in c.evals:
+        if r.condition == "project" and r.model:
+            by_day.setdefault(r.day, Counter())[r.model] += 1
+    if not by_day:
+        return []
+    day = max(by_day)
+    counts = by_day[day]
+    top = max(counts.values())
+    last = min(m for m, k in counts.items() if k == top)
+    if last == c.session_model:
+        return []
+    return [Recommendation(
+        "model_changed_since_last_evals",
+        f"a sessão mais recente do banco usou o modelo `{c.session_model}`; a última rodada "
+        f"de evals ({day}) usou `{last}`",
+        "rodar os evals de novo, comparando com o harness reduzido",
+        "`python -m dark.evals guardar` com a rodada nova: a regra deixa de disparar quando a "
+        "última rodada guardada tiver o modelo da sessão mais recente")]
+
+
 RULES: list[Callable[[Audit], list[Recommendation]]] = [
     unused_piece, instruction_file_too_long, fixed_weight_grew, repeated_hook_block,
-    commits_without_hash, evals_at_100_percent,
+    commits_without_hash, evals_at_100_percent, model_changed_since_last_evals,
 ]
 
 
