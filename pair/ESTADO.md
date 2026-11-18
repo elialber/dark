@@ -49,18 +49,24 @@ Fase 3 em andamento; laço de par disponível
 | [024 — Coleta](goals/024-collect.md) | Aceito com correções na [revisão de fechamento da rodada 001](rodadas/001/revisao-fechamento.md) e incorporado à `main`; a correção (registro de coleta no mesmo segundo) vai no goal seguinte do item 2 |
 | [025 — Endurecimento do laço](goals/025-loop-hardening.md) | Concluído fora do laço (D1 da rodada 001, opção a); aceito na [revisão 1 da rodada 002](rodadas/002/revisao-1.md) |
 | [026 — Calibração dos evals](goals/026-eval-calibration.md) | Concluído fora do laço, a pedido do usuário; calibração (10), casos médios (4) e rodada completa (30): 44 de 44 passaram; efeito teto ([diário](diario/026.md)); aceito na [revisão 1 da rodada 002](rodadas/002/revisao-1.md) |
-| [027 — Auditoria sobre o banco](goals/027-audit-from-store.md) | Em andamento: [lote 011](entrada/lote-011.md), branch `goal-027` |
-| [028 — Plugin do Claude Code](goals/028-plugin.md) | Em andamento: [lote 011b](entrada/lote-011b.md), branch `goal-028` |
-| [029 — Casos de eval difíceis](goals/029-hard-eval-cases.md) | Em andamento: [lote 011c](entrada/lote-011c.md), branch `goal-029` |
+| [027 — Auditoria sobre o banco](goals/027-audit-from-store.md) | Aceito na [revisão 2 da rodada 002](rodadas/002/revisao-2.md) e incorporado à `main` |
+| [028 — Plugin do Claude Code](goals/028-plugin.md) | Aceito na [revisão 2 da rodada 002](rodadas/002/revisao-2.md) e incorporado à `main`; sessão real pendente (sem credencial) |
+| [029 — Casos de eval difíceis](goals/029-hard-eval-cases.md) | Aceito na [revisão 2 da rodada 002](rodadas/002/revisao-2.md) e incorporado à `main`; rodada nos casos novos pendente (sem credencial) |
+| 030 — Aceite do executor à prova de configuração do pytest | Em andamento: [lote 012](entrada/lote-012.md), branch `goal-030` |
+| 031 — Plugin ligado ao README e ao comando | Em andamento: [lote 012b](entrada/lote-012b.md), branch `goal-031` |
+| 032 — Recomendações por regras fixas | Em andamento: [lote 012c](entrada/lote-012c.md), branch `goal-032` |
 
 ## Decisões pendentes
 
-- Casos de eval que o agente às vezes falhe (goal 026: 44 de 44
-  execuções passaram, nas duas condições). Sem isso, a rodada não mede
-  o harness. Detalhe no [diário 026](diario/026.md).
+- Casos de eval que o agente às vezes falhe: os cinco casos novos do
+  goal 029 ainda não foram rodados (falta credencial no laço).
 
 ## Pedidos ao usuário
 
+- Rodar a calibração dos casos novos, com o token no ambiente (comando
+  em `evals/README.md`, "Segunda rodada"; estimativa de 6 a 8 milhões de
+  tokens, US$ 4 a 6), e a sessão real do plugin (diário 028).
+- Escolher a licença do repositório (o manifesto do plugin não a traz).
 - Etiqueta `v0.1.0` na `main`, se quiser a instalação fixada que o
   README cita.
 - Revogar o token dedicado às evals quando a rodada completa acabar
@@ -68,11 +74,6 @@ Fase 3 em andamento; laço de par disponível
 
 ## Próximo passo
 
-Rodada 002, ciclo 1: lotes 011, 011b e 011c escritos (goals 027 a 029);
-os parágrafos abaixo são da rodada 001.
-
-Rodada 001 fechada ([relatório](rodadas/001.md)); o laço foi endurecido
-no goal 025, fora do laço. A próxima rodada revisa o goal 025 e começa pela auditoria lendo do banco (resto do item 2) e pelo plugin do
-Claude Code com `dark --versao` (resto do item 8); a calibração está feita
-([goal 026](goals/026-eval-calibration.md)); a rodada completa também (30/30
-passaram; efeito teto, falta um conjunto que discrimine).
+Rodada 002, ciclo 2: lotes 012, 012b e 012c escritos (goals 030 a 032).
+Depois: ablação (item 4), que depende do 030; método (item 7) e piloto
+(item 9) quando houver medição.

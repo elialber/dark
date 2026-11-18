@@ -1387,3 +1387,53 @@ banco.
 
 **Motivo:** a auditoria não deve gravar fora do repositório sem pedido;
 quem quer o ciclo semanal usa `dark coletar --todos`.
+
+## Goals 027, 028 e 029: aceitos; decisões dos diários
+
+**Data:** 2026-11-18 ([revisão 2 da rodada 002](../pair/rodadas/002/revisao-2.md))
+
+Aceitos os três, juntados na `main` sem conflito (941 testes e 1 `xfail`).
+
+**Goal 027 (auditoria sobre o banco, "o que mudou", `dark --versao`):**
+confirmados como padrão, a rever se o usuário quiser outro:
+
+- **Coleta no mesmo segundo:** o registro vai para o próximo segundo
+  livre, sem mudar o esquema nem exigir migração (corrige o registro
+  perdido registrado em "Coleta: registro perdido...").
+- **`dark auditar` não coleta sozinho** (fecha a pergunta em aberto de
+  E10; já registrado acima). `--coletar` coleta antes, `--direto` ignora
+  o banco, `--excluir-pasta` força a leitura direta.
+- **Arquivo de banco com 0 bytes não é aberto:** cai na leitura direta
+  com o motivo no cabeçalho.
+- **Abrir banco de versão antiga o migra**, também na auditoria (com
+  cópia de segurança, comportamento de `open_store`).
+- **Seção "O que mudou":** semana anterior = última semana anterior com
+  sessões; só peças com arquivo (E16) e N ≥ 2 semanas sem uso; semanas em
+  UTC; inventário compara os dois últimos retratos.
+- **Limite aceito:** o banco não guarda custo por pedido, chamadas
+  silenciosas e partes do peso fixo; o relatório diz "use `--direto`" em
+  vez de mostrar zero. Guardar isso exigiria mudança de esquema; fica
+  para quando o usuário quiser.
+- Tempo, dados reais (176 sessões): 0,32 s pelo banco contra 3,6 s direto.
+
+**Goal 028 (plugin):** plugin em `plugin/` com as skills `auditar` e
+`coletar`; o wheel não o leva (decisão de empacotamento: instala-se pelo
+checkout, `claude --plugin-dir`). O manifesto não tem `author` nem
+`license`: **padrão a confirmar**, porque o repositório não tem licença
+e escolher uma é do usuário (pedido no relatório). Limite de descrição
+das skills: 1024 caracteres, nome até 64 em `[a-z0-9-]` (de memória do
+executor; padrão a confirmar).
+
+**Goal 029 (casos difíceis):** cinco casos novos (16 no total), três
+acima de 800 linhas, um de convenção. Tolerância da primeira rodada
+(4 em 15 execuções por condição) mantida; recalcular antes de medir se
+o número de casos da rodada mudar. Sem credencial no laço, a rodada nos
+casos novos não foi feita: fica como pedido ao usuário. O executor
+protege só os `files` do aceite; achado: `conftest.py` ou configuração
+do pytest escritos pelo agente podem fazer o aceite passar
+(`xfail` estrito no teste). Vira o goal 030.
+
+**Motivo:** conferência do revisor: testes nos três worktrees limpos,
+sondagens próprias (banco corrompido, diretório no lugar do banco,
+`--direto` com `--coletar`, `claude plugin validate`, validação de dois
+casos novos), merge de ensaio sem conflito.

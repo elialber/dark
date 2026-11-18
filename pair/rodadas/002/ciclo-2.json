@@ -1,0 +1,23 @@
+{
+  "cycle": 2,
+  "verdicts": [
+    {"goal": "027", "branch": "goal-027", "verdict": "accepted",
+     "reason": "Auditoria pelo banco confere com a direta nos números; sondagens adversas sem traceback; 932 testes passam; merge sem conflito."},
+    {"goal": "028", "branch": "goal-028", "verdict": "accepted",
+     "reason": "Plugin mínimo validado por claude plugin validate; testes de manifesto, skills e privacidade; sessão real pendente por falta de credencial."},
+    {"goal": "029", "branch": "goal-029", "verdict": "accepted",
+     "reason": "Cinco casos novos válidos, conferidos à mão; lacuna do conftest.py documentada com xfail estrito; rodada nos casos pendente por falta de credencial."}
+  ],
+  "merged": ["goal-027", "goal-028", "goal-029"],
+  "tests_passed": true,
+  "merge_conflict": false,
+  "privacy_violation": false,
+  "pending_decisions": [],
+  "batches": [
+    {"batch": "012", "file": "pair/entrada/lote-012.md", "goal": "030", "branch": "goal-030"},
+    {"batch": "012b", "file": "pair/entrada/lote-012b.md", "goal": "031", "branch": "goal-031"},
+    {"batch": "012c", "file": "pair/entrada/lote-012c.md", "goal": "032", "branch": "goal-032"}
+  ],
+  "stop": false,
+  "stop_reason": ""
+}

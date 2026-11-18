@@ -64,12 +64,23 @@ que descobrir. O porquê do projeto está em `docs/visao.md`.
   aceitos na revisão 1 da rodada 002. A rodada completa deu 30 de 30 e
   a calibração dos casos médios 4 de 4: efeito teto.
 
+- **Auditoria sobre o banco** (goal 027). `dark auditar` lê do banco,
+  com "o que mudou desde a última semana", `--direto`, `--coletar`,
+  `--banco`, `dark --versao`, e a correção do registro de coleta no mesmo
+  segundo. Fecha o item 2.
+- **Plugin do Claude Code** (goal 028). `plugin/` com as skills
+  `auditar` e `coletar`; validado por `claude plugin validate`. Faltam
+  as pontas (goal 031), a licença e uma sessão real (pedidos ao usuário).
+- **Casos de eval difíceis** (goal 029). 16 casos válidos; falta rodá-los
+  com credencial.
+
 ## Em andamento
 
-Rodada 002, ciclo 1: goal 027 (auditoria sobre o banco, "o que mudou",
-`dark --versao`; fecha o item 2), goal 028 (plugin do Claude Code; fecha
-o item 8) e goal 029 (casos de eval difíceis; item 3). Em paralelo, em
-branches `goal-027`, `goal-028` e `goal-029`.
+Rodada 002, ciclo 2: goal 030 (aceite do executor à prova de
+configuração do pytest; item 3), goal 031 (plugin ligado ao README e ao
+comando real; item 8) e goal 032 (recomendações por regras fixas; item
+5). Branches `goal-030`, `goal-031` e `goal-032`. A ablação (item 4) fica
+para depois do 030, porque mexe no mesmo executor.
 
 ## Fila, em ordem
 
@@ -89,11 +100,7 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
 - **Pronto quando:** duas coletas seguidas deixam o banco igual; a
   auditoria sobre o banco dá os mesmos números da auditoria direta; e o
   comando leva segundos.
-- **Situação:** o goal 024 entregou o comando e a idempotência
-  (rodada 001). Falta o goal seguinte: a auditoria ler do banco, com a
-  seção "o que mudou desde a última semana", a seção do README (texto
-  proposto no diário 024) e a correção do registro de coleta perdido
-  quando duas coletas começam no mesmo segundo (`docs/decisoes.md`).
+- **Situação:** concluído (goals 024 e 027).
 
 ### 3. Executor de evals
 
@@ -107,6 +114,9 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
   por execução, 10 milhões por rodada. Falta um conjunto de casos que o
   agente às vezes falhe; sem ele, a linha de base é só "100%" e os itens 4
   e a medição dos módulos do item 6 não têm o que medir.
+  O goal 029 acrescentou cinco casos mais difíceis (16 no total), ainda
+  sem rodada: precisa de credencial (pedido ao usuário). O goal 030
+  fecha a lacuna do aceite por configuração do pytest.
 - **Entrega:** roda o agente, em modo não interativo, sobre um caso de
   eval, em cópia limpa do repositório, várias vezes, em duas condições:
   sem harness e com harness. Aplica o orçamento da decisão E17, começando
@@ -196,7 +206,8 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
   faz o papel da segunda máquina nos três sistemas, com os arquivos
   sintéticos). Falta o plugin do Claude Code e a opção `dark --versao`
   (proposta no diário 023), num goal seguinte; a etiqueta `v0.1.0` é do
-  usuário. Motivo da ordem: direção do usuário
+  usuário. Os goals 027 (`--versao`) e 028 (plugin) entregaram essas
+  partes; faltam as pontas (goal 031) e a licença (usuário). Motivo da ordem: direção do usuário
   ("tornar a ferramenta utilizável em outros ambientes"), acima da ordem
   da fila.
 
