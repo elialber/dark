@@ -76,7 +76,10 @@ Fase 3 em andamento; laço de par disponível
 | [051 — Documentos da medição de ganho](goals/051-module-gain-docs.md) | Aceito na [revisão de fechamento da rodada 004](rodadas/004/revisao-fechamento.md) e incorporado à `main`; achou que `dark coletar --evals` descarta registros `with_module` sem aviso |
 | [052 — Correções da medição de ganho](goals/052-module-gain-fixes.md) | Aceito na [revisão de fechamento da rodada 004](rodadas/004/revisao-fechamento.md) e incorporado à `main`; documentos da recusa na próxima rodada |
 | [053 — Workflow de testes verde](goals/053-ci-green.md) | Aceito na [revisão 2 da rodada 005](rodadas/005/revisao-2.md) e incorporado à `main`; workflow da branch verde nos nove jobs; arquivo de módulo que só difere em CRLF deixa de ser conflito; `workspace.git` lê a saída em UTF-8 |
-| [054 — `with_module` no banco](entrada/lote-022b.md) | Aceito com correções na [revisão 2 da rodada 005](rodadas/005/revisao-2.md); **não juntado ainda**: contraria um teste do 050 que o lote proibiu mexer. Entra na `main` pelo goal 055 ([lote 023](entrada/lote-023.md)) |
+| [054 — `with_module` no banco](goals/054-with-module-store.md) | Aceito com correções na [revisão 2 da rodada 005](rodadas/005/revisao-2.md); incorporado à `main` pelo goal 055, por `cherry-pick` (a branch `goal-054` não foi juntada; apagá-la é a D2) |
+| [055 — Regra de módulo de terceiro sem ganho](goals/055-third-party-rule.md) | Aceito na [revisão 3 da rodada 005](rodadas/005/revisao-3.md) e incorporado à `main`; nenhuma regra adiada; documentos no goal 056 |
+| 056 — Documentos do 052, 054 e 055 | Em execução ([lote 024](entrada/lote-024.md)) |
+| 057 — `applied_module` no formato `nome:versão` | Em execução ([lote 024b](entrada/lote-024b.md)) |
 
 ## Decisões pendentes
 
@@ -97,6 +100,9 @@ Fase 3 em andamento; laço de par disponível
   README cita.
 - Apagar a branch `goal-040` (local, em `origin` e o worktree): o goal
   045 a substituiu e ela não tem mais uso (D1 da revisão 2 da rodada 004).
+- Apagar a branch `goal-054` (local, em `origin` e o worktree): o
+  conteúdo dela entrou na `main` pelo goal 055, por `cherry-pick` (D2 da
+  rodada 005).
 - Revogar o token dedicado às evals quando a rodada completa acabar
   (os comandos do agente podem lê-lo).
 
@@ -104,10 +110,9 @@ Fase 3 em andamento; laço de par disponível
 
 Lista de funcionalidades com situação de cada item: [FUNCIONALIDADES.md](../FUNCIONALIDADES.md).
 
-Rodada 005, ciclo 2 ([revisão 2](rodadas/005/revisao-2.md)): goal 053
-juntado (workflow verde nos três sistemas na branch); goal 054 aceito com
-correções e ainda fora da `main` (um teste do 050 contraria o
-comportamento novo). Em execução: goal 055 ([lote 023](entrada/lote-023.md)):
-junta o 054, troca o teste e liga a regra `third_party_module_without_gain`.
-Depois: documentos do 052, 054 e 055; medição real (credencial); piloto
-(item 9).
+Rodada 005, ciclo 3 ([revisão 3](rodadas/005/revisao-3.md)): goal 055
+juntado, com o 054 dentro; todas as regras do item 5 ligadas. Em execução:
+goal 056 ([lote 024](entrada/lote-024.md)), documentos do 052, 054 e 055;
+goal 057 ([lote 024b](entrada/lote-024b.md)), `guardar` recusa
+`applied_module` fora de `nome:versão`. Depois: medição real
+(credencial); piloto (item 9).

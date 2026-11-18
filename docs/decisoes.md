@@ -1934,3 +1934,40 @@ linhas mantidas, `.v3.bak` criado, `with_module` sem módulo e `project`
 com módulo recusados); `module_measurements` sem `project`, só com erros,
 com `project` depois da `with_module` e vazio (todos `inconclusive` ou
 lista vazia, sem exceção).
+
+## Rodada 005, ciclo 3 (revisão do goal 055)
+
+**Goal 055 aceito e juntado.** O 054 entrou na `main` pela `goal-055`,
+por `git cherry-pick -x` dos dois commits (mesmas mensagens, autor e
+data de autor), não por `git merge`: o hook do laço bloqueia todo merge
+do executor, e o lote 023 pediu um (erro do revisor). Confirmado: o
+conteúdo do 054 na `goal-055` é o da `goal-054`, salvo os dois testes de
+deriva que o 055 tinha de mudar. A branch `goal-054` não é juntada;
+apagá-la fica com o usuário (D2), como a `goal-040` (D1).
+
+Confirmados os padrões do 055:
+
+1. a regra lê o manifesto do scaffold em `recommend.applied_modules`; o
+   banco continua fora de `recommend.py`. Levar o manifesto lido para
+   `Changes` só se outra regra precisar dele;
+2. manifesto ilegível (JSON inválido, formato errado, link, diretório,
+   bytes fora do UTF-8): a regra cala, sem aviso; entradas sem `module`
+   ou `version` em texto são ignoradas;
+3. o dia da medição é o dia UTC da última execução `with_module` dela;
+4. a regra só roda na auditoria do banco, como as outras de evals;
+5. `THIRD_PARTY_MODULES = ("graphify", "langfuse")` em `recommend.py`,
+   com teste de que é o registro de módulos menos o `base`;
+6. a medição mais recente vale por `nome:versão`: uma medição nova de
+   outra versão não esconde a da versão aplicada (sondagem do revisor).
+
+**`guardar` aceita `applied_module` sem versão** (achado do 055): o
+`modulo` sempre grava `nome:versão`, e a regra ignora o que não tem esse
+formato. Padrão do revisor a confirmar: o `guardar` passa a recusar,
+linha a linha, `applied_module` que não seja `nome:versão` com as duas
+partes não vazias (goal 057).
+
+**Motivo:** ensaio do revisor em clone limpo (1496 testes; workflow da
+branch verde nos nove jobs, execução 44389731759); sondagens: duas
+versões medidas do mesmo módulo, dois módulos sem ganho ao mesmo tempo,
+manifesto com entradas de tipo errado, manifesto diretório e com bytes
+fora do UTF-8, medição só com erros e repositório inexistente.

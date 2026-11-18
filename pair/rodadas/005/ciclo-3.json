@@ -1,0 +1,25 @@
+{
+  "cycle": 3,
+  "verdicts": [
+    {"goal": "055", "branch": "goal-055", "verdict": "accepted",
+     "reason": "O 054 entrou por cherry-pick com o conteúdo aceito (o hook bloqueia merge do executor; erro do lote, não do executor); regra third_party_module_without_gain com conferência cruzada contra module_gain.describe, casos que não disparam e ponta a ponta pela CLI; 1496 testes no ensaio e na main; workflow da branch verde nos nove jobs (44389731759); quatro sondagens do revisor (duas versões, dois módulos, manifesto adverso, medição só com erros) sem defeito. O diário deixou a tabela de CI sem preencher."}
+  ],
+  "merged": ["goal-055"],
+  "tests_passed": true,
+  "merge_conflict": false,
+  "privacy_violation": false,
+  "pending_decisions": [
+    {"id": "D1", "question": "Apagar a branch goal-040 (local, em origin e o worktree ../dark-goal-040)? O goal 045 a substituiu e ela não foi nem será juntada (D1 da rodada 004, ainda sem resposta).",
+     "options": ["a) apagar a branch local, a remota e o worktree", "b) manter"],
+     "recommendation": "a", "blocks": []},
+    {"id": "D2", "question": "Apagar a branch goal-054 (local, em origin e o worktree ../dark-goal-054)? O conteúdo dela entrou na main pelo goal 055, por cherry-pick, com outros hashes; ela não será juntada.",
+     "options": ["a) apagar a branch local, a remota e o worktree", "b) manter"],
+     "recommendation": "a", "blocks": []}
+  ],
+  "batches": [
+    {"batch": "024", "file": "pair/entrada/lote-024.md", "goal": "056", "branch": "goal-056"},
+    {"batch": "024b", "file": "pair/entrada/lote-024b.md", "goal": "057", "branch": "goal-057"}
+  ],
+  "stop": false,
+  "stop_reason": ""
+}

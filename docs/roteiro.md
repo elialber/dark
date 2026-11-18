@@ -147,23 +147,26 @@ que descobrir. O porquê do projeto está em `docs/visao.md`.
   git lida na localidade em `workspace.git`); regra no `CLAUDE.md` de o
   executor conferir o workflow da branch. Os nove jobs da branch passaram.
 
+- **`with_module` no banco e regra de módulo de terceiro** (goals 054 e
+  055, rodada 005): esquema 4 (`turns`, `applied_module`,
+  `harness_commit`), `guardar` e `coletar --evals` aceitam `with_module`,
+  `module_history` lê a medição mais recente de cada `nome:versão`; regra
+  `third_party_module_without_gain` (sem ganho ou piora, módulo de
+  terceiro aplicado na mesma versão medida: `dark remover`). Nenhuma
+  regra do item 5 fica adiada.
+
 ## Em andamento
 
-Rodada 005, ciclo 2 (lote 023):
+Rodada 005, ciclo 3:
 
-- **goal 055**: junta o goal 054 (condição `with_module` no banco,
-  esquema 4, `module_history`; aceito com correções na revisão 2, fora da
-  `main` porque um teste do 050 o contraria), troca esse teste e liga a
-  regra `third_party_module_without_gain` (item 5), com a linha dela no
-  `docs/metodo.md`.
+- **goal 056** (lote 024): documentos do 052, do 054 e do 055
+  (`README.md`, `evals/README.md`, `CHANGELOG.md`, `FUNCIONALIDADES.md`,
+  glossário);
+- **goal 057** (lote 024b, paralelo): `guardar` recusa `applied_module`
+  fora de `nome:versão`; docstring de `module_history`.
 
-Depois, nesta ordem:
-
-- documentos do 052, do 054 e do 055 (`evals/README.md`, README,
-  CHANGELOG, `FUNCIONALIDADES.md`), com a frase da recusa proposta no
-  diário 052;
-- medição real dos módulos e da ablação e calibração dos casos novos
-  (pedem credencial); piloto (item 9).
+Depois: medição real dos módulos e da ablação e calibração dos casos
+novos (pedem credencial); piloto (item 9).
 
 ## Fila, em ordem
 
@@ -247,8 +250,10 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
 - **Depende de:** 2; as regras de ablação dependem de 4.
 - **Situação:** o goal 032 entregou as regras que os dados de hoje
   sustentam; o 038 ligou `evals_at_100_percent`; `model_changed_since_last_evals`
-  foi ligada no goal 039; a de módulo de terceiro é ligada no goal 055, sobre a medição que o 054
-  guarda no banco.
+  foi ligada no goal 039; a de módulo de terceiro foi ligada no goal 055,
+  sobre a medição que o 054 guarda no banco. Todas as regras previstas
+  estão ligadas; falta o critério (recomendação seguida com melhora
+  medida), que pede uso real.
 - **Pronto quando:** uma recomendação seguida produz melhora medida
   (critério da Fase 5).
 
@@ -280,7 +285,9 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
   no lugar (goal 048): o critério "idêntico ao inicial" está cumprido
   nos testes (goal 049). O "medir" do contrato está no goal 050
   (`python -m dark.evals modulo`), documentado no goal 051 e corrigido
-  no goal 052 (preparação só cria arquivos). Falta a medição real de ganho (pede credencial); o
+  no goal 052 (preparação só cria arquivos); a medição vai para o banco
+  (goal 054) e a auditoria recomenda remover o módulo sem ganho (goal
+  055). Falta a medição real de ganho (pede credencial); o
   Langfuse só pode ser medido com as variáveis do `.env` na cópia.
 - **Cuidado:** módulo de terceiro executa código na máquina do usuário.
   Versão fixada, e o que mudou é lido antes de atualizar.
