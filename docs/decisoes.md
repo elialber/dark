@@ -1726,3 +1726,52 @@ não impressas, mas `[aplicado]` nas outras linhas); com JSON inválido
 (conflito, sem traceback); notas uma vez em `langfuse` e `graphify` sem
 `--aplicar`; `langfuse` e `graphify` aplicados, `.env` criado, `remover
 langfuse` → `?? .dark/langfuse/.env` (defeito confirmado).
+
+## Rodada 004, ciclo 4 (goals 047 e 048)
+
+**Goal 048:** aceito e juntado. Padrões do executor confirmados, todos
+**padrão a confirmar**: só arquivos chamados `.gitignore` são tratados;
+linha com `*`, `?`, `[`, `\`, `!` ou `#` é padrão e segue revertida;
+linha sem `/` no meio só é conferida no diretório do `.gitignore` (não
+em qualquer profundidade, como o git casaria); diretório vazio e link
+simbólico quebrado contam como existentes; `.gitignore` apagado pelo
+usuário antes do `remover` dá `[já ausente]`, sem aviso extra; o
+diretório ocupado pelo caminho ainda ignorado passa para a entrada da
+linha mantida (`_guards`), para a segunda remoção deixar a árvore igual;
+a correção do rótulo vale também para `python -m dark.scaffold aplicar`.
+Remoção parcial sai com código 1, como todo `kept`.
+
+**Goal 047:** aceito com correções, juntado. Padrões confirmados (padrão
+a confirmar): sem link do GitHub no README (o teste de distribuição
+recusa `github.com/<conta>/`; o endereço fica no `ORIGEM.md`); a frase
+sobre `/graphify` e as chaves do Gemini tirada do `SKILL.md` copiado
+(conferida pelo revisor no texto embarcado); linha de `dark verificar`
+da tabela de códigos de saída com o executável; lista fixa de eventos de
+hook no teste. Correção, no goal 049: o padrão `_SEMVER` dos testes de
+deriva (046 e 047) não pega versão seguida de ponto final de frase.
+
+**Goal 050, medir o ganho de um módulo:** entra agora, em paralelo ao
+049, porque é o "medir" do contrato de módulo da especificação, o que o
+item 6 exige do Graphify, e não depende de credencial para ser
+construído (só para ser medido). Padrões a confirmar, propostos ao
+executor: condição nova `with_module` (cópia `project` mais o módulo
+aplicado pelo motor, num commit); preparação declarada pelo módulo
+(`graphify extract . --code-only`) rodada só na cópia; regra `gain` se o
+acerto não cai além de 4 em 15 e a média de tokens com o módulo é no
+máximo 90% da média sem ele, sem subir a média de turnos; `worse`,
+`no_gain` e `inconclusive` como na ablação. O banco não muda neste goal:
+`guardar` recusa registros `with_module` (migração do esquema fica para
+depois).
+
+**Motivo:** testes de cada branch (047: 1329; 048: 1341); merge de
+ensaio `main` + 047 + 048 sem conflito, 1353 testes. Sondagens do
+revisor: `langfuse` e `graphify` aplicados, `.env` e
+`graphify-out/g.json` criados, os dois removidos (parcial, código 1,
+`!!` nos dois), `adicionar langfuse --aplicar` de novo com a entrada
+mantida no manifesto (aplica, a linha sai `[já aplicado]`), remover,
+apagar, remover → árvore vazia; `.env` como diretório, arquivo do
+usuário em `.dark/` e linha do usuário depois da do módulo (linha
+mantida; depois `.dark/notas.txt` e `meu.log` ficam, com aviso);
+`ignored_path` com `../x`, `/`, `a/../b`, espaço no fim, `\`, `#`, `!`,
+`a//b/`; verificadores do 047 com `pip install` sem versão, evento `Stop`
+e `--all` (acusados) e versão no fim de frase (não acusada).

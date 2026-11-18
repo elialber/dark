@@ -1,0 +1,23 @@
+{
+  "cycle": 4,
+  "verdicts": [
+    {"goal": "047", "branch": "goal-047", "verdict": "accepted_with_fixes",
+     "reason": "Documentos do Graphify conferidos contra a execução e contra graphify.py; merge limpo, 1353 testes. Correção no goal 049: o padrão de versão dos testes de deriva (047 e 046) não pega versão errada seguida de ponto final de frase."},
+    {"goal": "048", "branch": "goal-048", "verdict": "accepted",
+     "reason": "Linha do .gitignore mantida enquanto o caminho literal existe (remoção parcial, código 1) e segunda remoção deixa a árvore igual; nenhum [aplicado] com conflito. Saída antes e depois, sondagens do executor e três do revisor sem problema."}
+  ],
+  "merged": ["goal-047", "goal-048"],
+  "tests_passed": true,
+  "merge_conflict": false,
+  "privacy_violation": false,
+  "pending_decisions": [
+    {"id": "D1", "question": "Apagar a branch goal-040 (local, em origin e o worktree ../dark-goal-040)? O goal 045 a substituiu e ela não foi nem será juntada.",
+     "options": ["a) apagar", "b) manter"], "recommendation": "a", "blocks": []}
+  ],
+  "batches": [
+    {"batch": "020", "file": "pair/entrada/lote-020.md", "goal": "049", "branch": "goal-049"},
+    {"batch": "020b", "file": "pair/entrada/lote-020b.md", "goal": "050", "branch": "goal-050"}
+  ],
+  "stop": false,
+  "stop_reason": ""
+}

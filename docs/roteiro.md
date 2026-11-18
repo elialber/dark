@@ -116,19 +116,30 @@ que descobrir. O porquê do projeto está em `docs/visao.md`.
   glossário e `FUNCIONALIDADES.md` em dia com o Langfuse, com os avisos
   de conteúdo de conversas e de telemetria. Parte dos itens 6 e 7.
 
+- **Documentos do Graphify e correções do motor** (goals 047 e 048,
+  rodada 004): subseção do Graphify no README, Anexo A do método,
+  glossário e testes de deriva; a linha que um módulo pôs no
+  `.gitignore` fica enquanto o caminho literal que ela ignora existir (o
+  `remover langfuse` deixava o `.env` com segredos fora do git), e
+  nenhum `[aplicado]` quando há conflito. Parte dos itens 6 e 7.
+
 ## Em andamento
 
-Rodada 004, ciclo 3 (lotes 019 e 019b):
+Rodada 004, ciclo 4 (lotes 020 e 020b):
 
-- goal 047, documentos do módulo Graphify (itens 6 e 7), lote principal;
-- goal 048, correções do motor do scaffold (item 6), em paralelo: a
-  linha do `.gitignore` fica enquanto o que ela ignora existir (o
-  `remover langfuse` deixava o `.env` com segredos fora do git) e o
-  rótulo `[aplicado]` deixa de aparecer quando há conflito.
+- goal 049, documentos em dia com o 048 (README e CHANGELOG: a linha do
+  `.gitignore` fica enquanto o caminho existir) e testes de deriva que
+  pegam versão no fim de frase; `FUNCIONALIDADES.md` marca a ida e volta
+  com módulo de terceiro se os testes a medem byte a byte (itens 6 e 7),
+  lote principal;
+- goal 050, `python -m dark.evals modulo`: o "medir" do contrato de
+  módulo, com a condição `with_module` e a regra de ganho em custo e
+  passos, testado com o agente falso (itens 5 e 6), em paralelo.
 
-Depois: README e CHANGELOG em dia com o 048 (a frase do `.env` na
-subseção do Langfuse); medição dos módulos e da ablação (pede
-credencial); piloto (item 9).
+Depois: documentos do 050 (README, `evals/README.md`, CHANGELOG);
+guardar `with_module` no banco (esquema 4); medição real dos módulos e
+da ablação e calibração dos casos novos (pedem credencial); piloto (item
+9).
 
 ## Fila, em ordem
 
@@ -239,11 +250,11 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
   a edição community oficial de cada projeto; versão, a mais recente
   publicada quando o goal for feito, fixada.
 - **Próximo:** Langfuse (goal 043) e Graphify (goal 044) estão na
-  `main`, com ida e volta byte a byte nos testes, também os dois juntos.
-  Faltam os documentos do Graphify (goal 047), as correções do motor
-  (goal 048) e a medição de ganho dos dois (pede credencial para os
-  evals). Instalar e desinstalar deixam o repositório idêntico, com os
-  dois módulos, nos testes de cada um.
+  `main`, documentados (goals 046 e 047), com ida e volta byte a byte
+  nos testes, também os dois juntos e com o `.env` ou o grafo do usuário
+  no lugar (goal 048). Falta o "medir" do contrato (goal 050, comando
+  `python -m dark.evals modulo`) e a medição real de ganho dos dois
+  (pede credencial).
 - **Cuidado:** módulo de terceiro executa código na máquina do usuário.
   Versão fixada, e o que mudou é lido antes de atualizar.
 - **Depende de:** 016 e do inventário; a medição dos módulos depende

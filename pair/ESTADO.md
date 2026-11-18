@@ -69,8 +69,10 @@ Fase 3 em andamento; laço de par disponível
 | [044 — Módulo Graphify](goals/044-graphify-module.md) | Aceito na [revisão 3 da rodada 004](rodadas/004/revisao-3.md), com as correções do lote 018b, e incorporado à `main`; documentos no goal 047 |
 | [045 — Documentos em dia com 036 a 042](goals/045-docs-catch-up.md) | Aceito na [revisão 2 da rodada 004](rodadas/004/revisao-2.md) e incorporado à `main` |
 | [046 — Documentos do módulo Langfuse](goals/046-langfuse-docs.md) | Aceito na [revisão 3 da rodada 004](rodadas/004/revisao-3.md) e incorporado à `main`; achou o defeito do `.env` no `remover` (goal 048) |
-| 047 — Documentos do módulo Graphify | Em execução ([lote 019](entrada/lote-019.md)) |
-| 048 — Correções do motor do scaffold | Em execução ([lote 019b](entrada/lote-019b.md)) |
+| [047 — Documentos do módulo Graphify](goals/047-graphify-docs.md) | Aceito com correções na [revisão 4 da rodada 004](rodadas/004/revisao-4.md) e incorporado à `main`; os testes de deriva de versão não pegam versão no fim de frase (goal 049) |
+| [048 — Correções do motor do scaffold](goals/048-scaffold-fixes.md) | Aceito na [revisão 4 da rodada 004](rodadas/004/revisao-4.md) e incorporado à `main`; README ainda diz que a linha do `.env` sai do `.gitignore` (goal 049) |
+| 049 — Documentos em dia com o 048 e testes de deriva | Em execução ([lote 020](entrada/lote-020.md)) |
+| 050 — Medir o ganho de um módulo | Em execução ([lote 020b](entrada/lote-020b.md)) |
 
 ## Decisões pendentes
 
@@ -98,10 +100,11 @@ Fase 3 em andamento; laço de par disponível
 
 Lista de funcionalidades com situação de cada item: [FUNCIONALIDADES.md](../FUNCIONALIDADES.md).
 
-Rodada 004, ciclo 3: goals 044 (Graphify) e 046 (documentos do
-Langfuse) juntados; 1317 testes. Lotes 019 (goal 047, documentos do
-Graphify) e 019b (goal 048: linha do `.gitignore` mantida enquanto o
-`.env` existir, rótulo `[aplicado]` com conflito), em paralelo.
-Depois: README e CHANGELOG em dia com o 048; calibração dos casos novos
-e medição real da ablação e dos módulos (pedem credencial); piloto
-(item 9).
+Rodada 004, ciclo 4: goals 047 (documentos do Graphify) e 048
+(linha do `.gitignore` mantida enquanto o caminho existir; rótulo
+verdadeiro com conflito) juntados; 1353 testes. Lotes 020 (goal 049:
+README e CHANGELOG em dia com o 048, testes de deriva que pegam versão
+no fim de frase) e 020b (goal 050: `python -m dark.evals modulo`, a
+medição de ganho de um módulo, testada com o agente falso), em paralelo.
+Depois: documentos do 050; medição real dos módulos e da ablação e
+calibração dos casos novos (pedem credencial); piloto (item 9).
