@@ -38,6 +38,17 @@ podem mudar entre versões menores.
   local; nunca grava chaves. `dark verificar langfuse` confere arquivos,
   entradas e variáveis sem mostrar valores. O Langfuse guarda o conteúdo
   das conversas na instância do usuário; o `dark` continua sem guardar.
+- **Módulo `graphify`** (goal 044): `dark adicionar graphify` copia sem
+  alteração a skill oficial do Graphify 0.9.112 (Apache-2.0, com `LICENSE`
+  e `NOTICE`) para `.claude/skills/graphify/`, liga os hooks oficiais
+  `PreToolUse` e `SessionStart` no `.claude/settings.json` e põe
+  `graphify-out/` no `.gitignore`; não instala o Graphify, não gera o
+  grafo e não escreve no `CLAUDE.md`, e imprime os passos para isso.
+  `dark verificar graphify` confere arquivos, hooks, a linha e o
+  executável no `PATH`, sem executá-lo. O ganho ainda não foi medido.
+- **Documentos do módulo `graphify`** (goal 047): subseção no README,
+  Anexo A de `docs/metodo.md` e glossário; teste que falha se o README
+  citar versão, comando, caminho ou evento de hook diferente do código.
 - **Documentos em dia** (goals 045 e 046): README, `docs/metodo.md` e
   `FUNCIONALIDADES.md` passam a cobrir `iniciar`, `adicionar`,
   `verificar`, `remover`, `guardar`, `coletar --evals` e o módulo

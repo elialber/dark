@@ -435,5 +435,9 @@ como montar; aqui está só o ponto de partida.
 Dois módulos de terceiros previstos pelo projeto são opcionais. O
 Langfuse já é um módulo do `dark`: `dark adicionar langfuse` prepara a
 instância local e o plugin (detalhes no README, seção "Preparar o
-repositório"). O Graphify ainda não está na `main`. Os temas custo e latência, gestão da janela e
+repositório"). O Graphify também é um módulo do `dark`: `dark adicionar
+graphify` copia a skill oficial e liga os hooks dele (mesma seção do
+README). O ganho do Graphify ainda não foi medido: o roteiro exige que
+ele prove redução de custo e de passos em tarefas de exploração de
+código, com e sem ele. Os temas custo e latência, gestão da janela e
 guardrails de ação estão no guia, sem tabela de ferramentas.
