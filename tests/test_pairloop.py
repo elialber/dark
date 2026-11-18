@@ -175,8 +175,6 @@ class FakeSessions:
             write(cwd / report, "# Rodada\n\nrelatório do revisor\n")
         git(cwd, "add", "-A", "pair", "docs")
         git(cwd, "commit", "-m", f"Review cycle {cycle}")
-        if self.push:
-            git(cwd, "push", "origin", "main")
         if info.get("after_commit"):
             info["after_commit"]()
 
@@ -492,6 +490,122 @@ def test_invalid_review_output_stops(repo):
     assert "executor" not in fake.roles()
 
 
+# --- push by the orchestrator ------------------------------------------------
+
+def remote_rev(repo: Path, branch: str) -> str | None:
+    out = git(repo, "ls-remote", "origin", f"refs/heads/{branch}").stdout.split()
+    return out[0] if out else None
+
+
+def local_rev(repo: Path, ref: str) -> str:
+    return git(repo, "rev-parse", ref).stdout.strip()
+
+
+def test_orchestrator_pushes_base_and_deletes_merged_branches(repo):
+    fake = FakeSessions(repo)
+    st = orchestrator(repo, fake).start()
+    assert st["stop"]["code"] == "cycles_done"
+    assert remote_rev(repo, "main") == local_rev(repo, "main")
+    for branch in st["merged"]:
+        assert remote_rev(repo, branch) is None
+
+
+def test_reviewer_prompt_leaves_push_to_the_orchestrator(repo):
+    fake = FakeSessions(repo)
+    orchestrator(repo, fake, cycles=1).start()
+    prompt = fake.requests[0].prompt
+    assert "never push" in prompt
+    assert "orchestrator pushes" in prompt
+
+
+def test_push_off_pushes_nothing(repo):
+    initial = remote_rev(repo, "main")
+    fake = FakeSessions(repo, push=False)
+    st = orchestrator(repo, fake, cycles=1, push=False).start()
+    assert st["stop"]["code"] == "cycles_done"
+    assert remote_rev(repo, "main") == initial
+
+
+def test_reviewer_push_stops_round(repo):
+    fake = FakeSessions(repo)
+
+    def push(info):
+        info["after_commit"] = lambda: git(info["cwd"], "push", "origin", "main")
+    fake.on_review = push
+    st = orchestrator(repo, fake).start()
+    assert st["stop"]["code"] == "guard_violation"
+    assert "push" in st["stop"]["detail"]
+    assert fake.roles() == ["reviewer", "reviewer"]
+
+
+def test_no_push_when_tests_fail_after_merge(repo):
+    fake = FakeSessions(repo)
+
+    def bad(req, goal, branch):
+        write(req.cwd / "TESTS_FAIL", "x\n")
+        return True
+    fake.on_execute = bad
+    st = orchestrator(repo, fake).start()
+    assert st["stop"]["code"] == "tests_failed"
+    pushed = remote_rev(repo, "main")
+    assert pushed != local_rev(repo, "main")
+    # the failing merge never reached the remote
+    assert git(repo, "merge-base", "--is-ancestor", "goal-101", pushed,
+               check=False).returncode != 0
+
+
+# --- protected files checked by content (third layer) -----------------------
+
+def test_reviewer_writing_protected_file_outside_git_stops_round(repo):
+    initial = remote_rev(repo, "main")
+    fake = FakeSessions(repo)
+
+    def sneak(info):
+        info["after_commit"] = lambda: write(info["cwd"] / "tools/pairloop/README",
+                                             "laço trocado\n")
+    fake.on_review = sneak
+    st = orchestrator(repo, fake).start()
+    assert st["stop"]["code"] == "guard_violation"
+    assert st["stop"]["phase"] == "review"
+    assert "tools/pairloop/README" in st["stop"]["detail"]
+    assert "árvore de trabalho" in st["stop"]["detail"]
+    assert remote_rev(repo, "main") == initial      # nothing pushed
+
+
+def test_reviewer_deleting_protected_file_outside_git_stops_round(repo):
+    fake = FakeSessions(repo)
+
+    def sneak(info):
+        info["after_commit"] = lambda: (info["cwd"] / "pair/loop.toml").unlink()
+    fake.on_review = sneak
+    st = orchestrator(repo, fake).start()
+    assert st["stop"]["code"] == "guard_violation"
+    assert "pair/loop.toml" in st["stop"]["detail"]
+
+
+def test_executor_writing_into_main_checkout_outside_git_stops_round(repo):
+    fake = FakeSessions(repo)
+
+    def sneak(req, goal, branch):
+        write(repo / "docs/origem/novo.md", "x\n")
+        return True
+    fake.on_execute = sneak
+    st = orchestrator(repo, fake).start()
+    assert st["stop"]["code"] == "guard_violation"
+    assert st["stop"]["phase"] == "execute"
+    assert "docs/origem/novo.md" in st["stop"]["detail"]
+
+
+def test_python_bytecode_in_loop_directory_does_not_stop_round(repo):
+    fake = FakeSessions(repo)
+
+    def compiled(info):
+        write(info["cwd"] / "tools/pairloop/__pycache__/guard.cpython-313.pyc", "x")
+    fake.on_review = compiled
+    st = orchestrator(repo, fake, cycles=1).start()
+    assert st["stop"]["code"] == "cycles_done"
+
+
 # --- limits checked in git history (second layer) --------------------------
 
 @pytest.mark.parametrize("path", ["docs/visao.md", "docs/origem/guia.md",
@@ -756,15 +870,89 @@ def test_guard_executor_allowed_git(roots):
 def test_guard_reviewer_allowed_git(roots):
     c = ctx("reviewer", roots)
     assert bash("git merge --no-ff goal-1 -m 'Merge goal-1'", c) is None
-    assert bash("git push origin main", c) is None
-    assert bash("git push origin --delete goal-1", c) is None
     assert bash("git branch -d goal-1", c) is None
     assert bash("git worktree remove ../proj-goal-1", c) is None
 
 
+@pytest.mark.parametrize("base", ["main", "ensaio"])
+@pytest.mark.parametrize("cmd", [
+    "git push origin main",
+    "git push origin ensaio",
+    "git push",
+    "git push origin",
+    "git push origin HEAD",
+    "git push origin --delete goal-1",
+    "git push origin :goal-1",
+    "git -C . push origin main",
+    "cd pair && git push origin main",
+    "bash -c 'git push origin main'",
+])
+def test_guard_reviewer_never_pushes(roots, base, cmd):
+    """The orchestrator pushes after its checks; the reviewer never does."""
+    reason = bash(cmd, ctx("reviewer", roots, base=base))
+    assert reason is not None
+    assert "orquestrador" in reason
+
+
+# --- guard: git configuration that runs code or changes commands ---------------
+
+@pytest.mark.parametrize("role", ["reviewer", "executor"])
+@pytest.mark.parametrize("cmd", [
+    "git config core.hooksPath .githooks",
+    "git config --local core.hooksPath /tmp/h",
+    "git config core.hookspath x",
+    "git config set core.hooksPath x",
+    "git config --add core.hooksPath x",
+    "git config --file .git/config core.hooksPath x",
+    "git -C .. config core.hooksPath x",
+    "git config alias.st '!sh -c \"rm -rf x\"'",
+    "git config alias.co checkout",
+    "git config core.sshCommand 'ssh -i k'",
+    "git config core.fsmonitor ./x",
+    "git config core.pager ./x",
+    "git config core.editor ./x",
+    "git config include.path ../x",
+    "git config includeIf.gitdir:/x.path y",
+    "git config credential.helper x",
+    "git config filter.lfs.clean x",
+    "git config diff.x.textconv y",
+    "git config gpg.program x",
+    "git config --replace-all alias.x y",
+    "git config --unset core.hooksPath",
+    "git config --rename-section alias other",
+    "git config --remove-section core",
+    "git config --edit",
+    "git config -e",
+    "git config --global user.name x",
+    "git config --system user.email x",
+    "bash -c 'git config core.hooksPath x'",
+])
+def test_guard_blocks_git_config_that_runs_code(roots, role, cmd):
+    reason = bash(cmd, ctx(role, roots))
+    assert reason is not None
+    assert "git config" in reason
+
+
+@pytest.mark.parametrize("role", ["reviewer", "executor"])
+@pytest.mark.parametrize("cmd", [
+    "git config --get user.email",
+    "git config user.email",
+    "git config core.hooksPath",
+    "git config get core.hooksPath",
+    "git config --list",
+    "git config -l --show-origin",
+    "git config list",
+    "git config --get-regexp '^alias'",
+    "git config user.email teste@exemplo.invalid",
+    "git config user.name Teste",
+])
+def test_guard_allows_reading_config_and_setting_identity(roots, role, cmd):
+    assert bash(cmd, ctx(role, roots)) is None
+
+
 def test_guard_rehearsal_base_protects_main_from_reviewer(roots):
     c = ctx("reviewer", roots, base="ensaio")
-    assert bash("git push origin ensaio", c) is None
+    assert bash("git merge --no-ff goal-1", c) is None
     assert bash("git push origin main", c) is not None
     assert bash("git push origin --delete ensaio", c) is not None
 
