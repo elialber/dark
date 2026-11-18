@@ -1346,3 +1346,18 @@ Como cada item ficou:
   de aberta. Só a presença foi conferida.
 
 **Motivo:** pedido do usuário no goal 026.
+
+**Atualização, mesmo dia (usuário aprovou):**
+
+- **Limites em vigor para as evals:** 1.000.000 tokens, 40 turnos e 600
+  s por execução; 10.000.000 por rodada, aprovados pelo usuário. Passam a
+  valer para as rodadas dos 5 casos pequenos; casos maiores exigem
+  recalibração (o `goal-021-orchestrator-push` já usou 785 mil tokens e
+  343 s).
+- **Rodada completa feita:** 30/30 passaram, nas duas condições; 4,38
+  milhões de tokens, 26 minutos, US$ 3,04 estimados. Diferença entre
+  `bare` e `project`: 0 em 15 (ruído pela tolerância declarada). Efeito
+  teto confirmado: com esses casos, a rodada não mede o harness.
+- **Linha de base:** registrada como 100% nas duas condições, com a
+  ressalva do teto. A Fase 3 ("duas rodadas iguais dentro da tolerância")
+  não é cumprida de forma informativa até haver casos que discriminem.

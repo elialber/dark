@@ -90,18 +90,15 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
 ### 3. Executor de evals
 
 - **Situação:** construído no goal 020 (ligado ao comando no goal 021).
-  Calibração feita no [goal 026](../pair/goals/026-eval-calibration.md)
-  (2026-11-18): 10 execuções, 10 "concluiu", 10 aceites; máximo de 322
-  mil tokens e 112 s por execução. Efeito teto: `bare` e `project`
-  acertaram 5/5. Falta a aprovação do usuário para a rodada completa e
-  para os limites propostos (1 milhão de tokens, 40 turnos e 600 s por
-  execução; 10 milhões por rodada; cerca de 4,6 milhões de tokens e 29
-  minutos), e a decisão sobre calibrar antes os casos médios
-  (`goal-019-report-paths`, `goal-021-orchestrator-push`). Os itens 4 e a
-  medição dos módulos do item 6 seguem esperando a linha de base.
-  O goal 022 deixou pronto o conjunto de 11 casos, os 5 da primeira
-  rodada e a tolerância (4 em 15 execuções por condição) declarada antes
-  de medir.
+  Calibração e rodada completa feitas no
+  [goal 026](../pair/goals/026-eval-calibration.md) (2026-11-18): 30
+  execuções (5 casos, 2 condições, 3 execuções), 30 "concluiu", 30 aceites;
+  4,38 milhões de tokens, 26 minutos. Efeito teto: `bare` e `project`
+  acertaram 15/15, e os dois casos médios, que também foram calibrados,
+  passaram 4/4. Limites aprovados: 1 milhão de tokens, 40 turnos e 600 s
+  por execução, 10 milhões por rodada. Falta um conjunto de casos que o
+  agente às vezes falhe; sem ele, a linha de base é só "100%" e os itens 4
+  e a medição dos módulos do item 6 não têm o que medir.
 - **Entrega:** roda o agente, em modo não interativo, sobre um caso de
   eval, em cópia limpa do repositório, várias vezes, em duas condições:
   sem harness e com harness. Aplica o orçamento da decisão E17, começando
