@@ -85,6 +85,39 @@ Opções:
 `dark auditar --help` lista todas, inclusive as de conferência
 (`--gerenciado`, `--excluir-pasta`).
 
+Se já existe um banco de coleta que conhece o repositório (veja "Coleta"
+abaixo), a auditoria lê as sessões dele em vez de reler as transcrições,
+mostra a data da última coleta e traz a seção "O que mudou desde a última
+semana"; sem banco, ou com banco que não serve, ela lê direto e diz por
+quê. `--direto` força a leitura direta, `--coletar` coleta antes de
+auditar e `--banco` escolhe o arquivo. `dark --versao` imprime a versão
+instalada.
+
+## Coleta
+
+O Claude Code apaga as transcrições antigas (30 dias, por padrão). Para
+comparar uma semana com a anterior por mais tempo, rode a coleta de vez
+em quando, por exemplo uma vez por semana:
+
+```bash
+dark coletar --todos
+```
+
+Ela grava, num banco local fora dos seus repositórios (no macOS,
+`~/Library/Application Support/dark/aggregates.sqlite3`; no Linux,
+`~/.local/share/dark/`; no Windows, `%LOCALAPPDATA%\dark\`), os números
+de cada sessão: pedidos, tokens, intervenções, desfechos de hook, peças
+disponíveis e usadas, ligações de commits e um retrato do inventário.
+Nenhum texto de conversa é gravado. Coletar de novo não duplica nada, e
+as sessões que o Claude Code apagar continuam no banco.
+
+Sem `--todos`, coleta só o repositório do diretório atual (ou o
+caminho dado). `--banco` escolhe outro arquivo; o comando recusa um
+arquivo dentro de um repositório git que não o ignore. `--sem-git` pula
+a consulta ao histórico git (mais rápido; as ligações já gravadas ficam).
+`dark auditar` não coleta sozinho; `dark auditar --coletar` coleta e
+audita.
+
 ## Requisitos
 
 - Python 3.12 ou mais recente.

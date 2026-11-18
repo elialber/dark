@@ -235,6 +235,11 @@ class AggregateStore:
             "SELECT session_id FROM sessions WHERE repository_id = ? "
             "ORDER BY started_at, session_id", (repo,))]
 
+    def all_session_ids(self) -> list[str]:
+        """Every session in the store, with or without a repository."""
+        return [r[0] for r in self._query(
+            "SELECT session_id FROM sessions ORDER BY started_at, session_id")]
+
     def read_session(self, session_id: str) -> SessionRecord | None:
         columns = ("id",) + _SESSION_COLUMNS
         rows = self._query(f"SELECT {', '.join(columns)} FROM sessions WHERE session_id = ?",

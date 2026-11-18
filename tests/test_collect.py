@@ -299,3 +299,23 @@ def test_session_without_timestamps_is_skipped():
     s = reader.Session(id="s1", path=Path("x.jsonl"), project_dir="-x")
     record, dropped = collect.session_record(s, repository=None)
     assert record is None
+
+
+# --------------------------------------------------------------------------
+# Goal 027: collections in the same second keep their own records
+# --------------------------------------------------------------------------
+
+def test_three_collections_in_the_same_second_keep_three_records(config, db):
+    written = [collect.collect(config, db, repository=None, identity=cli.git_identity,
+                               now=NOW).sessions_written for _ in range(3)]
+    rows = query(db, "SELECT started_at, sessions_written FROM collections ORDER BY started_at")
+    assert len(rows) == 3
+    assert [r[1] for r in rows] == written == [5, 0, 0]
+    assert sum(r[1] for r in rows) == 5
+    assert [r[0] - rows[0][0] for r in rows] == [0, 1, 2]     # next free second, in order
+
+
+def test_store_created_before_the_fix_still_opens(config, db):
+    collect.collect(config, db, repository=None, identity=cli.git_identity, now=NOW)
+    collect.collect(config, db, repository=None, identity=cli.git_identity, now=NOW)
+    assert len(query(db, "SELECT * FROM collections")) == 2
