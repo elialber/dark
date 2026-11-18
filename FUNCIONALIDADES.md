@@ -25,11 +25,11 @@ Situação em 2026-11-18, versão `0.1.0` mais as mudanças em "Não lançado".
 |---|---|---|
 | 1. Auditoria | 9 | 9 |
 | 2. Coleta e histórico | 4 | 5 |
-| 3. Evals | 5 | 7 |
-| 4. Recomendações | 6 | 8 |
-| 5. Scaffold e módulos | 2 | 6 |
+| 3. Evals | 6 | 7 |
+| 4. Recomendações | 7 | 8 |
+| 5. Scaffold e módulos | 3 | 6 |
 | 6. Distribuição | 6 | 8 |
-| 7. Método e documentação | 2 | 4 |
+| 7. Método e documentação | 3 | 4 |
 | 8. Piloto | 0 | 1 |
 
 ## 1. Auditoria — `dark auditar`
@@ -61,7 +61,7 @@ Lê o harness e as transcrições; não escreve nada no repositório.
 - ✅ Calibração e rodada completa (`calibrar`, `rodar`, `resumir`)
 - ✅ 16 casos de eval deste repositório
 - ✅ Ablação de uma peça (skill, subagente ou instrução): `pode remover`, `mantenha`, `inconclusivo`, `não discrimina`
-- 🔧 Guardar resultados de evals no banco: `guardar` está na `main`; limites do `guardar` (goal 039) e `dark coletar --evals` (goal 041) em andamento
+- ✅ Guardar resultados de evals no banco: `python -m dark.evals guardar` e `dark coletar --evals`
 - ⏸️ Medição real: ablação real e calibração dos casos difíceis (pedem credencial e orçamento de tokens)
 
 ## 4. Recomendações
@@ -75,7 +75,7 @@ evidência, uma ação e como conferir depois.
 - ✅ Bloqueios repetidos de hook
 - ✅ Commits sem hash registrado
 - ✅ Evals em 100% por várias rodadas (`evals_at_100_percent`)
-- 🔧 O modelo mudou desde a última rodada de evals (goal 039)
+- ✅ O modelo mudou desde a última rodada de evals (`model_changed_since_last_evals`)
 - ⬜ Módulo de terceiro sem ganho medido (espera os módulos do item 5)
 
 ## 5. Scaffold e módulos
@@ -84,9 +84,9 @@ Aplicar e desfazer estrutura no repositório, sem sobrescrever nada.
 
 - ✅ Motor de operações reversíveis, com manifesto e plano
 - ✅ `dark iniciar` e `dark remover` com o módulo `base` (sem terceiros)
-- ⬜ `dark adicionar <módulo>`
-- ⬜ Módulo Langfuse (rastros de sessão; opcional; nunca grava chaves)
-- ⬜ Módulo Graphify (grafo do repositório; opcional; precisa provar ganho)
+- ✅ `dark adicionar <módulo>` (com `--listar`) e `dark verificar`
+- 🔧 Módulo Langfuse (rastros de sessão; opcional; nunca grava chaves): goals 043 e 044, em andamento
+- 🔧 Módulo Graphify (grafo do repositório; opcional; precisa provar ganho): goals 043 e 044, em andamento
 - ⬜ Instalar e desinstalar deixam o repositório idêntico ao inicial, medido em módulo de terceiro
 
 ## 6. Distribuição
@@ -104,7 +104,7 @@ Aplicar e desfazer estrutura no repositório, sem sobrescrever nada.
 
 - ✅ `docs/metodo.md`: derivação, poda, como ler o relatório e as regras
 - ✅ Teste que falha se a documentação citar comando, opção ou regra inexistente
-- 🔧 Documentos em dia com `iniciar`, `remover` e `guardar` (goal 040)
+- ✅ Documentos em dia com `iniciar`, `adicionar`, `verificar`, `remover`, `guardar` e `coletar --evals` (goal 045)
 - ⬜ Teste com uma pessoa de fora e um ciclo de derivação real
 
 ## 8. Piloto final
