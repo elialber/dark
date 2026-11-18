@@ -2,8 +2,8 @@
 
 A pure function over the store's eval runs: for each module (`name:version`),
 its most recent measurement and the decision of `module_gain.decide` on it.
-No rule reads it yet (the `third_party_module_without_gain` rule is the next
-goal).
+The `third_party_module_without_gain` rule (goal 055) reads it through the audit
+of the store.
 
 How a measurement is delimited (declared in
 pair/goals/054-with-module-store.md before the tests, padrão a confirmar):

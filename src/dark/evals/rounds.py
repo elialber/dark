@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from datetime import datetime
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
@@ -228,8 +229,21 @@ def check_limits(d: dict) -> None:
             raise ValueError(f"{name}: número não finito ({v!r}); o banco só guarda decimais finitos")
 
 
+# `name:version`: exactly one colon, both parts non-empty, no whitespace at either end
+# of either part (goal 057). The same expression is the schema's `pattern`.
+MODULE_PATTERN = run_record.APPLIED_MODULE_PATTERN
+
+
+def check_module_format(module) -> None:
+    """Refuses an `applied_module` that is not `name:version` (goal 057). Raises ValueError."""
+    if not isinstance(module, str) or not re.fullmatch(MODULE_PATTERN, module):
+        raise ValueError(f"applied_module: esperado nome:versão (um único ':', nome e versão "
+                         f"não vazios, sem espaço nas pontas), recebido {module!r}")
+
+
 def check_module(d: dict) -> None:
-    """`applied_module` is filled if and only if the condition is `with_module` (goal 054).
+    """`applied_module` is filled if and only if the condition is `with_module` (goal 054),
+    and then it is `name:version` (goal 057).
 
     Raises ValueError. A record without the field (older than goal 050) has no module.
     """
@@ -240,6 +254,8 @@ def check_module(d: dict) -> None:
     if d.get("condition") != "with_module" and module is not None:
         raise ValueError(f"applied_module: só vale na condição with_module, "
                          f"não em {d.get('condition')}")
+    if module is not None:
+        check_module_format(module)
 
 
 def plan_import(path: Path) -> ImportPlan:
@@ -276,6 +292,11 @@ def plan_import(path: Path) -> ImportPlan:
             plan.refused.append((number, f"não é JSON ({e.msg})"))
             continue
         try:
+            if isinstance(d, dict) and d.get("condition") == "with_module" \
+                    and d.get("applied_module") is not None:
+                # Before the schema, whose refusal ("tipo errado", "formato inválido")
+                # would not show the value received.
+                check_module_format(d["applied_module"])
             run_record.validate_record(d)
             check_module(d)
             check_limits(d)
