@@ -48,25 +48,26 @@ Fase 3 em andamento; laço de par disponível
 | [023 — Distribuição](goals/023-distribution.md) | Aceito na [revisão de fechamento da rodada 001](rodadas/001/revisao-fechamento.md) e incorporado à `main` |
 | [024 — Coleta](goals/024-collect.md) | Aceito com correções na [revisão de fechamento da rodada 001](rodadas/001/revisao-fechamento.md) e incorporado à `main`; a correção (registro de coleta no mesmo segundo) vai no goal seguinte do item 2 |
 | [025 — Endurecimento do laço](goals/025-loop-hardening.md) | Concluído fora do laço, a pedido do usuário (D1 da rodada 001, opção a); aguarda revisão ([diário](diario/025.md)) |
+| [026 — Calibração dos evals](goals/026-eval-calibration.md) | Concluído fora do laço, a pedido do usuário; 10 de 10 execuções concluíram e passaram; aguarda aprovação da rodada completa ([diário](diario/026.md)) |
 
 ## Decisões pendentes
 
-Nenhuma. A D1 da rodada 001 foi respondida pelo usuário com a opção
-(a) e executada no [goal 025](goals/025-loop-hardening.md).
+- Rodada completa dos evals (goal 026): aprovar ou ajustar os limites
+  propostos (1 milhão de tokens, 40 turnos e 600 s por execução; 10
+  milhões por rodada) e decidir se os dois casos médios são calibrados
+  antes. Detalhe no [diário 026](diario/026.md).
 
 ## Pedidos ao usuário
 
-- Token dedicado no ambiente para a calibração dos evals
-  (`CLAUDE_CODE_OAUTH_TOKEN`, gerado por `claude setup-token`, ou
-  `ANTHROPIC_API_KEY`). Os casos e a tolerância estão prontos (goal
-  022); sem o token, a calibração, a linha de base, a poda por ablação e
-  a medição de módulos não começam.
 - Etiqueta `v0.1.0` na `main`, se quiser a instalação fixada que o
   README cita.
+- Revogar o token dedicado às evals quando a rodada completa acabar
+  (os comandos do agente podem lê-lo).
 
 ## Próximo passo
 
 Rodada 001 fechada ([relatório](rodadas/001.md)); o laço foi endurecido
 no goal 025, fora do laço. A próxima rodada revisa o goal 025 e começa pela auditoria lendo do banco (resto do item 2) e pelo plugin do
-Claude Code com `dark --versao` (resto do item 8); a calibração, assim
-que a credencial chegar.
+Claude Code com `dark --versao` (resto do item 8); a calibração está feita
+([goal 026](goals/026-eval-calibration.md)); a rodada completa espera a
+aprovação do usuário.

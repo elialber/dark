@@ -90,14 +90,18 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
 ### 3. Executor de evals
 
 - **Situação:** construído no goal 020 (ligado ao comando no goal 021).
-  Falta a calibração, bloqueada por credencial: depende de o usuário
-  gerar um token dedicado e colocá-lo no ambiente. Até lá, os itens 4 e
-  a medição dos módulos do item 6 não começam.
-  O goal 022 deixou pronto o que não depende da credencial: 11 casos
-  deste repositório, os 5 da primeira rodada e a tolerância (4 em 15
-  execuções por condição) declarada antes de medir. Com a credencial no
-  ambiente, o próximo goal do item é a calibração seguida da linha de
-  base.
+  Calibração feita no [goal 026](../pair/goals/026-eval-calibration.md)
+  (2026-11-18): 10 execuções, 10 "concluiu", 10 aceites; máximo de 322
+  mil tokens e 112 s por execução. Efeito teto: `bare` e `project`
+  acertaram 5/5. Falta a aprovação do usuário para a rodada completa e
+  para os limites propostos (1 milhão de tokens, 40 turnos e 600 s por
+  execução; 10 milhões por rodada; cerca de 4,6 milhões de tokens e 29
+  minutos), e a decisão sobre calibrar antes os casos médios
+  (`goal-019-report-paths`, `goal-021-orchestrator-push`). Os itens 4 e a
+  medição dos módulos do item 6 seguem esperando a linha de base.
+  O goal 022 deixou pronto o conjunto de 11 casos, os 5 da primeira
+  rodada e a tolerância (4 em 15 execuções por condição) declarada antes
+  de medir.
 - **Entrega:** roda o agente, em modo não interativo, sobre um caso de
   eval, em cópia limpa do repositório, várias vezes, em duas condições:
   sem harness e com harness. Aplica o orçamento da decisão E17, começando

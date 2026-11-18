@@ -1321,3 +1321,28 @@ Como cada item ficou:
   `worktree prune` continua bloqueado.
 
 **Motivo:** D1 da rodada 001, opção (a), escolhida pelo usuário.
+
+## Decisões do goal 026
+
+**Data:** 2026-11-18 ([diário 026](../pair/diario/026.md))
+
+- **Calibração feita.** 5 casos, `bare` e `project`, 1 execução por caso
+  e condição, modelo `claude-sonnet-5-5`: 10 execuções, todas "concluiu"
+  com aceite em código 0. Máximo de 322.054 tokens, 10 turnos e 112 s
+  por execução; 1.534.300 tokens no total. O executor não apresentou
+  defeito.
+- **Efeito teto observado.** 10/10 nas duas condições: os cinco casos
+  pequenos, sozinhos, não separam `bare` de `project`. Proposta:
+  calibrar `goal-019-report-paths` e `goal-021-orchestrator-push` antes
+  de decidir o conjunto da rodada completa.
+- **Limites propostos, a vigorar só com aprovação do usuário:** 1.000.000
+  tokens e 40 turnos e 600 s por execução; 10.000.000 por rodada. Acima
+  do "dobro do observado" da E17 (645 mil tokens), porque execução
+  estourada conta como falha e o máximo de 10 execuções subestima a
+  cauda. A E17 continua valendo até a aprovação. Estimativa da rodada
+  completa: cerca de 4,6 milhões de tokens, 29 minutos, US$ 3,1.
+- **Credencial por `zsh -ic`.** Com autorização do usuário, porque a
+  sessão do Claude Code não herdou o token adicionado ao `.zshrc` depois
+  de aberta. Só a presença foi conferida.
+
+**Motivo:** pedido do usuário no goal 026.
