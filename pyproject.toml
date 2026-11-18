@@ -4,8 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dark"
-version = "0.0.1"
+version = "0.1.0"
 description = "Instala, mede e mantém o harness do Claude Code em um repositório."
+readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
 
