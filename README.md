@@ -132,6 +132,18 @@ linhas, 3 bloqueios) são padrões a confirmar, constantes em
 relatório estão em [docs/metodo.md](docs/metodo.md), que também resume o
 método (derivação e poda) em que a ferramenta se apoia.
 
+## Ablação
+
+Para decidir se uma peça sem uso pode sair, a ablação roda os seus casos
+de eval com o harness completo e com ele menos essa peça, e responde
+`pode remover`, `mantenha`, `inconclusivo` ou `não discrimina`, com os
+números. O comando é `python -m dark.evals ablacao`; `--simular` mostra,
+sem gastar nada, quantas execuções e quantos tokens a rodada pode custar.
+A medição real roda o Claude Code e pede credencial no ambiente e
+orçamento de tokens; nenhuma ablação real foi rodada ainda. Como ler cada
+resposta e o que fazer com ela está em [docs/metodo.md](docs/metodo.md);
+as opções, em [evals/README.md](evals/README.md#ablação).
+
 ## Requisitos
 
 - Python 3.12 ou mais recente.

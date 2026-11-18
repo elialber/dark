@@ -23,8 +23,9 @@ _DARK_COMMAND = re.compile(r"(?:^|\s)(?:python -m )?dark( [^\s`|]+)?((?: [^\n`|]
 _OPTION = re.compile(r"(?<![\w-])--[a-z][a-z-]*")
 _RULE_ID = re.compile(r"[a-z]+(?:_[a-z0-9]+)+")
 _CONSTANT = re.compile(r"[A-Z]+(?:_[A-Z]+)+")
+_ABLATION_CONSTANTS = ("TOLERANCE_RUNS", "TOLERANCE_BASE", "MIN_RUNS")  # checked against ablation.py below
 _LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
-_THRESHOLD_ROW = re.compile(r"^\|\s*`([A-Z_]+)`\s*\|\s*(\d+)\b", re.MULTILINE)
+_THRESHOLD_ROW = re.compile(r"^\|\s*`((?!TOLERANCE_|MIN_RUNS)[A-Z_]+)`\s*\|\s*(\d+)\b", re.MULTILINE)
 
 
 def _help(args: list[str], capsys) -> str:
@@ -56,7 +57,7 @@ def command_problems(text: str, capsys) -> list[str]:
     known = {"": _help_options([], capsys)}
     for sub in SUBCOMMANDS:
         known[sub] = _help_options([sub], capsys)
-    union = set().union(*known.values())
+    union = set().union(*known.values()) | _evals_help_options("ablacao", capsys)
     for piece in _code_pieces(text):
         piece = piece.strip()
         found = _DARK_COMMAND.search(piece)
@@ -87,7 +88,8 @@ def rule_problems(text: str) -> list[str]:
         piece = piece.strip()
         if _RULE_ID.fullmatch(piece) and piece not in real:
             problems.append(f"`{piece}` is not a rule of recommend.py")
-        if _CONSTANT.fullmatch(piece) and not hasattr(recommend, piece):
+        if _CONSTANT.fullmatch(piece) and not hasattr(recommend, piece) \
+                and piece not in _ABLATION_CONSTANTS:
             problems.append(f"`{piece}` is not a constant of recommend.py")
     for name, value in _THRESHOLD_ROW.findall(text):
         if getattr(recommend, name, None) != int(value):
@@ -179,3 +181,117 @@ def test_probe_a_wrong_threshold_fails():
 def test_probe_a_broken_link_fails():
     assert link_problems("[x](nao-existe.md) [y](decisoes.md#e1) [z](https://exemplo.org)") \
         == ["link to a file that does not exist: nao-existe.md"]
+
+
+# ---------------------------------------------------------------------------
+# Ablation (goal 037): `python -m dark.evals ablacao` in docs/metodo.md and README.md
+# ---------------------------------------------------------------------------
+
+README = ROOT / "README.md"
+_EVALS_COMMAND = re.compile(r"python -m dark\.evals ([a-z]+)((?:[^\n`]|\\\n)*)")
+_OUTCOME_SPAN = re.compile(r"`((?:pode remover|mantenha|inconclusivo|não discrimina))`")
+_NUMBER_ROW = re.compile(r"^\|\s*`(TOLERANCE_RUNS|TOLERANCE_BASE|MIN_RUNS)`\s*\|\s*(\d+)\b",
+                         re.MULTILINE)
+
+
+def _evals_help_options(sub: str, capsys) -> set[str]:
+    from dark.evals import __main__ as evals_main
+    capsys.readouterr()
+    try:
+        evals_main.main([sub, "--help"])
+    except SystemExit:
+        pass
+    return set(_OPTION.findall(capsys.readouterr().out))
+
+
+def evals_option_problems(text: str, capsys) -> list[str]:
+    """Every `--opt` next to `python -m dark.evals <sub>` exists in that subcommand's --help."""
+    problems = []
+    cache: dict[str, set[str]] = {}
+    for sub, rest in _EVALS_COMMAND.findall(text):
+        if sub not in cache:
+            cache[sub] = _evals_help_options(sub, capsys)
+        if not cache[sub]:
+            problems.append(f"`python -m dark.evals {sub}` is not a subcommand")
+            continue
+        for option in _OPTION.findall(rest):
+            if option not in cache[sub]:
+                problems.append(f"{option} is not in `python -m dark.evals {sub} --help`")
+    return problems
+
+
+def outcome_problems(text: str) -> list[str]:
+    from dark.evals import ablation
+    real = set(ablation.OUTCOME_LABELS.values())
+    problems = [f"`{label}` is not in OUTCOME_LABELS" for label in _OUTCOME_SPAN.findall(text)
+                if label not in real]
+    # An outcome-shaped span after "saída"/"Ablação:" that is not real.
+    for label in re.findall(r"Ablação: ([^\n]+)", text):
+        if label.strip() not in real:
+            problems.append(f"`{label.strip()}` is not in OUTCOME_LABELS")
+    return problems
+
+
+def number_problems(text: str) -> list[str]:
+    from dark.evals import ablation
+    problems = []
+    for name, value in _NUMBER_ROW.findall(text):
+        if getattr(ablation, name, None) != int(value):
+            problems.append(f"{name} is {getattr(ablation, name, None)}, the text says {value}")
+    return problems
+
+
+def test_the_method_doc_cites_the_four_outcomes_and_the_numbers():
+    from dark.evals import ablation
+    text = _doc()
+    for label in ablation.OUTCOME_LABELS.values():
+        assert f"`{label}`" in text, label
+    assert {name for name, _ in _NUMBER_ROW.findall(text)} \
+        == {"TOLERANCE_RUNS", "TOLERANCE_BASE", "MIN_RUNS"}
+
+
+def test_every_evals_option_cited_in_the_docs_exists_in_help(capsys):
+    for path in (DOC, README):
+        assert evals_option_problems(path.read_text(encoding="utf-8"), capsys) == [], path.name
+
+
+def test_the_ablation_outcomes_cited_exist():
+    for path in (DOC, README):
+        assert outcome_problems(path.read_text(encoding="utf-8")) == [], path.name
+
+
+def test_the_ablation_numbers_cited_match_the_constants():
+    assert number_problems(_doc()) == []
+
+
+def test_the_readme_mentions_the_ablation_command_and_links_the_method():
+    text = README.read_text(encoding="utf-8")
+    assert "python -m dark.evals ablacao" in text
+    assert "docs/metodo.md" in text
+
+
+def test_the_docs_cite_the_supported_and_refused_kinds():
+    from dark.evals import ablation
+    text = _doc()
+    for kind in (*ablation.SUPPORTED_KINDS, *ablation.UNSUPPORTED_KINDS):
+        assert f"`{kind}`" in text, kind
+
+
+def test_probe_an_evals_option_that_does_not_exist_fails(capsys):
+    assert evals_option_problems("`python -m dark.evals ablacao --inexistente`", capsys) \
+        == ["--inexistente is not in `python -m dark.evals ablacao --help`"]
+    assert evals_option_problems("```bash\npython -m dark.evals ablacao --tipo skill \\\n"
+                                 "  --simular x.toml\n```", capsys) == []
+    assert evals_option_problems("`python -m dark.evals banana --tipo x`", capsys) \
+        == ["`python -m dark.evals banana` is not a subcommand"]
+
+
+def test_probe_an_outcome_that_does_not_exist_fails():
+    assert outcome_problems("a saída `pode remover`, `talvez`") == []
+    assert outcome_problems("Ablação: talvez remover") == ["`talvez remover` is not in OUTCOME_LABELS"]
+    assert outcome_problems("Ablação: pode remover") == []
+
+
+def test_probe_a_wrong_ablation_number_fails():
+    assert number_problems("| `MIN_RUNS` | 20 | x |") == ["MIN_RUNS is 15, the text says 20"]
+    assert number_problems("| `TOLERANCE_RUNS` | 4 | x |") == []
