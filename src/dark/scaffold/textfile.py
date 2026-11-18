@@ -70,6 +70,20 @@ def decode(data: bytes) -> Decoded:
 NEW_FILE = Decoded("", "utf-8", b"", False)
 
 
+def lf(data: bytes) -> bytes:
+    """``data`` with CRLF pairs folded to LF (a lone CR stays)."""
+    return data.replace(b"\r\n", b"\n")
+
+
+def same_bytes(data: bytes, want: bytes) -> bool:
+    """Same bytes, or the same up to CRLF line endings.
+
+    Git on Windows with ``core.autocrlf=true`` checks out with CRLF a file
+    written with LF; it is still the same file (goal 053).
+    """
+    return data == want or lf(data) == lf(want)
+
+
 # ---------------------------------------------------------------- lines
 
 

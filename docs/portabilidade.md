@@ -801,6 +801,51 @@ futuros.
 
 ---
 
+### S6.8 Nomes de arquivo acentuados na cópia do eval
+
+- **Supõe:** `evals/workspace.git` lia a saída do git com `text=True`
+  sem `encoding` (o teste de S6.5 só achava `text=True` literal, e aqui
+  era `text=not binary`).
+- **Origem:** leitura do código no goal 053, depois das falhas do CI no
+  Windows.
+- **Em outro ambiente:**
+  - Windows: a saída é decodificada em `cp1252`. Um arquivo de harness
+    com acento no nome (`.claude/skills/revisão/SKILL.md`) volta como
+    `revisÃ£o`, e o `git rm` seguinte da montagem da cópia falha
+    ("pathspec did not match"). Com certos caracteres (`Á`, bytes
+    `C3 81`), `UnicodeDecodeError`. Bloqueia `dark.evals` em repositório
+    com nome acentuado no harness.
+  - macOS e Linux com localidade UTF-8: funciona.
+- **Proposta:** decodificar como UTF-8 (`surrogateescape`, para o nome
+  voltar intacto ao git) e ampliar o teste de S6.5 para qualquer `text=`
+  que não seja `False` literal.
+- **Situação:** corrigido no goal 053. Testes:
+  `test_workspace_git_reads_accented_names_whatever_the_locale` (simula
+  `cp1252`) e `test_process_output_is_never_decoded_with_the_locale`
+  (ampliado).
+
+### S6.9 Arquivo do módulo com quebra de linha CRLF
+
+- **Supõe:** o motor do scaffold compara byte a byte o arquivo que um
+  módulo cria (`create_file`) com o que está no disco, ao aplicar, ao
+  reverter (hash) e na conferência (`verify` do Graphify e do Langfuse).
+- **Origem:** falha do CI no Windows
+  (`test_command_module_already_in_harness`, goal 053).
+- **Em outro ambiente:**
+  - Windows com `core.autocrlf=true` (padrão do Git for Windows): o
+    arquivo gravado com LF volta com CRLF depois de commit e checkout,
+    ou foi salvo com CRLF por um editor. Aplicar de novo dá conflito
+    ("já existe com conteúdo diferente"), reverter guarda o arquivo
+    ("foi alterado depois da aplicação"), a conferência acusa
+    "alterado". Na medição de ganho, um harness que já tem a skill do
+    Graphify é recusado com a mensagem errada.
+  - macOS e Linux: só com arquivo salvo em CRLF.
+- **Proposta:** tratar como iguais arquivos que só diferem em CRLF
+  contra LF (um CR sozinho continua sendo conteúdo).
+- **Situação:** corrigido no goal 053 (`textfile.same_bytes`). Testes em
+  `tests/test_scaffold_newlines.py` e o caso `crlf` de
+  `test_command_module_already_in_harness`.
+
 ## 7. Dados por máquina
 
 ### S7.1 As transcrições são locais

@@ -44,3 +44,8 @@
   diretório temporário pelo teste.
   **Motivo:** com os nomes reais, o Claude Code os carrega como harness
   aninhado de qualquer sessão que toque em `tests/` (goal 009).
+- Depois do push da branch, o executor espera o workflow da branch
+  (`gh run watch` ou `gh run view`) e põe no diário a tabela "job,
+  resultado"; job vermelho é corrigido ou explicado antes de parar.
+  **Motivo:** o workflow da `main` ficou vermelho no Windows da rodada
+  002 à 005 sem que ninguém notasse (goal 053).

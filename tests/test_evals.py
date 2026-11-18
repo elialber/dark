@@ -39,7 +39,7 @@ def _shell_python() -> str:
 
 def _git(repo: Path, *args: str) -> str:
     r = subprocess.run(["git", *args], cwd=repo, env=GIT_TEST_ENV, check=True,
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding="utf-8")
     return r.stdout.strip()
 
 
@@ -57,7 +57,7 @@ def make_commit(repo: Path, files: dict[str, str | None], subject: str) -> str:
             p.unlink()
         else:
             p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_text(content)
+            p.write_text(content, encoding="utf-8")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", subject)
     return _git(repo, "rev-parse", "HEAD")
@@ -123,7 +123,7 @@ def test_id_with_forbidden_character():
 
 
 def test_readme_example_is_a_valid_case():
-    text = (ROOT / "evals" / "README.md").read_text()
+    text = (ROOT / "evals" / "README.md").read_text(encoding="utf-8")
     blocks = re.findall(r"```toml\n(.*?)```", text, re.S)
     assert blocks, "the evals README needs a TOML example"
     for block in blocks:
@@ -468,10 +468,10 @@ def test_cli_minerar_writes_drafts_without_overwriting(tmp_path, capsys):
     assert main(["minerar", "--repo", str(repo), "--gravar", str(output)]) == 0
     fpath = output / f"minerado-{c2[:7]}.toml"
     assert m_case.load(fpath).solution_commit == c2
-    fpath.write_text(fpath.read_text() + "# editado à mão\n")
+    fpath.write_text(fpath.read_text(encoding="utf-8") + "# editado à mão\n", encoding="utf-8")
 
     assert main(["minerar", "--repo", str(repo), "--gravar", str(output)]) == 0
-    assert fpath.read_text().endswith("# editado à mão\n")
+    assert fpath.read_text(encoding="utf-8").endswith("# editado à mão\n")
     assert "já existe" in capsys.readouterr().out
 
 

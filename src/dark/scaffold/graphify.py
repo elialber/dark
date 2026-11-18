@@ -154,7 +154,7 @@ def _file_problems(repo: Path) -> list[str]:
         except OSError as e:
             out.append(f"ilegível: {path} ({e.strerror or e})")
             continue
-        if data != content.encode("utf-8"):
+        if not textfile.same_bytes(data, content.encode("utf-8")):
             out.append(f"alterado depois da aplicação: {path}")
     return out
 

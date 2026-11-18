@@ -35,7 +35,7 @@ CHECK = ("import os, sys\nsys.path.insert(0, os.getcwd())\nimport calc\n"
 
 def _git(repo: Path, *args: str) -> str:
     r = subprocess.run(["git", *args], cwd=repo, env=GIT_ENV, check=True,
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding="utf-8")
     return r.stdout.strip()
 
 
@@ -43,7 +43,8 @@ def commit(repo: Path, files: dict[str, str], subject: str) -> str:
     for name, content in files.items():
         p = repo / name
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(content, encoding="utf-8")
+        # newline="": the bytes are the same on every system (goal 053).
+        p.write_text(content, encoding="utf-8", newline="")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", subject)
     return _git(repo, "rev-parse", "HEAD")
@@ -616,9 +617,11 @@ def test_command_unknown_module(cli, capsys):
     assert not out.exists()
 
 
-def test_command_module_already_in_harness(cli, repo, fake_graphify, capsys):
-    # A harness commit that already carries the Graphify skill.
-    head = commit(repo["src"], {f"{graphify.SKILL_DIR}/{rel}": text
+@pytest.mark.parametrize("newline", ["\n", "\r\n"], ids=["lf", "crlf"])
+def test_command_module_already_in_harness(cli, repo, fake_graphify, capsys, newline):
+    # A harness commit that already carries the Graphify skill; with CRLF,
+    # as a Windows editor or checkout leaves it (goal 053).
+    head = commit(repo["src"], {f"{graphify.SKILL_DIR}/{rel}": text.replace("\n", newline)
                                 for rel, text in graphify.SKILL_FILES.items()}, "graphify")
     case_file = repo["tmp"] / "calc.toml"
     argv = ["modulo", "--repo", str(repo["src"]), "--harness", head, "--nome", "graphify",

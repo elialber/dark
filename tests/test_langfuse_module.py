@@ -340,19 +340,33 @@ def test_docker_compose_config_accepts_the_file(tmp_path):
     (tmp_path / "compose").mkdir()
     compose = tmp_path / "compose" / "docker-compose.yml"
     compose.write_text(langfuse.COMPOSE, encoding="utf-8")
-    env = tmp_path / ".env"
-    env.write_text("".join(f"{n}={'0' * 64}\n" for n in langfuse.COMPOSE_SECRETS),
-                   encoding="utf-8")
     clean = {k: v for k, v in os.environ.items() if k not in ALL_VARS}
-    try:
-        done = subprocess.run(["docker", "compose", "-f", str(compose), "--env-file", str(env),
+
+    def config(*names: str) -> subprocess.CompletedProcess:
+        """`docker compose config` with an env file that sets only `names`."""
+        env = tmp_path / ".env"
+        env.write_text("".join(f"{n}={'0' * 64}\n" for n in names), encoding="utf-8")
+        return subprocess.run(["docker", "compose", "-f", str(compose), "--env-file", str(env),
                                "config", "--quiet"], capture_output=True, text=True,
-                              timeout=60, env=clean)
+                              encoding="utf-8", errors="replace", timeout=60, env=clean)
+
+    try:
+        done = config(*langfuse.COMPOSE_SECRETS)
     except (OSError, subprocess.TimeoutExpired) as e:
         pytest.skip(f"docker compose indisponível: {e}")
     if "is not a docker command" in done.stderr or "unknown command" in done.stderr:
         pytest.skip("sem o plugin docker compose")
     assert done.returncode == 0, done.stderr
+    # Without the env file: refused, naming one of the secrets. Which one
+    # compose reports first is not stable across runs (goal 053).
     missing = subprocess.run(["docker", "compose", "-f", str(compose), "config", "--quiet"],
-                             capture_output=True, text=True, timeout=60, env=clean)
-    assert missing.returncode != 0 and "SALT" in missing.stderr + missing.stdout
+                             capture_output=True, text=True, encoding="utf-8",
+                             errors="replace", timeout=60, env=clean)
+    output = missing.stderr + missing.stdout
+    assert missing.returncode != 0
+    assert any(name in output for name in langfuse.COMPOSE_SECRETS), output
+    # Each secret alone is required: missing only it, compose refuses and names it.
+    for name in langfuse.COMPOSE_SECRETS:
+        one_missing = config(*(n for n in langfuse.COMPOSE_SECRETS if n != name))
+        assert one_missing.returncode != 0, name
+        assert name in one_missing.stderr + one_missing.stdout, one_missing.stderr
