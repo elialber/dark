@@ -681,7 +681,7 @@ def section(text, title):
 
 def test_section_order_with_installed_and_appendix(integrated_text):
     titles = [l[3:] for l in integrated_text.splitlines() if l.startswith("## ")]
-    assert titles == ["O que chama atenção", "Peso fixo", "Peso morto",
+    assert titles == ["O que chama atenção", "Recomendações", "Peso fixo", "Peso morto",
                        "O que está instalado", "Custo", "Intervenções", "Hooks", "Commits",
                        "Apêndice"]
     assert "Ainda não disponível" not in integrated_text

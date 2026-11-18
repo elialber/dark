@@ -113,12 +113,22 @@ class Finding:
 
 
 @dataclass(frozen=True)
+class InstructionFile:
+    """One instruction file loaded at start, for the size rule (goal 032)."""
+    name: str
+    scope: str
+    lines: int
+    chars: int
+
+
+@dataclass(frozen=True)
 class InstructionSummary:
     files: int
     chars: int
     item_count: int
     with_reason: int
     estimated_reason: bool = True
+    sizes: tuple[InstructionFile, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -131,6 +141,11 @@ class Installed:
     plugins: int
     failures: int
     instructions: InstructionSummary      # only those loaded at start
+    # (store kind, name) of the skills, subagents and MCP servers with a file today.
+    present: frozenset[tuple[str, str]] = frozenset()
+
+
+PRESENT_KIND = {"skill": "skill", "subagent": "subagent_type", "mcp": "mcp_server"}
 
 
 def installed(inv: Inventory) -> Installed:
@@ -145,7 +160,11 @@ def installed(inv: Inventory) -> Installed:
         instructions=InstructionSummary(
             files=len(instructions), chars=sum(p.chars for p in instructions),
             item_count=sum(p.instruction.item_count for p in instructions),
-            with_reason=sum(p.instruction.with_reason for p in instructions)))
+            with_reason=sum(p.instruction.with_reason for p in instructions),
+            sizes=tuple(InstructionFile(p.name, p.scope, p.lines, p.chars)
+                        for p in instructions)),
+        present=frozenset((PRESENT_KIND[p.kind], p.name) for p in inv.items
+                          if p.kind in PRESENT_KIND))
 
 
 @dataclass(frozen=True)
@@ -189,6 +208,7 @@ class InventoryChange:
     resized: int
     chars_before: int
     chars_after: int
+    added_items: tuple[tuple[str, str], ...] = ()      # (kind, name) of the new pieces
 
 
 @dataclass(frozen=True)
