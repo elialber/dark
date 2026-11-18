@@ -13,7 +13,8 @@ SCHEMA_ID = "dark.eval_run/1"
 
 END_REASONS = ("completed", "time", "budget", "turns", "error")
 ERROR_STAGES = ("setup", "agent", "acceptance")
-CONDITIONS = ("bare", "project")
+# `ablated` (goal 034): the `project` harness minus one piece (see `ablation`).
+CONDITIONS = ("bare", "project", "ablated")
 
 _INT = {"type": "integer", "minimum": 0}
 _NULL_INT = {"type": ["integer", "null"], "minimum": 0}
@@ -54,6 +55,10 @@ RECORD_SCHEMA: dict = {
                            "[tool.pytest*] do pyproject.toml) fora dos files do caso; "
                            "o executor a restaurou antes do aceite. Ausente em registros "
                            "antigos"},
+        "ablated_piece": {
+            "type": ["string", "null"],
+            "description": "tipo:nome da peça retirada na condição ablated; nulo nas "
+                           "outras. Ausente em registros antigos"},
         "base_commit": _SHA,
         "harness_commit": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40}$"},
         "max_turns": _INT,
@@ -62,7 +67,8 @@ RECORD_SCHEMA: dict = {
     },
 }
 # Added in goal 030: records written before it do not have the field.
-OPTIONAL_FIELDS = ("acceptance_config_changed",)
+# Added in goal 034: same.
+OPTIONAL_FIELDS = ("acceptance_config_changed", "ablated_piece")
 RECORD_SCHEMA["required"] = [k for k in RECORD_SCHEMA["properties"] if k not in OPTIONAL_FIELDS]
 
 
@@ -97,6 +103,7 @@ class RunRecord:
     max_turns: int
     max_tokens: int
     timeout_s: float
+    ablated_piece: str | None = None
 
     def to_dict(self) -> dict:
         return {"schema": SCHEMA_ID, **asdict(self)}

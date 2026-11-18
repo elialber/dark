@@ -37,6 +37,7 @@ from pathlib import Path
 from typing import Protocol
 
 from . import process, workspace
+from .ablation import AblationError, Piece
 from .agent_stream import StreamTally
 from .case import Case
 from .run_record import CONDITIONS, RunRecord
@@ -126,6 +127,7 @@ class RunConfig:
     harness_commit: str = "HEAD"
     workdir: Path | None = None        # where the temporary directories go
     model: str | None = None
+    ablation: Piece | None = None      # the piece the `ablated` condition removes (goal 034)
 
 
 def agent_environment(base: Mapping[str, str], config_dir: Path, home: Path,
@@ -174,6 +176,8 @@ def run_once(case: Case, condition: str, run_index: int, config: RunConfig,
              launcher: Launcher) -> RunRecord:
     if condition not in CONDITIONS:
         raise ValueError(f"condição desconhecida: {condition}")
+    if condition == "ablated" and config.ablation is None:
+        raise ValueError("condição ablated sem peça a retirar")
     started_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     start = time.monotonic()
     limits = config.limits
@@ -187,7 +191,8 @@ def run_once(case: Case, condition: str, run_index: int, config: RunConfig,
                lines_added=None, lines_removed=None, files_changed=None, tests_modified=None,
                acceptance_config_changed=False,
                base_commit="0" * 40, harness_commit=None, max_turns=limits.max_turns,
-               max_tokens=limits.max_tokens, timeout_s=float(limits.timeout_s))
+               max_tokens=limits.max_tokens, timeout_s=float(limits.timeout_s),
+               ablated_piece=config.ablation.label if condition == "ablated" else None)
 
     def finish(**kw) -> RunRecord:
         rec.update(kw)
@@ -201,12 +206,17 @@ def run_once(case: Case, condition: str, run_index: int, config: RunConfig,
             base_sha = workspace.resolve_commit(source, case.base_commit)
             rec["base_commit"] = base_sha
             harness_sha = (workspace.resolve_commit(source, config.harness_commit)
-                           if condition == "project" else None)
+                           if condition in ("project", "ablated") else None)
             rec["harness_commit"] = harness_sha
             copy = tmp / "repo"
             start_commit = workspace.prepare_copy(source, base_sha, copy, harness_sha)
+            if condition == "ablated":
+                # The piece goes only from the copy, as one more commit.
+                start_commit = config.ablation.apply(copy)
         except workspace.WorkspaceError:
             return finish(error_stage="setup")
+        except AblationError as e:
+            raise RunnerRefused(str(e)) from None
         if workspace.is_inside(copy, source) or not workspace.is_inside(copy, tmp):
             raise RunnerRefused("a cópia não está no diretório temporário")
         config_dir, home = tmp / "config", tmp / "home"
