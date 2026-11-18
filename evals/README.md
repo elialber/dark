@@ -256,6 +256,25 @@ tem cópia nova. `--simular` mostra os comandos de preparação, o número
 de execuções e o máximo de tokens, sem rodar nada (nem a preparação) e
 sem credencial; se o executável faltar, só avisa.
 
+A preparação de um módulo só pode criar arquivos. Se ela muda, apaga ou
+troca por diretório ou link um arquivo rastreado da cópia, muda a
+permissão de execução dele, ou move o `HEAD` (um `git commit` na cópia,
+por exemplo), a rodada é recusada antes de qualquer execução, com
+código 1: senão a preparação faria parte do trabalho do agente. A
+conferência compara o conteúdo no disco, não o `git status`. Com um
+`graphify` falso que reescreve o `calc.py` rastreado de um caso de teste,
+a saída termina assim:
+
+```
+conferindo o módulo numa cópia de teste...
+recusado: a preparação do módulo graphify alterou 1 arquivo(s) rastreado(s) da cópia: calc.py (conteúdo mudou); a preparação de um módulo só pode criar arquivos, senão faria parte do trabalho do agente; nada foi rodado
+```
+
+A lista diz até dez caminhos, cada um com o que mudou, e "e outros N"
+depois disso. Arquivos novos que o `.gitignore` não ignora são aceitos:
+entram num commit da preparação, separado da mudança do agente, e o
+comando os lista depois de "módulo verificado na cópia de teste".
+
 Exige a mesma credencial do `rodar`. O registro de cada execução ganha o
 campo `applied_module` (`nome:versão`, por exemplo `graphify:0.9.112`;
 nulo nas outras condições).
@@ -289,15 +308,41 @@ no plano e no resultado, que a regra não o mede.
 | Situação | Código |
 |---|---|
 | simulação; rodada completa, qualquer que seja a resposta | 0 |
-| a preparação sai com erro ou passa do `--tempo`, ou o `verify` não dá `ok` na cópia de teste (nada foi rodado) | 1 |
+| a preparação sai com erro, passa do `--tempo`, altera um arquivo rastreado ou move o `HEAD` da cópia, ou o `verify` não dá `ok` na cópia de teste (nada foi rodado) | 1 |
 | módulo desconhecido; caso ilegível; executável da preparação ausente do `PATH`; parte do módulo já presente no harness avaliado; commit base ou do harness inexistente; preparação ou `verify` que falha numa execução no meio da rodada (a rodada para) | 2 |
 | sem credencial no ambiente | 3 |
 
 ### Banco de agregados
 
-O banco ainda não guarda a condição `with_module`. `python -m dark.evals
-guardar` recusa o arquivo inteiro que tenha algum registro
-`with_module`, com código 2, dizendo as linhas, e não grava nada.
+O arquivo de registros do `modulo` vai para o banco como o de qualquer
+rodada: `python -m dark.evals guardar <arquivo.jsonl>`, ou `dark coletar
+--evals <arquivo.jsonl>` junto com a coleta. As duas condições entram.
+Para a medição de 15 execuções por condição de um caso, o `guardar`
+imprime:
+
+```
+30 novas, 0 já existiam, 0 recusadas
+```
+
+Desde o esquema 4 do banco, cada execução guardada leva também os
+turnos, o módulo aplicado (`applied_module`, `nome:versão`, só nas
+execuções `with_module`; registro `with_module` sem ele, ou outra
+condição com ele, é recusado na sua linha) e o commit do harness
+avaliado. Como no arquivo, só números e identificadores. Um banco de
+esquema 3 é migrado ao ser aberto pela primeira vez por esta versão;
+antes, o `dark` grava uma cópia dele ao lado, com o sufixo `.v3.bak`
+(`aggregates.sqlite3.v3.bak`, por exemplo). As execuções antigas ficam
+com os campos novos vazios.
+
+No banco, a medição de um módulo é o conjunto das execuções
+`with_module` do mesmo módulo e do mesmo commit do harness, cada uma
+pareada com a execução `project` do mesmo caso e número. A decisão
+tirada do banco é a mesma que o `modulo` imprime para o arquivo. O
+`dark auditar` usa a medição mais recente de cada módulo na regra
+`third_party_module_without_gain`, que recomenda `dark remover <nome>`
+para um módulo de terceiro aplicado no repositório, na versão medida,
+quando a medição deu `sem ganho` ou `piora`. Quando ela dispara e como
+conferir estão em [docs/metodo.md](../docs/metodo.md#a-regra-de-módulo-de-terceiro).
 
 ### Orçamento
 

@@ -72,6 +72,25 @@ podem mudar entre versões menores.
   módulo" no `evals/README.md`, README, `docs/metodo.md` e glossário;
   teste que falha se os rótulos, os números da regra ou o comando de
   preparação citados divergirem do código.
+- **Preparação de módulo que só cria arquivos** (goal 052): `python -m
+  dark.evals modulo` recusa a rodada, com código 1 e sem rodar nada, se
+  a preparação do módulo muda, apaga ou troca um arquivo rastreado da
+  cópia ou move o `HEAD`, e lista os caminhos com o que mudou; a
+  conferência lê o disco, não o `git status`. Arquivos novos não
+  ignorados vão num commit da preparação e são listados. Com mais acerto
+  com o módulo, o resultado diz que a regra de ganho mede custo e passos.
+- **Condição `with_module` no banco** (goal 054): esquema 4, com turnos,
+  módulo aplicado e commit do harness de cada execução de evals; a
+  migração do esquema 3 grava antes uma cópia `.v3.bak`. `python -m
+  dark.evals guardar` e `dark coletar --evals` passam a aceitar o arquivo
+  do `modulo` (antes recusavam com código 2) e recusam, linha a linha,
+  `applied_module` fora da condição `with_module` ou ausente nela.
+- **Regra `third_party_module_without_gain`** (goal 055): `dark auditar`
+  recomenda `dark remover <nome>` quando um módulo de terceiro (`graphify`
+  ou `langfuse`) está aplicado no repositório na versão medida e a medição
+  mais recente dele no banco deu `sem ganho` ou `piora`. Nenhuma regra do
+  roteiro fica adiada, e o relatório deixa de imprimir a lista de
+  adiadas.
 - **Documentos do módulo `graphify`** (goal 047): subseção no README,
   Anexo A de `docs/metodo.md` e glossário; teste que falha se o README
   citar versão, comando, caminho ou evento de hook diferente do código.

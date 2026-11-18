@@ -148,14 +148,16 @@ def test_the_evals_section_states_conditions_codes_record_and_store():
     section = _evals()
     for needed in ("`project`", "`with_module`", "`applied_module`", "--simular",
                    "`verify`", "não o indicador declarado", "cópia de teste",
-                   "guardar` recusa", module_gain.GAIN_INDICATOR):
+                   "dark.evals guardar", module_gain.GAIN_INDICATOR):
         assert needed in section, needed
     codes = section.split("### Códigos de saída", 1)[1].split("\n### ", 1)[0]
     for code in ("| 0 |", "| 1 |", "| 2 |", "| 3 |"):
         assert code in codes, code
 
 
-def test_the_documents_leave_out_what_goal_052_changes():
+def test_the_documents_do_not_quote_the_result_lines_of_goal_052():
+    # Goal 056 documents the refusal of goal 052 (tests/test_rule_docs.py), but not
+    # the line of the drop in passes nor the message of the preparation commit.
     for text in (_evals(), _readme()):
         assert "queda de acerto" not in text
         assert "eval: prepare module" not in text
