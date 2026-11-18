@@ -88,6 +88,8 @@ Fase 3 em andamento; laço de par disponível
 
 ## Próximo passo
 
+Lista de funcionalidades com situação de cada item: [FUNCIONALIDADES.md](../FUNCIONALIDADES.md) ([diário 042](diario/042.md)); o revisor a mantém em dia a cada goal aceito.
+
 Rodada 003, ciclo 1: goals 039 e 041 juntados, 040 aguardando working tree limpo; lote 016 escrito (goal 042).
 Depois: documentos para 039, 041 e 042 e skill `coletar` com `--evals`; módulos do scaffold (Langfuse, Graphify; item 6);
 calibração dos casos novos e medição real da ablação (pedem credencial);

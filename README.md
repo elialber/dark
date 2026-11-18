@@ -8,7 +8,9 @@ foi instalado e nunca é usado, quanto as sessões custaram, onde você
 precisou intervir. O objetivo do projeto é também instalar e manter esse
 harness; nesta versão (0.1.0), a ferramenta mede e indica o que mudar,
 com evidência, mas ainda não instala nada. O que ela faz e o que ainda
-não faz está no [registro de mudanças](CHANGELOG.md).
+não faz está no [registro de mudanças](CHANGELOG.md); tudo o que está
+planejado, com a marca de pronto ou não, está em
+[FUNCIONALIDADES.md](FUNCIONALIDADES.md).
 
 ## Instalação
 
