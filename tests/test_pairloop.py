@@ -1308,7 +1308,7 @@ def test_result_parsing():
 
 def test_repository_limits_file():
     cfg = m_config.load(ROOT / "pair/loop.toml")
-    assert cfg.cycles == 3
+    assert cfg.cycles == 5
     assert cfg.max_parallel_executors == 4
     assert cfg.round_token_budget == 150_000_000
     assert cfg.reviewer.max_turns > 0 and cfg.executor.timeout_minutes > 0
