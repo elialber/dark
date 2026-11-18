@@ -17,7 +17,7 @@ dependências estão em [docs/roteiro.md](docs/roteiro.md); o porquê, em
 | ⬜ | Planejada: ainda não existe. |
 | ⏸️ | Depende do usuário (credencial, escolha ou repositórios dele). |
 
-Situação em 2026-11-18, versão `0.1.0` mais as mudanças em "Não lançado".
+Situação em 2026-11-18 (fim da rodada 004 do laço, 1419 testes), versão `0.1.0` mais as mudanças em "Não lançado".
 
 ## Resumo
 
@@ -25,7 +25,7 @@ Situação em 2026-11-18, versão `0.1.0` mais as mudanças em "Não lançado".
 |---|---|---|
 | 1. Auditoria | 9 | 9 |
 | 2. Coleta e histórico | 4 | 5 |
-| 3. Evals | 6 | 7 |
+| 3. Evals | 7 | 8 |
 | 4. Recomendações | 7 | 8 |
 | 5. Scaffold e módulos | 5 | 6 |
 | 6. Distribuição | 6 | 8 |
@@ -62,7 +62,8 @@ Lê o harness e as transcrições; não escreve nada no repositório.
 - ✅ 16 casos de eval deste repositório
 - ✅ Ablação de uma peça (skill, subagente ou instrução): `pode remover`, `mantenha`, `inconclusivo`, `não discrimina`
 - ✅ Guardar resultados de evals no banco: `python -m dark.evals guardar` e `dark coletar --evals`
-- ⏸️ Medição real: ablação real e calibração dos casos difíceis (pedem credencial e orçamento de tokens)
+- ✅ Medir o ganho de um módulo (`python -m dark.evals modulo`, condição `with_module`, regra de ganho em custo e passos): goals 050 e 052, testado com agente falso
+- ⏸️ Medição real: ablação real, calibração dos casos difíceis e ganho real do Graphify (pedem credencial e orçamento de tokens)
 
 ## 4. Recomendações
 
@@ -76,7 +77,7 @@ evidência, uma ação e como conferir depois.
 - ✅ Commits sem hash registrado
 - ✅ Evals em 100% por várias rodadas (`evals_at_100_percent`)
 - ✅ O modelo mudou desde a última rodada de evals (`model_changed_since_last_evals`)
-- ⬜ Módulo de terceiro sem ganho medido (espera os módulos do item 5)
+- ⬜ Módulo de terceiro sem ganho medido (os módulos e a medição existem; falta guardar `with_module` no banco e ligar a regra `third_party_module_without_gain`)
 
 ## 5. Scaffold e módulos
 
@@ -86,7 +87,7 @@ Aplicar e desfazer estrutura no repositório, sem sobrescrever nada.
 - ✅ `dark iniciar` e `dark remover` com o módulo `base` (sem terceiros)
 - ✅ `dark adicionar <módulo>` (com `--listar`) e `dark verificar`
 - ✅ Módulo Langfuse (rastros de sessão; opcional; nunca grava chaves): goal 043, documentado no goal 046
-- 🔧 Módulo Graphify (grafo do repositório; opcional; precisa provar ganho): goal 044, documentado no goal 047; comando de medição no goal 050, documentado no goal 051; falta a medição real (pede credencial)
+- 🟡 Módulo Graphify (grafo do repositório; opcional; precisa provar ganho): goal 044, documentado no goal 047; comando de medição nos goals 050 e 052, documentado no goal 051; falta a medição real (pede credencial)
 - ✅ Instalar e desinstalar deixam o repositório idêntico ao inicial, medido em módulo de terceiro: goals 043, 044 e 048 (testes de ida e volta)
 
 ## 6. Distribuição
@@ -104,7 +105,7 @@ Aplicar e desfazer estrutura no repositório, sem sobrescrever nada.
 
 - ✅ `docs/metodo.md`: derivação, poda, como ler o relatório e as regras
 - ✅ Teste que falha se a documentação citar comando, opção ou regra inexistente
-- ✅ Documentos em dia com `iniciar`, `adicionar`, `verificar`, `remover`, `guardar` e `coletar --evals` (goal 045)
+- ✅ Documentos em dia com `iniciar`, `adicionar`, `verificar`, `remover`, `guardar`, `coletar --evals`, os módulos Langfuse e Graphify e a medição de ganho (goals 045, 046, 047, 049 e 051), com teste de deriva contra o código
 - ⬜ Teste com uma pessoa de fora e um ciclo de derivação real
 
 ## 8. Piloto final
