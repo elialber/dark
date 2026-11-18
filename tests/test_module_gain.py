@@ -81,6 +81,38 @@ if sys.argv[1:] != ["extract", ".", "--code-only"]:
 os.makedirs("graphify-out", exist_ok=True)
 with open(os.path.join("graphify-out", "graph.json"), "w") as f:
     json.dump({"nodes": [], "links": []}, f)
+# FAKE_GRAPHIFY_MODE (goal 052): what else the preparation does to the copy.
+mode = os.environ.get("FAKE_GRAPHIFY_MODE", "")
+FIXED = "def add(a, b):\n    return a + b\n"
+if mode == "fix":
+    open("calc.py", "w").write(FIXED)
+elif mode == "delete":
+    os.remove("calc.py")
+elif mode == "dir":
+    os.remove("calc.py")
+    os.makedirs("calc.py")
+elif mode == "symlink":
+    os.remove("calc.py")
+    os.symlink("tests/check.py", "calc.py")
+elif mode == "rename":
+    os.rename("calc.py", "calc_old.py")
+elif mode == "chmod":
+    os.chmod("calc.py", 0o755)
+elif mode == "commit":
+    import subprocess
+    open("calc.py", "w").write(FIXED)
+    subprocess.run(["git", "-c", "user.name=x", "-c", "user.email=x@x.invalid", "commit",
+                    "-q", "-a", "-m", "x"], check=True)
+elif mode == "assume":
+    import subprocess
+    open("calc.py", "w").write(FIXED)
+    subprocess.run(["git", "update-index", "--assume-unchanged", "calc.py"], check=True)
+elif mode == "many":
+    for i in range(12):
+        open(f"f{i:02}.txt", "w").write("changed\n")
+elif mode == "newfile":
+    open("GRAPH_REPORT.md", "w").write("# report\n")
+    open("relatório do grafo.md", "w").write("x\n")
 '''
 
 
@@ -234,6 +266,77 @@ def test_failing_preparation_is_setup_failed(repo, fake_graphify, monkeypatch):
     assert "código 3" in str(e.value) and "failing on purpose" in str(e.value)
 
 
+# --- the preparation may only create files (goal 052) ------------------------------------
+
+TAMPERING = {"fix": "conteúdo mudou", "delete": "apagado", "dir": "virou diretório",
+             "rename": "apagado", "chmod": "permissão de execução mudou",
+             "commit": "conteúdo mudou", "assume": "conteúdo mudou"}
+if os.name != "nt":
+    TAMPERING["symlink"] = "virou link simbólico"
+
+
+@pytest.mark.parametrize("mode", sorted(TAMPERING))
+def test_preparation_that_touches_a_tracked_file_fails(repo, fake_graphify, monkeypatch, mode):
+    if mode == "chmod" and os.name == "nt":
+        pytest.skip("no execute bit on Windows")
+    monkeypatch.setenv("FAKE_GRAPHIFY_MODE", mode)
+    src = repo["src"]
+    before, before_status = tree_hash(src), _git(src, "status", "--porcelain")
+    copy = repo["tmp"] / "copy"
+    workspace.prepare_copy(src, repo["base"], copy, repo["head"])
+    with pytest.raises(module_gain.SetupFailed) as e:
+        setup_graphify().setup(copy, dict(os.environ), 60)
+    msg = str(e.value)
+    assert f"calc.py ({TAMPERING[mode]})" in msg and "só pode criar arquivos" in msg
+    assert tree_hash(src) == before and _git(src, "status", "--porcelain") == before_status
+
+
+def test_tampering_list_is_capped_at_ten(repo, fake_graphify, monkeypatch):
+    monkeypatch.setenv("FAKE_GRAPHIFY_MODE", "many")
+    base = commit(repo["src"], {f"f{i:02}.txt": "x\n" for i in range(12)}, "twelve files")
+    copy = repo["tmp"] / "copy"
+    workspace.prepare_copy(repo["src"], base, copy, repo["head"])
+    with pytest.raises(module_gain.SetupFailed) as e:
+        setup_graphify().setup(copy, dict(os.environ), 60)
+    msg = str(e.value)
+    assert "12 arquivo(s)" in msg and "f09.txt" in msg and "f10.txt" not in msg
+    assert "e outros 2" in msg
+
+
+def test_list_paths():
+    assert module_gain.list_paths(["a", "b"]) == "a, b"
+    assert module_gain.list_paths([str(i) for i in range(10)]).endswith("8, 9")
+    assert module_gain.list_paths([str(i) for i in range(13)]).endswith("9 e outros 3")
+
+
+def test_new_files_not_ignored_go_in_the_preparation_commit(repo, fake_graphify, monkeypatch):
+    monkeypatch.setenv("FAKE_GRAPHIFY_MODE", "newfile")
+    copy = repo["tmp"] / "copy"
+    workspace.prepare_copy(repo["src"], repo["base"], copy, repo["head"])
+    setup = setup_graphify()
+    applied = setup.apply(copy)
+    new = setup.prepare(copy, dict(os.environ), 60)
+    assert new == ["GRAPH_REPORT.md", "relatório do grafo.md"]
+    head = _git(copy, "rev-parse", "HEAD")
+    assert head != applied and _git(copy, "rev-parse", "HEAD~1") == applied
+    committed = _git(copy, "-c", "core.quotepath=false", "show", "--name-only",
+                     "--format=%s", "HEAD").splitlines()
+    assert committed[0] == f"eval: prepare module graphify:{graphify.VERSION}"
+    assert set(committed[1:]) - {""} == {"GRAPH_REPORT.md", "relatório do grafo.md"}
+    assert _git(copy, "status", "--porcelain") == ""
+
+
+def test_run_with_tampering_preparation_never_starts_the_agent(repo, fake, fake_graphify,
+                                                              monkeypatch):
+    monkeypatch.setenv("FAKE_GRAPHIFY_MODE", "fix")
+    launcher = FakeLauncher(fake, "flat")
+    with pytest.raises(runner.RunnerRefused) as e:
+        runner.run_once(repo["case"], "with_module", 1, _config(repo, setup_graphify()),
+                        launcher)
+    assert "calc.py (conteúdo mudou)" in str(e.value)
+    assert launcher.calls == 0 and list(repo["work"].iterdir()) == []
+
+
 def test_verify_without_executable_fails(repo, no_graphify):
     copy = repo["tmp"] / "copy"
     workspace.prepare_copy(repo["src"], repo["base"], copy, repo["head"])
@@ -376,6 +479,21 @@ def test_describe_has_numbers_label_and_indicator_note():
     assert "sem ganho" in text and "indicador declarado do módulo é rework" in text
 
 
+def test_describe_more_passes_with_the_module():
+    text = module_gain.describe(module_gain.decide(S(passes=0), S(passes=15)))
+    assert ("acerto com o módulo: 15 execução(ões) a mais; a regra de ganho mede custo e "
+            "passos, o acerto só conta para a piora") in text
+    assert "queda de acerto" not in text and "-15" not in text
+
+
+def test_describe_drop_and_tie_keep_the_old_line():
+    for passes in (15, 12):
+        text = module_gain.describe(module_gain.decide(S(passes=15), S(passes=passes)))
+        assert (f"queda de acerto: {15 - passes} execução(ões); tolerância: 4 em 15 "
+                "execuções por condição") in text
+        assert "acerto com o módulo:" not in text
+
+
 # --- the command -------------------------------------------------------------------------
 
 @pytest.fixture
@@ -460,6 +578,35 @@ def test_command_failing_preparation_runs_nothing(cli, repo, fake_graphify, monk
     text = capsys.readouterr().out
     assert code == 1 and "preparação" in text and "nada foi rodado" in text
     assert "Traceback" not in text and agent_calls(cli) == 0 and not out.exists()
+
+
+@pytest.mark.parametrize("mode,change", [("fix", "conteúdo mudou"), ("delete", "apagado"),
+                                         ("dir", "virou diretório")])
+def test_command_tampering_preparation_runs_nothing(cli, repo, fake_graphify, monkeypatch,
+                                                    capsys, mode, change):
+    monkeypatch.setenv("FAKE_GRAPHIFY_MODE", mode)
+    before = tree_hash(repo["src"])
+    code, out = cli(runs=15)
+    text = capsys.readouterr().out
+    assert code == 1, text
+    assert f"calc.py ({change})" in text and "nada foi rodado" in text
+    assert "Traceback" not in text and agent_calls(cli) == 0 and not out.exists()
+    assert tree_hash(repo["src"]) == before and list(repo["work"].iterdir()) == []
+
+
+def test_command_lists_new_files_of_the_preparation(cli, fake_graphify, monkeypatch, capsys):
+    monkeypatch.setenv("FAKE_GRAPHIFY_MODE", "newfile")
+    code, out = cli(runs=1)
+    text = capsys.readouterr().out
+    assert code == 0, text
+    assert ("a preparação criou 2 arquivo(s) fora do .gitignore, que vão no commit da "
+            "preparação: GRAPH_REPORT.md, relatório do grafo.md") in text
+    assert len(rounds.load_records(out)) == 2
+
+
+def test_command_plain_preparation_prints_no_new_files_line(cli, fake_graphify, capsys):
+    code, _ = cli(runs=1)
+    assert code == 0 and "a preparação criou" not in capsys.readouterr().out
 
 
 def test_command_unknown_module(cli, capsys):

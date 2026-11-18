@@ -380,8 +380,8 @@ def _module(a) -> int:
         return EXIT_BLOCKED
     print("conferindo o módulo numa cópia de teste...")
     try:
-        module_gain.preflight(a.repo, [c.base_commit for c in cases], a.harness, setup,
-                              a.workdir, a.timeout)
+        new_files = module_gain.preflight(a.repo, [c.base_commit for c in cases], a.harness,
+                                          setup, a.workdir, a.timeout)
     except module_gain.SetupRefused as e:
         print(f"recusado: {e}")
         return 2
@@ -389,6 +389,9 @@ def _module(a) -> int:
         print(f"recusado: {e}; nada foi rodado")
         return 1
     print("módulo verificado na cópia de teste")
+    if new_files:
+        print(f"a preparação criou {len(new_files)} arquivo(s) fora do .gitignore, que vão no "
+              f"commit da preparação: {module_gain.list_paths(new_files)}")
     code, res = _execute(a, cases, ["project", "with_module"], a.runs, module=setup)
     if res is not None:
         print()
