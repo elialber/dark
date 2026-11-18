@@ -660,15 +660,19 @@ def test_schema_lists_the_new_condition_and_field(capsys):
     assert "applied_module" not in schema["required"]
 
 
-def test_guardar_refuses_a_file_with_with_module(cli, repo, fake_graphify, tmp_path, capsys):
+def test_guardar_takes_a_file_with_with_module(cli, repo, fake_graphify, tmp_path, capsys):
+    # Goal 054 put `with_module` in the store (schema 4); goal 055 turned this test of
+    # goal 050, which expected the whole file refused, around.
     code, out = cli(runs=1)
     assert code == 0
+    conditions = sorted(json.loads(x)["condition"] for x in out.read_text().splitlines())
+    assert conditions == ["project", "with_module"]
     capsys.readouterr()
     store = tmp_path / "store" / "dark.db"
     code = evals_main.main(["guardar", str(out), "--banco", str(store)])
     text = capsys.readouterr().out
-    assert code == 2 and "with_module" in text and "Nada foi gravado" in text
-    assert "Traceback" not in text and not store.exists()
+    assert code == 0 and "Traceback" not in text
+    assert "2 novas, 0 já existiam, 0 recusadas" in text
 
 
 def test_guardar_still_takes_a_file_without_with_module(cli, repo, fake_graphify, tmp_path,

@@ -26,7 +26,7 @@ from .kinds import validate
 PART_KINDS = ("skill", "subagent_type", "tool", "mcp_server")
 LINK_KINDS = ("recorded", "window", "ambiguous", "unlinked")
 # Mirrors `dark.evals.run_record` (the store imports nothing from dark; a test compares them).
-EVAL_CONDITIONS = ("bare", "project", "ablated")
+EVAL_CONDITIONS = ("bare", "project", "ablated", "with_module")
 EVAL_END_REASONS = ("completed", "time", "budget", "turns", "error")
 LINKED = frozenset({"recorded", "window"})
 
@@ -315,7 +315,15 @@ class EvalRunRecord(Record):
     tokens: int | None = declared("count", default=None, optional=True)
     cost_usd_estimate: float | None = declared("amount", default=None, optional=True)
     ablated_piece: str | None = declared("name", default=None, optional=True)
+    # Goal 054.
+    turns: int | None = declared("count", default=None, optional=True)
+    applied_module: str | None = declared("name", default=None, optional=True)
+    harness_commit: str | None = declared("hash", default=None, optional=True)
 
     def _check(self) -> None:
         if self.run_number < 1:
             raise SchemaError("EvalRunRecord: run numbers start at 1")
+        if (self.condition == "with_module") != (self.applied_module is not None):
+            raise SchemaError(
+                "EvalRunRecord: applied_module is required in the with_module condition "
+                "and not allowed in the others")

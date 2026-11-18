@@ -237,6 +237,9 @@ class Changes:
     inventory_note: str | None = None
     evals: tuple[EvalRun, ...] = ()      # every eval run in the store (goal 038)
     session_model: str | None = None     # model of the latest session in the store (goal 039)
+    # most recent measurement of each module in the store, `ModuleMeasurement`s of
+    # `dark.evals.module_history` (goal 055)
+    modules: tuple = ()
 
 
 @dataclass

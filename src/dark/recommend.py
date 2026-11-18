@@ -13,10 +13,15 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 from dark import audit as au
 from dark import indicators as ind
 from dark.audit import Audit
+from dark.evals.module_gain import OUTCOME_LABELS, Stats
+from dark.evals.module_gain import _num as decimal
+from dark.evals.module_gain import _pct as percent
+from dark.scaffold import load_manifest
 
 # Thresholds. None of them is in `docs/`: all are defaults to confirm
 # (padrão a confirmar), kept here so they are easy to change.
@@ -30,10 +35,15 @@ KIND_TITLES = {"skill": "skill", "subagent_type": "subagente", "tool": "ferramen
                "mcp_server": "servidor MCP"}
 USER_SCOPES = ("user", "project")     # a managed or plugin file is not the user's to edit
 
+# Scaffold modules that install a third-party tool, by name. `base` is `dark`'s own
+# harness, not a third party's: its removal is not this rule's advice. Kept here, the only
+# place the rule reads (padrão a confirmar, goal 055).
+THIRD_PARTY_MODULES = ("graphify", "langfuse")
+# Decisions of `module_gain.decide` that fire `third_party_module_without_gain`.
+WITHOUT_GAIN = ("no_gain", "worse")
+
 # Rules of the roadmap that today's data does not support, and the missing data.
-DEFERRED = {
-    "third_party_module_without_gain": "módulos de terceiros medidos (ainda não há módulo)",
-}
+DEFERRED: dict[str, str] = {}
 
 
 @dataclass(frozen=True)
@@ -195,9 +205,69 @@ def model_changed_since_last_evals(a: Audit) -> list[Recommendation]:
         "última rodada guardada tiver o modelo da sessão mais recente")]
 
 
+def applied_modules(repository: Path) -> set[tuple[str, str]] | None:
+    """(name, version) of the modules the scaffold manifest of `repository` records.
+
+    None when the manifest cannot be read (not a manifest, a link, unreadable): the rule
+    that needs it then stays silent. The only file this module reads; the audit from the
+    store carries no repository data of the scaffold (padrão a confirmar, goal 055).
+    """
+    try:
+        entries = load_manifest(repository)["entries"]
+    except (ValueError, OSError):
+        return None
+    return {(e["module"], e["version"]) for e in entries
+            if isinstance(e, dict) and isinstance(e.get("module"), str)
+            and isinstance(e.get("version"), str)}
+
+
+def _side(label: str, s: Stats) -> str:
+    """The same numbers, in the same format, as a line of `module_gain.describe`."""
+    return (f"{label} {s.passes}/{s.n} ({percent(s.passes, s.n)}), média de "
+            f"{decimal(s.mean_tokens, 0)} tokens e {decimal(s.mean_turns, 1)} turnos")
+
+
+def third_party_module_without_gain(a: Audit) -> list[Recommendation]:
+    """A third-party module applied here whose latest measurement, of that version, gave
+    no gain or worse. A measurement of another version says nothing of the applied one."""
+    c = a.changes
+    if c is None or not c.modules or a.repository is None:
+        return []
+    candidates = []
+    for m in c.modules:
+        name, sep, version = m.module.partition(":")
+        if (sep and name in THIRD_PARTY_MODULES and version
+                and m.decision.outcome in WITHOUT_GAIN):
+            candidates.append((m, name, version))
+    if not candidates:
+        return []
+    applied = applied_modules(a.repository)
+    if not applied:
+        return []
+    out = []
+    for m, name, version in candidates:
+        if (name, version) not in applied:
+            continue
+        d = m.decision
+        errors = (f"; {n(d.errors)} execução(ões) terminaram em erro e ficaram fora da conta"
+                  if d.errors else "")
+        out.append(Recommendation(
+            "third_party_module_without_gain",
+            f"módulo de terceiro `{name}` {version}, aplicado neste repositório, medido em "
+            f"{m.ended_at.date().isoformat()} com {n(d.project.n)} + {n(d.with_module.n)} "
+            f"execuções: {OUTCOME_LABELS[d.outcome]}; {_side('sem o módulo', d.project)}; "
+            f"{_side('com o módulo', d.with_module)}{errors}",
+            f"desinstalar o módulo: `dark remover {name}`",
+            f"`dark auditar`: a regra cala quando o módulo deixa de estar aplicado ou quando "
+            f"uma medição nova da mesma versão (`python -m dark.evals modulo`, depois "
+            f"`python -m dark.evals guardar`) dá ganho"))
+    return out
+
+
 RULES: list[Callable[[Audit], list[Recommendation]]] = [
     unused_piece, instruction_file_too_long, fixed_weight_grew, repeated_hook_block,
     commits_without_hash, evals_at_100_percent, model_changed_since_last_evals,
+    third_party_module_without_gain,
 ]
 
 

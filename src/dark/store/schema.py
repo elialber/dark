@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from .kinds import KINDS, check_sql, SQL
 from .records import EVAL_CONDITIONS, EVAL_END_REASONS, LINK_KINDS, PART_KINDS
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 APPLICATION_ID = 0x6461726B          # "dark", in the SQLite file header
 
 
@@ -164,6 +164,10 @@ TABLES: dict[str, Table] = {
         "tokens": _c("count", nullable=True),
         "cost_usd_estimate": _c("amount", nullable=True),
         "ablated_piece": _c("name", nullable=True),
+        # Version 4 (goal 054): last, so that the migration can append them.
+        "turns": _c("count", nullable=True),
+        "applied_module": _c("name", nullable=True),     # "name:version", with_module only
+        "harness_commit": _c("hash", nullable=True),
     }, unique=(("started_at", "case_name", "condition", "run_number"),)),
 }
 
@@ -222,4 +226,21 @@ def _v2_to_v3(con: sqlite3.Connection) -> None:
                 + _column_sql("model", TABLES["sessions"].columns["model"]))
 
 
-MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2, 2: _v2_to_v3}
+_V4_COLUMNS = ("turns", "applied_module", "harness_commit")
+
+
+def _v3_to_v4(con: sqlite3.Connection) -> None:
+    """Adds the `with_module` condition and three nullable columns to `eval_runs`.
+
+    The condition's CHECK is part of the table, so the table is rebuilt: the
+    old rows are copied with the new columns null.
+    """
+    old = [c for c in TABLES["eval_runs"].columns if c not in _V4_COLUMNS]
+    con.execute("ALTER TABLE eval_runs RENAME TO eval_runs_v3")
+    con.execute(table_ddl("eval_runs"))
+    con.execute(f"INSERT INTO eval_runs({', '.join(old)}) "
+                f"SELECT {', '.join(old)} FROM eval_runs_v3")
+    con.execute("DROP TABLE eval_runs_v3")
+
+
+MIGRATIONS: dict[int, Migration] = {1: _v1_to_v2, 2: _v2_to_v3, 3: _v3_to_v4}

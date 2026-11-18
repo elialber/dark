@@ -327,15 +327,25 @@ def test_every_command_and_option_cited_in_the_readme_exists_in_help(capsys):
     assert evals_option_problems(text, capsys) == []
 
 
-def test_the_method_doc_cites_both_evals_rules_and_their_constant():
+def test_the_method_doc_cites_the_evals_rules_and_their_constant():
     text = _doc()
-    for rule in ("evals_at_100_percent", "model_changed_since_last_evals"):
+    for rule in ("evals_at_100_percent", "model_changed_since_last_evals",
+                 "third_party_module_without_gain"):
         assert f"| `{rule}` |" in text, rule
     assert "| `EVALS_ROUNDS_AT_100` | 3 rodadas |" in text
     assert recommend.EVALS_ROUNDS_AT_100 == 3
-    # The deferred list in the text is exactly recommend.DEFERRED.
-    assert set(recommend.DEFERRED) == {"third_party_module_without_gain"}
-    assert "`model_changed_since_last_evals` e `third_party_module_without_gain`" not in text
+    # Goal 055: no rule is deferred, and the text says so.
+    assert recommend.DEFERRED == {}
+    assert "adiada" not in text.split("## 5. As recomendações")[1].split("\n## ")[0]
+
+
+def test_the_method_doc_names_the_third_party_modules_of_the_rule():
+    text = _doc()
+    row = [x for x in text.splitlines() if x.startswith("| `third_party_module_without_gain` |")]
+    assert len(row) == 1
+    for name in recommend.THIRD_PARTY_MODULES:
+        assert f"`{name}`" in row[0], name
+    assert "`base`" in row[0] and "`dark remover" in row[0]
 
 
 def test_probe_options_of_the_scaffold_commands_that_do_not_exist_fail(capsys):

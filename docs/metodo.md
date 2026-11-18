@@ -307,11 +307,11 @@ seção diz "Nenhuma regra disparou com os dados disponíveis".
 | `commits_without_hash` | um ou mais commits sem hash registrado | rodar `git commit` sem `-q` | "Commits" mostra 0 sem hash nas sessões novas | direta e banco |
 | `evals_at_100_percent` | a condição `project` passou em todas as execuções, sem término por erro, nas últimas `EVALS_ROUNDS_AT_100` rodadas, e a última rodada não trouxe caso novo | acrescentar casos de falhas recentes: a linha de base não discrimina | a regra cala quando a rodada nova tem falha ou o conjunto de casos cresce | banco, com evals |
 | `model_changed_since_last_evals` | o modelo da sessão mais recente do banco é outro que o da última rodada de evals | rodar os evals de novo, comparando com o harness reduzido | a regra cala quando a última rodada guardada tem o modelo da sessão mais recente | banco, com evals |
+| `third_party_module_without_gain` | módulo de terceiro (`graphify` ou `langfuse`; o `base` é do próprio `dark`) aplicado no repositório auditado, na mesma versão da medição mais recente dele no banco, e essa medição deu "sem ganho" ou "piora" | desinstalar o módulo: `dark remover <nome>` | a regra cala quando o módulo deixa de estar aplicado ou quando uma medição nova da mesma versão dá "ganho" | banco, com medição de módulo, e o manifesto do repositório |
 
 Regras do banco precisam que `dark coletar` tenha rodado; sem ele, o
-relatório diz isso numa linha só. Uma regra ainda não existe por falta de
-dado e o relatório a lista como adiada: `third_party_module_without_gain`
-(ainda não há módulo de terceiro medido).
+relatório diz isso numa linha só. Todas as regras do roteiro estão ligadas:
+nenhuma fica de fora por falta de dado.
 
 ### As regras de evals
 
@@ -345,6 +345,20 @@ vira duas. Só a condição `project` (o harness do repositório) conta.
   atual, de preferência com a ablação das peças candidatas (seção 3), e
   importe o resultado; a regra cala quando a última rodada guardada tem o
   modelo da sessão mais recente.
+
+### A regra de módulo de terceiro
+
+`third_party_module_without_gain` lê a medição de ganho de um módulo
+(`python -m dark.evals modulo`, seção 3) guardada no banco com `python -m
+dark.evals guardar` ou `dark coletar --evals`. Por módulo vale só a medição
+mais recente; a decisão é a mesma que o `modulo` imprime para o arquivo de
+registros. A regra dispara quando a decisão é "sem ganho" ou "piora"
+("ganho" e "inconclusivo" não disparam), o módulo é de terceiro e o
+manifesto do scaffold do repositório auditado diz que ele está aplicado na
+versão medida. Medição de outra versão não conta, e com `--todos` não há
+repositório para conferir: a regra não dispara. A evidência traz o módulo e
+a versão, a decisão, o acerto e as médias de tokens e de turnos das duas
+condições, o número de execuções e o dia da medição.
 
 ### Limites que são padrões a confirmar
 

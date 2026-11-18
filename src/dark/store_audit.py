@@ -24,6 +24,7 @@ from dark.audit import (CATEGORIES, Audit, Changes, EvalRun, InventoryChange, So
                         WeekNumbers)
 from dark.commit_linking import CommitLink as Link
 from dark.commit_linking import CommitLinks
+from dark.evals import module_history
 from dark.inventory import Inventory
 from dark.store import AggregateStore, IsoWeek, SessionRecord
 
@@ -302,19 +303,26 @@ def _numbers(w) -> WeekNumbers:
 
 def eval_runs(store: AggregateStore) -> tuple[EvalRun, ...]:
     """Every eval run in the store (not per repository: the evals measure the harness)."""
+    return _eval_runs(store.eval_runs())
+
+
+def _eval_runs(stored) -> tuple[EvalRun, ...]:
     return tuple(EvalRun(r.started_at.date().isoformat(), r.case_name, r.condition,
                          r.run_number, r.passed, r.end_reason, r.model)
-                 for r in store.eval_runs())
+                 for r in stored)
 
 
 def changes(store: AggregateStore, root: str | None) -> Changes:
     """The latest ISO week with data against the one before it, from the store.
 
-    Also carries the eval runs and the latest session model, which the rules read.
+    Also carries the eval runs, the latest session model and the most recent measurement
+    of each module (goal 055), which the rules read.
     """
     from dataclasses import replace
-    return replace(_changes(store, root), evals=eval_runs(store),
-                   session_model=store.latest_session_model())
+    stored = store.eval_runs()
+    return replace(_changes(store, root), evals=_eval_runs(stored),
+                   session_model=store.latest_session_model(),
+                   modules=tuple(module_history.module_measurements(stored)))
 
 
 def _changes(store: AggregateStore, root: str | None) -> Changes:

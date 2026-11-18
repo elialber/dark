@@ -15,6 +15,7 @@ from dark import collect, reader
 from dark import recommend as rec
 from dark import report
 from dark.store import (RepositoryRecord, SchemaError, SessionRecord, open_store, schema)
+from test_evals_store import V3_EVAL_RUNS
 
 UTC = timezone.utc
 T0 = datetime(2026, 11, 1, 12, tzinfo=UTC)
@@ -30,8 +31,8 @@ def session(sid="s1", model=None, hours=0) -> SessionRecord:
 # Record and table
 # --------------------------------------------------------------------------
 
-def test_schema_version_is_three_with_a_model_column():
-    assert schema.SCHEMA_VERSION == 3
+def test_schema_version_is_at_least_three_with_a_model_column():
+    assert schema.SCHEMA_VERSION >= 3
     assert "model" in schema.COLUMNS["sessions"]
     assert schema.COLUMNS["sessions"]["model"].nullable
     assert 2 in schema.MIGRATIONS
@@ -69,6 +70,8 @@ def test_latest_session_model_ignores_sessions_without_one(tmp_path):
 def make_v2(path: Path) -> None:
     con = sqlite3.connect(path)
     for statement in schema.ddl():
+        if "CREATE TABLE eval_runs" in statement:
+            statement = V3_EVAL_RUNS        # unchanged from version 2 to 3
         con.execute(re.sub(r",\n  model TEXT[^\n]*", "", statement)
                     if "CREATE TABLE sessions" in statement else statement)
     con.execute(f"PRAGMA application_id = {schema.APPLICATION_ID}")
@@ -98,7 +101,7 @@ def test_version_2_database_migrates_and_keeps_its_data(tmp_path):
         s.write_session(session("new", "m1"))
         assert s.read_session("new").model == "m1"
     con = sqlite3.connect(db)
-    assert con.execute("PRAGMA user_version").fetchone()[0] == 3
+    assert con.execute("PRAGMA user_version").fetchone()[0] == schema.SCHEMA_VERSION
     assert con.execute("SELECT last_path FROM repositories").fetchall() == [("/work/a",)]
     con.close()
     assert db.with_name(db.name + ".v2.bak").exists()
@@ -201,10 +204,11 @@ def fired(a):
 RULE = "model_changed_since_last_evals"
 
 
-def test_rule_is_active_and_only_third_party_stays_deferred():
+def test_rule_is_active_and_no_rule_stays_deferred():
+    # Goal 055: `third_party_module_without_gain`, the last deferred rule, is active.
     assert RULE in {r.__name__ for r in rec.RULES}
-    assert RULE not in rec.DEFERRED
-    assert list(rec.DEFERRED) == ["third_party_module_without_gain"]
+    assert "third_party_module_without_gain" in {r.__name__ for r in rec.RULES}
+    assert rec.DEFERRED == {}
 
 
 def test_fires_when_the_models_differ():
@@ -256,6 +260,5 @@ def test_report_line_and_how_to_read_note():
     assert "`m2`" in line[0] and "`m1`" in line[0] and "2026-11-01" in line[0]
     assert "Ação: rodar os evals de novo" in line[0] and "harness reduzido" in line[0]
     assert "Verificação:" in line[0]
-    tail = text.split("Regras adiadas")[1]
-    assert RULE not in tail and "third_party_module_without_gain" in tail
+    assert "Regras adiadas" not in text and "por falta do dado: ." not in text
     assert "texto exato" in text
