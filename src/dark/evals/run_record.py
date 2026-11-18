@@ -160,5 +160,10 @@ def validate_record(d: dict) -> None:
         if "minimum" in rule and isinstance(value, (int, float)) and not isinstance(value, bool) \
                 and value < rule["minimum"]:
             raise RecordError(f"{key}: abaixo do mínimo")
-        if "pattern" in rule and isinstance(value, str) and not re.match(rule["pattern"], value):
+        # `re.fullmatch`, not `re.match` (goal 058): in Python `$` also matches before a
+        # trailing "\n", so `re.match` let "<40 hex>\n" through. In JSON Schema `$` is the
+        # end of the text. Every pattern of the schema is anchored at both ends (checked by
+        # tests/test_record_pattern.py), so a full match means the same as the schema's
+        # unanchored search with `^...$`, and nothing else changes.
+        if "pattern" in rule and isinstance(value, str) and not re.fullmatch(rule["pattern"], value):
             raise RecordError(f"{key}: formato inválido")
