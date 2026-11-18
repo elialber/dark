@@ -49,3 +49,70 @@ jobs:
           name: pytest-${{ matrix.os }}-py${{ matrix.python-version }}
           path: pytest-report.xml
           if-no-files-found: ignore
+
+  install:
+    # Installs the package the way a user would (goal 023): builds the wheel,
+    # installs only the wheel in a venv outside the checkout, and runs the
+    # commands from a temporary directory, so a file or module that only
+    # exists in the checkout shows up here.
+    name: install / ${{ matrix.os }} / Python 3.13
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out repository
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Python
+        # actions/setup-python v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.13"
+
+      - name: Build wheel
+        run: python -m pip wheel . --no-deps -w dist
+
+      - name: Create venv outside the checkout
+        run: |
+          python -m venv "$RUNNER_TEMP/dark-venv"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            echo "DARK_BIN=$RUNNER_TEMP/dark-venv/Scripts" >> "$GITHUB_ENV"
+          else
+            echo "DARK_BIN=$RUNNER_TEMP/dark-venv/bin" >> "$GITHUB_ENV"
+          fi
+          mkdir -p "$RUNNER_TEMP/outside"
+
+      - name: Install the wheel only
+        # --no-index: no dependency may come from the network.
+        run: |
+          "$DARK_BIN/python" -m pip install --no-index dist/*.whl
+          "$DARK_BIN/python" -m pip show dark
+
+      - name: Package comes from the venv, not the checkout
+        working-directory: ${{ runner.temp }}/outside
+        run: |
+          "$DARK_BIN/python" -I -c "import dark, pathlib, sys; p = pathlib.Path(dark.__file__).resolve(); print(p); sys.exit('site-packages' not in p.parts)"
+
+      - name: dark --help
+        working-directory: ${{ runner.temp }}/outside
+        run: |
+          "$DARK_BIN/dark" --help
+
+      - name: dark auditar on the synthetic files
+        working-directory: ${{ runner.temp }}/outside
+        run: |
+          "$DARK_BIN/dark" auditar --todos --config "$GITHUB_WORKSPACE/tests/fixtures/config" --sem-git --saida report.md
+          head -n 8 report.md
+          # Same numbers as `python -m dark.reader --config tests/fixtures/config`.
+          grep -F "Sessões: 5 · Pedidos: 7" report.md
+
+      - name: python -m dark.evals --help
+        working-directory: ${{ runner.temp }}/outside
+        run: |
+          "$DARK_BIN/python" -I -m dark.evals --help
