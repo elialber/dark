@@ -44,28 +44,30 @@ Fase 3 em andamento; laço de par disponível
 | [019 — Correções de portabilidade](goals/019-portability-fixes.md) | Aceito pelo revisor no [lote 009](entrada/lote-009.md) |
 | [020 — Executor de evals](goals/020-eval-runner.md) | Aceito no [lote 009](entrada/lote-009.md) e incorporado à `main`; critério 2 (calibração) bloqueado por credencial |
 | [021 — Laço pronto para rodar](goals/021-loop-readiness.md) | Aceito com correções na [revisão 1 da rodada 001](rodadas/001/revisao-1.md); correções do laço dependem do usuário (D1), as da CLI de evals vão no goal 022 |
-| 022 — Casos de eval deste repositório | Lote [010](entrada/lote-010.md), branch `goal-022`, em execução |
-| 023 — Distribuição | Lote [010b](entrada/lote-010b.md), branch `goal-023`, em execução |
-| 024 — Coleta | Lote [010c](entrada/lote-010c.md), branch `goal-024`, em execução |
+| [022 — Casos de eval deste repositório](goals/022-eval-cases.md) | Aceito na [revisão de fechamento da rodada 001](rodadas/001/revisao-fechamento.md) e incorporado à `main` |
+| [023 — Distribuição](goals/023-distribution.md) | Aceito na [revisão de fechamento da rodada 001](rodadas/001/revisao-fechamento.md) e incorporado à `main` |
+| [024 — Coleta](goals/024-collect.md) | Aceito com correções na [revisão de fechamento da rodada 001](rodadas/001/revisao-fechamento.md) e incorporado à `main`; a correção (registro de coleta no mesmo segundo) vai no goal seguinte do item 2 |
 
 ## Decisões pendentes
 
 - **D1 da rodada 001:** como corrigir os defeitos do laço de par, que
   nenhum agente do laço pode editar (`tools/pairloop/` é protegido).
-  Opções e recomendação na [revisão 1](rodadas/001/revisao-1.md) e no
-  relatório da rodada. Nenhum goal da fila espera por ela.
+  Opções e recomendação no [relatório da rodada](rodadas/001.md).
+  Nenhum goal da fila espera por ela.
 
 ## Pedidos ao usuário
 
 - Token dedicado no ambiente para a calibração dos evals
   (`CLAUDE_CODE_OAUTH_TOKEN`, gerado por `claude setup-token`, ou
-  `ANTHROPIC_API_KEY`). Sem ele, a calibração, a linha de base, a poda
-  por ablação e a medição de módulos não começam. O goal 022 deixa os
-  casos prontos para quando ele chegar.
+  `ANTHROPIC_API_KEY`). Os casos e a tolerância estão prontos (goal
+  022); sem o token, a calibração, a linha de base, a poda por ablação e
+  a medição de módulos não começam.
+- Etiqueta `v0.1.0` na `main`, se quiser a instalação fixada que o
+  README cita.
 
 ## Próximo passo
 
-Rodada 001 do laço em andamento. Três executores em paralelo: goal 022
-(casos de eval, Fase 3), goal 023 (instalação e README, item 8) e goal
-024 (`dark coletar`, item 2). A revisão de fechamento julga e junta as
-três branches.
+Rodada 001 fechada ([relatório](rodadas/001.md)). A próxima rodada
+começa pela auditoria lendo do banco (resto do item 2) e pelo plugin do
+Claude Code com `dark --versao` (resto do item 8); a calibração, assim
+que a credencial chegar.

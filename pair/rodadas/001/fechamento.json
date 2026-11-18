@@ -1,0 +1,27 @@
+{
+  "cycle": 1,
+  "verdicts": [
+    {"goal": "022", "branch": "goal-022", "verdict": "accepted",
+     "reason": "Os seis critérios conferem: 858 testes no worktree da branch, 11 casos VÁLIDO de 9 módulos, conferência à mão em 5 casos, seção Primeira rodada com tolerância declarada antes de medir (conta binomial refeita), entradas ruins da CLI com mensagem e código 2. Sondagens com UTF-8 inválido, diretório no lugar do caso e commit inexistente: sem traceback."},
+    {"goal": "023", "branch": "goal-023", "verdict": "accepted",
+     "reason": "856 testes; os nove jobs do workflow verdes, inclusive os três que instalam o wheel fora do checkout; conferência independente de sessões e pedidos bate; versão e CHANGELOG conferidos por teste; nenhuma dependência nova e nada pessoal no diff."},
+    {"goal": "024", "branch": "goal-024", "verdict": "accepted_with_fixes",
+     "reason": "864 testes; idempotência, conferência exata com dark.indicators, tempo e recusa do banco em repositório não ignorado conferem, também nas minhas sondagens. Correção para um goal seguinte: duas coletas que começam no mesmo segundo deixam uma linha só em collections, e o registro da primeira some."}
+  ],
+  "merged": ["goal-022", "goal-023", "goal-024"],
+  "tests_passed": true,
+  "merge_conflict": false,
+  "privacy_violation": false,
+  "pending_decisions": [
+    {"id": "D1",
+     "question": "Como corrigir os defeitos do laço de par, que nenhum agente do laço pode editar (tools/pairloop/ é protegido): git do orquestrador com configuração neutralizada e .git/ no retrato, arquivo de hooks regerado, bytecode, comando de testes conferido na partida, caminhos do Git Bash, rascunho do revisor dentro das raízes do hook, destino de git clone não conferido, variáveis não expandidas pelo hook, executor sem poder remover os worktrees que criou?",
+     "options": ["a: o usuário abre uma sessão fora do laço, entre rodadas, com um goal de endurecimento do laço",
+                 "b: liberar tools/pairloop/ para um executor numa rodada, com o revisor conferindo",
+                 "c: aceitar os riscos e seguir"],
+     "recommendation": "a",
+     "blocks": []}
+  ],
+  "batches": [],
+  "stop": false,
+  "stop_reason": ""
+}

@@ -1222,3 +1222,64 @@ executor errar por causa disso.
 
 **Motivo:** três lotes paralelos neste ciclo; a regra do revisor proíbe
 regra nova no `CLAUDE.md` sem falha observada.
+
+## Decisões dos goals 022, 023 e 024
+
+**Data:** 2026-11-17 ([revisão de fechamento da rodada 001](../pair/rodadas/001/revisao-fechamento.md))
+
+Confirmadas pelo revisor do laço, como estão:
+
+- **Goal 022** ([diário](../pair/diario/022.md)): tolerância de 4 em 15
+  execuções por condição para comparar duas rodadas iguais, declarada
+  antes de medir (conferi a conta: 9,9% com `p = 0,5`; por caso, 21,9%,
+  por isso a diferença por caso não reprova); `validar` sai com 2 quando
+  algum arquivo de caso é ilegível ou malformado e continua os outros;
+  o arquivo de saída de `calibrar`/`rodar` é criado no início, para
+  falhar antes de gastar uma execução; linhas fora de testes contadas
+  literalmente, "cinco menores" por linhas de código; `source = "mined"`
+  nos casos novos; ids `goal-NNN-assunto`.
+- **Goal 023** ([diário](../pair/diario/023.md)): SemVer com `0.x`;
+  URL do repositório como `<URL do repositório>`; `readme = "README.md"`
+  no `pyproject.toml`; job de instalação só com Python 3.13; etiqueta
+  `v0.1.0` não criada pelo laço (é do usuário: a etiqueta vai ao remoto
+  e o laço só empurra a `main`); README diz que `dark auditar` não usa
+  rede.
+- **Goal 024** ([diário](../pair/diario/024.md)): os 14 itens de
+  "Decisões tomadas aqui", em especial `--todos` (a coleta semanal
+  deveria usá-lo), a regra do local do banco (dentro do repositório
+  pedido recusa sempre; em repositório git sem estar ignorado recusa;
+  ignorado em outro repositório aceita), bloqueio de hook de parada
+  gravado como `stop_blocked` sem mudar o esquema, e uma coleta
+  `--sem-git` que não desfaz ligações gravadas com git.
+
+**Motivo:** conferidas pelo revisor: 858, 856 e 864 testes nas
+branches e 890 na `main` depois das três junções; sondagens próprias
+descritas na revisão de fechamento.
+
+## Coleta: registro perdido com duas coletas no mesmo segundo
+
+**Data:** 2026-11-17 ([revisão de fechamento da rodada 001](../pair/rodadas/001/revisao-fechamento.md))
+
+A tabela `collections` guarda `started_at` em segundos, com `UNIQUE`.
+Três coletas seguidas dentro do mesmo segundo deixaram uma linha só, a
+da última (`sessions_written = 0`): o registro da primeira, que gravou
+5 sessões, sumiu. Não afeta os dados das sessões. Padrão a confirmar:
+correção num goal seguinte do item 2 (por exemplo, recusar ou esperar
+quando já existe coleta naquele segundo, em vez de substituir), com
+teste.
+
+**Motivo:** sondagem do revisor sobre o goal 024; a coleta semanal
+quase nunca cai nisso, mas um registro de coleta não deve sumir em
+silêncio.
+
+## Executor de goal 022 e worktrees no rascunho
+
+**Data:** 2026-11-17 ([revisão de fechamento da rodada 001](../pair/rodadas/001/revisao-fechamento.md))
+
+O hook bloqueia `git worktree remove` e `prune` para o executor; o
+executor do goal 022 apagou os diretórios e deixou 11 registros
+`prunable`. O revisor rodou `git worktree prune` ao juntar. Entra na
+lista de D1 (endurecimento do laço): deixar o executor remover os
+worktrees que ele mesmo criou em `$PAIRLOOP_SCRATCH`.
+
+**Motivo:** diário 022; só o usuário edita `tools/pairloop/`.

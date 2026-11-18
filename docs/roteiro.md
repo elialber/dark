@@ -46,13 +46,22 @@ que descobrir. O porquê do projeto está em `docs/visao.md`.
   usuário pode corrigir (D1 da rodada 001); os erros da CLI de evals
   entram no goal 022.
 
+- **Casos de eval deste repositório** (goal 022). Onze casos válidos,
+  de nove módulos, os cinco da primeira rodada e a tolerância (4 em 15
+  execuções por condição) declarada antes de medir; CLI de evals sem
+  traceback diante de entrada ruim. Parte do item 3; a calibração
+  continua esperando a credencial.
+- **Instalação e README** (goal 023). Instalação por `pip install
+  "git+<URL>"`, versão 0.1.0, `CHANGELOG.md`, README para quem chega de
+  fora e um job que instala o wheel fora do checkout nos três sistemas.
+  Parte do item 8; falta o plugin.
+- **Comando `dark coletar`** (goal 024). Coleta idempotente para o
+  banco de agregados, conferida contra `dark.indicators`. Primeira parte
+  do item 2.
+
 ## Em andamento
 
-| Goal | O que é | Branch |
-|---|---|---|
-| 022 | Casos de eval deste repositório (pelo menos 10, validados), conjunto e tolerância da primeira rodada, erros da CLI de evals (item 3) | `goal-022` |
-| 023 | Instalação em um comando, versão 0.1.0, registro de mudanças, README para quem chega de fora e instalação conferida no workflow (item 8, sem o plugin) | `goal-023` |
-| 024 | Comando `dark coletar` (item 2, primeira parte; a auditoria lendo do banco fica para o goal seguinte) | `goal-024` |
+Nada. A rodada 001 fechou com os goals 022, 023 e 024 juntados.
 
 ## Fila, em ordem
 
@@ -72,9 +81,11 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
 - **Pronto quando:** duas coletas seguidas deixam o banco igual; a
   auditoria sobre o banco dá os mesmos números da auditoria direta; e o
   comando leva segundos.
-- **Situação:** dividido em dois goals. O 024 entrega o comando e a
-  idempotência; o seguinte faz a auditoria ler do banco, com a seção "o
-  que mudou desde a última semana", e a seção do README.
+- **Situação:** o goal 024 entregou o comando e a idempotência
+  (rodada 001). Falta o goal seguinte: a auditoria ler do banco, com a
+  seção "o que mudou desde a última semana", a seção do README (texto
+  proposto no diário 024) e a correção do registro de coleta perdido
+  quando duas coletas começam no mesmo segundo (`docs/decisoes.md`).
 
 ### 3. Executor de evals
 
@@ -82,10 +93,11 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
   Falta a calibração, bloqueada por credencial: depende de o usuário
   gerar um token dedicado e colocá-lo no ambiente. Até lá, os itens 4 e
   a medição dos módulos do item 6 não começam.
-  O goal 022 prepara o que não depende da credencial: os casos deste
-  repositório, os 5 da primeira rodada e a tolerância declarada antes
-  de medir. Com a credencial no ambiente, o próximo goal do item é a
-  calibração seguida da linha de base.
+  O goal 022 deixou pronto o que não depende da credencial: 11 casos
+  deste repositório, os 5 da primeira rodada e a tolerância (4 em 15
+  execuções por condição) declarada antes de medir. Com a credencial no
+  ambiente, o próximo goal do item é a calibração seguida da linha de
+  base.
 - **Entrega:** roda o agente, em modo não interativo, sobre um caso de
   eval, em cópia limpa do repositório, várias vezes, em duas condições:
   sem harness e com harness. Aplica o orçamento da decisão E17, começando
@@ -170,10 +182,12 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
 - **Depende de:** 1 (concluído no goal 019).
 - **Pronto quando:** instalado do zero em uma segunda máquina, `dark
   auditar` roda sem ajuste manual.
-- **Situação:** o goal 023 entrega a instalação, a versão, o registro
+- **Situação:** o goal 023 entregou a instalação, a versão, o registro
   de mudanças, o README e a conferência da instalação no workflow (que
-  faz o papel da segunda máquina nos três sistemas). Falta o plugin do
-  Claude Code, num goal seguinte. Motivo da ordem: direção do usuário
+  faz o papel da segunda máquina nos três sistemas, com os arquivos
+  sintéticos). Falta o plugin do Claude Code e a opção `dark --versao`
+  (proposta no diário 023), num goal seguinte; a etiqueta `v0.1.0` é do
+  usuário. Motivo da ordem: direção do usuário
   ("tornar a ferramenta utilizável em outros ambientes"), acima da ordem
   da fila.
 
@@ -227,7 +241,8 @@ ou quando destravarem um item acima.
   configuração neutralizada, `.git/config` e `.git/hooks/` no retrato,
   arquivo de hooks regerado a cada sessão, bytecode, comando de testes
   conferido na partida, rascunho do revisor fora das raízes do hook,
-  destino de `git clone` conferido pelo hook (diário 021 e revisão da
+  destino de `git clone` conferido pelo hook, executor remove os
+  worktrees que criou no rascunho (diário 021, diário 022 e revisões da
   rodada 001). Só o usuário pode fazer: `tools/pairloop/` é protegido
   (D1 da rodada 001).
 
