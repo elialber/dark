@@ -327,7 +327,8 @@ def changes(store: AggregateStore, root: str | None) -> Changes:
         inventory = InventoryChange(
             diff.before.isoformat(), diff.after.isoformat(), len(diff.added),
             len(diff.removed), len(diff.resized),
-            sum(i.size_chars for i in before.items), sum(i.size_chars for i in after.items))
+            sum(i.size_chars for i in before.items), sum(i.size_chars for i in after.items),
+            tuple((e.key.kind, e.key.name) for e in diff.added))
     return Changes(
         True, previous=_numbers(store.week_summary(root, previous)),
         current=_numbers(store.week_summary(root, latest)),

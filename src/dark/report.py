@@ -16,6 +16,7 @@ from datetime import datetime
 from pathlib import PurePath
 
 from dark import indicators as ind
+from dark import recommend
 from dark import reader
 from dark import provenance as prov
 from dark.audit import MODES_WITHOUT_REJECTION, Finding, Audit
@@ -772,12 +773,32 @@ def _changes(a: Audit) -> list[str]:
     return lines
 
 
+def _recommendations(a: Audit) -> list[str]:
+    found = recommend.recommend(a)
+    lines = ["## Recomendações", ""]
+    for r in found:
+        lines += [f"- `{r.rule}`: {r.evidence}. Ação: {r.action}. Verificação: {r.verify}."]
+    if not found:
+        lines.append("Nenhuma regra disparou com os dados disponíveis.")
+    if (note := recommend.missing_data(a)) is not None:
+        lines += ["", note]
+    lines += ["", how_to_read(
+        "cada recomendação vem de uma regra fixa e traz o número ou o nome que a dispara; "
+        "não há nota única nem texto gerado. Os limites (semanas sem uso, linhas do "
+        "arquivo de instruções, bloqueios de hook) são padrões a confirmar. O bloqueio de "
+        "hook é contado por evento: o banco não guarda o nome do hook. Regras adiadas, "
+        "por falta do dado: "
+        + "; ".join(f"`{k}` ({v})" for k, v in recommend.DEFERRED.items()) + ".")]
+    return lines
+
+
 def markdown(a: Audit) -> str:
     parts = [_header(a)]
     if a.sessions:
         parts += [_attention(a)]
         if a.changes is not None:
             parts.append(_changes(a))
+        parts.append(_recommendations(a))
         parts += [_fixed_context(a), _dead_weight(a)]
         if a.installed is not None:
             parts.append(_installed(a))
