@@ -17,7 +17,7 @@ dependências estão em [docs/roteiro.md](docs/roteiro.md); o porquê, em
 | ⬜ | Planejada: ainda não existe. |
 | ⏸️ | Depende do usuário (credencial, escolha ou repositórios dele). |
 
-Situação em 2026-11-18 (rodada 005 do laço, goal 056), versão `0.1.0` mais as mudanças em "Não lançado".
+Situação em 2026-11-19 (rodada 005 do laço, goal 056; fora do laço, goals 059 e 060), versão `0.1.0` mais as mudanças em "Não lançado".
 
 ## Resumo
 
@@ -63,7 +63,7 @@ Lê o harness e as transcrições; não escreve nada no repositório.
 - ✅ Ablação de uma peça (skill, subagente ou instrução): `pode remover`, `mantenha`, `inconclusivo`, `não discrimina`
 - ✅ Guardar resultados de evals no banco: `python -m dark.evals guardar` e `dark coletar --evals`, inclusive a condição `with_module` (esquema 4, goal 054)
 - ✅ Medir o ganho de um módulo (`python -m dark.evals modulo`, condição `with_module`, regra de ganho em custo e passos): goals 050 e 052, guardado no banco desde o goal 054, testado com agente falso
-- 🟡 Medição real: calibração dos casos difíceis e ganho real do Graphify feitos (goal 059); falta a ablação real (decisão de orçamento do usuário)
+- 🟡 Medição real: calibração dos casos difíceis e ganho real do Graphify feitos (goal 059); casos intermediários calibrados, discriminam pela solução (goal 060); faltam a rodada completa e a ablação real (orçamento do usuário)
 
 ## 4. Recomendações
 

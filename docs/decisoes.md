@@ -2075,3 +2075,25 @@ teste de âncora.
   discriminam, o custo passa do teto aprovado.
 
 **Motivo:** pedido do usuário, teto de 25 milhões de tokens.
+
+## Decisões do goal 060
+
+**Data:** 2026-11-19 ([diário 060](../pair/diario/060.md))
+
+- **Casos intermediários no lugar dos difíceis** (usuário: opção "c" do
+  goal 059). Conjunto declarado antes da medida no `evals/README.md`,
+  "Terceira rodada": `goal-029`, `goal-010`, `goal-011`, `goal-012` e
+  `goal-005`, de 152 a 816 linhas.
+- **Calibração:** `bare` 5/5 e `project` 3/5 (com a calibração do
+  `goal-029` da segunda rodada); 2,9 milhões de tokens nos quatro casos
+  novos. Nenhuma falha pelo teto (máximo de 605 mil tokens): as duas
+  falhas são de aceite. O conjunto discrimina pela solução.
+- **Rodada completa e ablação não rodadas:** a rodada completa custaria
+  cerca de 11 milhões de tokens, acima do teto de 10 milhões por rodada e
+  do que resta dos 25 milhões. Esperam aprovação do usuário.
+- **Graphify:** o "sem ganho" nos casos pequenos basta por agora
+  (recomendação do goal 059, aceita pelo usuário). O módulo segue
+  opcional; nova medida só a pedido ou por evidência do piloto.
+
+**Motivo:** decisões do usuário sobre o diário 059; orçamento de 25
+milhões de tokens, dos quais cerca de 15,4 milhões foram gastos.

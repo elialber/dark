@@ -523,3 +523,61 @@ tokens, turnos ou tempo, ou no teto de 10 milhões da rodada.
   teste e um aceite escondido confere o comportamento.
 - A tolerância declarada em "Primeira rodada" vale; não a mude depois de
   ver números.
+
+## Terceira rodada (casos intermediários)
+
+Conjunto declarado no goal 060, antes de qualquer medida dos casos
+novos, por decisão do usuário (opção "c" do goal 059: trocar os casos
+difíceis por intermediários). A segunda calibração mostrou que os casos
+difíceis discriminam sobretudo pelo teto de tokens: quatro das seis
+falhas tinham o aceite em código 0 e só passaram de 1 milhão de tokens.
+Os casos abaixo ficam entre os pequenos (até 74 linhas) e os difíceis
+(1262 linhas ou mais, ou acima do teto), para que a falha venha da
+solução e não do limite.
+
+### Casos
+
+| Caso | Módulo | Tipo | Linhas da solução fora de `tests/`, `docs/` e `pair/` |
+|---|---|---|---|
+| `goal-029-case-format-language` | casos de eval | mudança guiada por convenção | 152 |
+| `goal-010-context-usage` | peso do contexto | módulo novo a partir de testes | 302 |
+| `goal-011-git-history` | histórico git | módulo novo a partir de testes | 662 |
+| `goal-012-eval-cases` | casos de eval | módulo novo a partir de testes | 810 |
+| `goal-005-leitor` | leitor de transcrições | módulo novo a partir de testes | 816 |
+
+Motivo: são os cinco casos gravados de tamanho intermediário que não
+foram medidos em `project` e `bare` com 100% (os médios
+`goal-019-report-paths` e `goal-021-orchestrator-push` deram 4 de 4 no
+goal 026 e ficam de fora). O `goal-029` entra porque já falhou uma vez
+(`project`, segunda calibração). Todos passam na validação (`validar` diz
+VÁLIDO no goal 060). Cobrem quatro módulos.
+
+### Tolerância e limites
+
+Valem a tolerância de "Primeira rodada" (5 casos, até 4 de 15 execuções
+de diferença é ruído) e os limites aprovados no goal 026: 1 milhão de
+tokens, 40 turnos e 600 s por execução, 10 milhões por rodada.
+
+### Comando
+
+```bash
+python -m dark.evals calibrar --repo . --saida /tmp/evals/terceira-calibracao.jsonl \
+  --tokens 1000000 --max-turnos 40 --tempo 600 --teto-rodada 10000000 \
+  evals/cases/goal-010-context-usage.toml \
+  evals/cases/goal-011-git-history.toml \
+  evals/cases/goal-012-eval-cases.toml \
+  evals/cases/goal-005-leitor.toml
+python -m dark.evals resumir /tmp/evals/terceira-calibracao.jsonl
+```
+
+O `goal-029` já tem uma calibração (segunda rodada) e não é repetido.
+Estimativa pelos casos médios e difíceis já medidos (de 360 mil a 830
+mil tokens por execução): 8 execuções, de 3 a 6 milhões de tokens.
+
+### O que fazer com o resultado
+
+As mesmas regras de "Segunda rodada": término por limite conta como
+falha e o limite não sobe; se houver falha ou diferença, `rodar
+--execucoes 3` com os mesmos limites, desde que a estimativa caiba no
+orçamento aprovado pelo usuário; se der 100% nas duas condições, o
+conjunto não discrimina e o próximo passo são tarefas de várias etapas.
