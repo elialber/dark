@@ -21,6 +21,19 @@ Quando a direção mudar, substitua a seção abaixo. O histórico fica no git.
 Concluir a Fase 3 (evals) e tornar a ferramenta utilizável em outros
 ambientes.
 
+**Mudança de escopo (usuário, 2026-11-18): agnóstico de agente.** O
+`dark` não deve ser só do Claude Code. O usuário trabalha com agentes
+híbridos, a maior parte com Codex (OpenAI) e parte com Claude Code. Isso
+reabre o item "Outros agentes além do Claude Code" de `docs/visao.md`
+("O que foi negociado e ficou de fora"). Os próximos goals definem como
+verificar e medir de forma agnóstica: primeiro o desenho (o que é comum
+aos agentes, o que é próprio de cada um, como ler as sessões do Codex em
+`~/.codex/sessions` e o `AGENTS.md` ao lado de `CLAUDE.md`), com decisão
+registrada, antes de qualquer código. O piloto (item 9) usa dois
+repositórios privados do usuário, `AIStoteles` e `mrvr`, com Codex e
+Claude Code; o caminho fica fora do repositório (só o usuário e a sessão
+do piloto o recebem) e nos registros entram só números e o nome.
+
 Respostas às decisões da rodada 003 (usuário, 2026-11-18):
 
 - **D1 (Langfuse e Graphify):** opção (a), com um ajuste. O Langfuse é
