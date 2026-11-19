@@ -2097,3 +2097,16 @@ teste de âncora.
 
 **Motivo:** decisões do usuário sobre o diário 059; orçamento de 25
 milhões de tokens, dos quais cerca de 15,4 milhões foram gastos.
+
+**Atualização (rodada completa, aprovada pelo usuário):** `bare` 12/15,
+`project` 9/15, 12,6 milhões de tokens; todas as falhas de aceite. A
+diferença (3) fica dentro da tolerância: ruído pela regra declarada. Por
+caso, `project` perdeu os seis do `goal-029` e do `goal-005`;
+diagnóstico provável: a condição `project` usa o `CLAUDE.md` do HEAD
+sobre commits antigos, e as convenções de hoje (código em inglês,
+`dark.reader`) contradizem os testes congelados da época
+(`dark.leitor`, `ErroDeFormato`). Não é defeito do executor; é limite do
+desenho dos casos antigos. Ablação não rodada (não discriminaria peça;
+só confirmaria o anacronismo). Gasto total das medições: cerca de 28
+milhões de tokens. Correção (harness da época ou só casos recentes)
+espera o usuário.

@@ -82,14 +82,14 @@ Fase 3 em andamento; laço de par disponível
 | [057 — `applied_module` no formato `nome:versão`](goals/057-applied-module-format.md) | Aceito na [revisão 4 da rodada 005](rodadas/005/revisao-4.md) e incorporado à `main`; documentos no goal 058 |
 | [058 — Documentos do 057 e `pattern` sem quebra de linha no fim](goals/058-docs-057-pattern-end.md) | Aceito na [revisão 5 da rodada 005](rodadas/005/revisao-5.md) e incorporado à `main`; `validate_record` usa `re.fullmatch`; teste de âncora não pega alternância no topo (guardado para depois) |
 | [059 — Medições reais com credencial](goals/059-real-measurements.md) | Concluído fora do laço, a pedido do usuário; segunda calibração (`bare` 2/5, `project` 1/5, quatro falhas só do teto de tokens) e Graphify sem ganho; aguarda revisão ([diário](diario/059.md)) |
-| [060 — Casos intermediários](goals/060-intermediate-cases.md) | Concluído fora do laço, por decisão do usuário (opção "c" do 059); calibração `bare` 5/5, `project` 3/5, falhas só de aceite; rodada completa espera orçamento; aguarda revisão ([diário](diario/060.md)) |
+| [060 — Casos intermediários](goals/060-intermediate-cases.md) | Concluído fora do laço, por decisão do usuário (opção "c" do 059); calibração `bare` 5/5, `project` 3/5; rodada completa `bare` 12/15, `project` 9/15 (ruído pela tolerância), com `project` 0/6 em dois casos antigos por harness anacrônico; aguarda revisão ([diário](diario/060.md)) |
 
 ## Decisões pendentes
 
-- Rodada completa dos casos intermediários (goal 060): cerca de 11
-  milhões de tokens, acima do teto de 10 milhões por rodada e do que
-  resta dos 25 milhões; a ablação vem depois, se houver diferença.
-  Estimativa e recomendação no [diário 060](diario/060.md).
+- Condição `project` em casos antigos (goal 060): o `CLAUDE.md` do HEAD
+  contradiz os testes congelados de casos antigos. Opções: harness da
+  época do caso, só casos recentes (recomendado) ou as duas condições.
+  Detalhes no [diário 060](diario/060.md).
 - Escopo agnóstico de agente (Codex e Claude Code), em
   [DIRECAO.md](DIRECAO.md): a próxima rodada começa pelo desenho.
 - Padrões a confirmar da ablação (diário 034): mínimo de 15 execuções
@@ -114,6 +114,6 @@ Rodada 005 fechada no ciclo 5 ([revisão 5](rodadas/005/revisao-5.md),
 não depende do usuário está vazia. Depois, fora do laço, o goal 059 fez a segunda
 calibração e a medição real do Graphify (sem ganho), e o goal 060
 calibrou os casos intermediários (discriminam pela solução). Próximo: desenho
-agnóstico de agente (direção do usuário), orçamento da rodada completa (diário 060), teste
+agnóstico de agente (direção do usuário), condição `project` em casos antigos (diário 060), teste
 com uma pessoa de fora (item 7) e piloto (item 9, com `AIStoteles` e
 `mrvr`).

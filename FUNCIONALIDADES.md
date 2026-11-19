@@ -63,7 +63,7 @@ Lê o harness e as transcrições; não escreve nada no repositório.
 - ✅ Ablação de uma peça (skill, subagente ou instrução): `pode remover`, `mantenha`, `inconclusivo`, `não discrimina`
 - ✅ Guardar resultados de evals no banco: `python -m dark.evals guardar` e `dark coletar --evals`, inclusive a condição `with_module` (esquema 4, goal 054)
 - ✅ Medir o ganho de um módulo (`python -m dark.evals modulo`, condição `with_module`, regra de ganho em custo e passos): goals 050 e 052, guardado no banco desde o goal 054, testado com agente falso
-- 🟡 Medição real: calibração dos casos difíceis e ganho real do Graphify feitos (goal 059); casos intermediários calibrados, discriminam pela solução (goal 060); faltam a rodada completa e a ablação real (orçamento do usuário)
+- 🟡 Medição real: calibração dos casos difíceis e ganho real do Graphify feitos (goal 059); casos intermediários com rodada completa (goal 060: `bare` 12/15, `project` 9/15, ruído pela tolerância); falta corrigir o harness anacrônico em casos antigos e a ablação real
 
 ## 4. Recomendações
 

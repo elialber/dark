@@ -216,8 +216,10 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
   tokens (aceite em código 0). Por decisão do usuário, o
   [goal 060](../pair/goals/060-intermediate-cases.md) trocou-os por cinco
   casos intermediários: `bare` 5/5, `project` 3/5, falhas só de aceite.
-  A rodada completa (cerca de 11 milhões de tokens) e a ablação esperam
-  orçamento do usuário. O goal 030
+  Rodada completa: `bare` 12/15, `project` 9/15, diferença dentro da
+  tolerância; o `project` perdeu os seis de dois casos antigos porque o
+  `CLAUDE.md` do HEAD contradiz os testes da época. Antes da ablação, o
+  usuário decide como a condição `project` trata casos antigos. O goal 030
   fechou a lacuna do aceite por configuração do pytest (o 033 fecha os
   nomes que restaram).
 - **Entrega:** roda o agente, em modo não interativo, sobre um caso de
