@@ -47,5 +47,10 @@
 - Depois do push da branch, o executor espera o workflow da branch
   (`gh run watch` ou `gh run view`) e põe no diário a tabela "job,
   resultado"; job vermelho é corrigido ou explicado antes de parar.
+  Vale o workflow do último commit que muda código ou teste; commit que
+  só muda `pair/` (diário, a própria tabela) não pede nova espera nem
+  nova tabela.
   **Motivo:** o workflow da `main` ficou vermelho no Windows da rodada
-  002 à 005 sem que ninguém notasse (goal 053).
+  002 à 005 sem que ninguém notasse (goal 053). Sem a ressalva, o
+  executor do goal 057 passou mais de uma hora esperando o workflow de
+  cada commit de diário, que disparava outro (rodada 005).
