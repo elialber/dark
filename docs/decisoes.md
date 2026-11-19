@@ -2110,3 +2110,13 @@ desenho dos casos antigos. Ablação não rodada (não discriminaria peça;
 só confirmaria o anacronismo). Gasto total das medições: cerca de 28
 milhões de tokens. Correção (harness da época ou só casos recentes)
 espera o usuário.
+
+**Atualização (decisões do usuário sobre o anacronismo):** opção (b):
+a condição `project` mede o harness do HEAD e só vale em casos com base
+depois da última mudança de convenção do `CLAUDE.md` (`e4f143a`, lote
+009). Dos 16 casos gravados, só `goal-021` e `goal-024` atendem; os
+outros 14 ficam para `bare` ou para histórico. Os candidatos recentes
+trazem os testes no mesmo commit do código, e o formato só os entrega no
+aceite; proposta: tabela opcional `[setup]` no caso (arquivos postos na
+cópia antes do agente), num goal de código. Diagnóstico do `goal-029`
+não feito: o caso sai do conjunto `project`, e o do `goal-005` basta.

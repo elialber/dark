@@ -218,8 +218,10 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
   casos intermediários: `bare` 5/5, `project` 3/5, falhas só de aceite.
   Rodada completa: `bare` 12/15, `project` 9/15, diferença dentro da
   tolerância; o `project` perdeu os seis de dois casos antigos porque o
-  `CLAUDE.md` do HEAD contradiz os testes da época. Antes da ablação, o
-  usuário decide como a condição `project` trata casos antigos. O goal 030
+  `CLAUDE.md` do HEAD contradiz os testes da época. O usuário escolheu
+  medir o harness do HEAD só em casos com base depois de `e4f143a` (só
+  dois dos 16 atendem); casos novos pedem a tabela `[setup]` no formato
+  do caso (testes postos antes do agente), num goal de código. O goal 030
   fechou a lacuna do aceite por configuração do pytest (o 033 fecha os
   nomes que restaram).
 - **Entrega:** roda o agente, em modo não interativo, sobre um caso de

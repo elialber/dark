@@ -86,10 +86,11 @@ Fase 3 em andamento; laço de par disponível
 
 ## Decisões pendentes
 
-- Condição `project` em casos antigos (goal 060): o `CLAUDE.md` do HEAD
-  contradiz os testes congelados de casos antigos. Opções: harness da
-  época do caso, só casos recentes (recomendado) ou as duas condições.
-  Detalhes no [diário 060](diario/060.md).
+- Casos recentes para a condição `project` (goal 060, opção b do
+  usuário): os candidatos trazem os testes no mesmo commit do código;
+  proposta de tabela `[setup]` no formato do caso, num goal de código, e
+  orçamento para calibrar e rodar. Detalhes no
+  [diário 060](diario/060.md).
 - Escopo agnóstico de agente (Codex e Claude Code), em
   [DIRECAO.md](DIRECAO.md): a próxima rodada começa pelo desenho.
 - Padrões a confirmar da ablação (diário 034): mínimo de 15 execuções
@@ -114,6 +115,6 @@ Rodada 005 fechada no ciclo 5 ([revisão 5](rodadas/005/revisao-5.md),
 não depende do usuário está vazia. Depois, fora do laço, o goal 059 fez a segunda
 calibração e a medição real do Graphify (sem ganho), e o goal 060
 calibrou os casos intermediários (discriminam pela solução). Próximo: desenho
-agnóstico de agente (direção do usuário), condição `project` em casos antigos (diário 060), teste
+agnóstico de agente (direção do usuário), tabela `[setup]` e casos recentes (diário 060), teste
 com uma pessoa de fora (item 7) e piloto (item 9, com `AIStoteles` e
 `mrvr`).
