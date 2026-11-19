@@ -2057,3 +2057,21 @@ em `2e696a8` também (44408925758); sondagens: seis valores pelo
 "tipo errado"), o `guardar` com `applied_module = "graphify"` dá
 exatamente a linha citada no README, e a alternância no topo contra o
 teste de âncora.
+
+## Decisões do goal 059
+
+**Data:** 2026-11-18 ([diário 059](../pair/diario/059.md))
+
+- **Segunda calibração feita:** `bare` 2/5, `project` 1/5, 7,7 milhões
+  de tokens. Quatro das seis falhas tiveram aceite em código 0 e falharam
+  só pelo teto de 1 milhão de tokens por execução. O teto não sobe sem
+  decisão do usuário (regra do goal 029).
+- **Graphify 0.9.112: sem ganho** nos cinco casos da primeira rodada
+  (15/15 nas duas condições; tokens em 99,5% da média sem o módulo;
+  turnos subiram). Ressalva: casos pequenos, não de exploração.
+- **Graphify das medições vem de ambiente isolado**, com só o executável
+  no `PATH`; a instalação do usuário não é tocada.
+- **Ablação adiada:** nos casos pequenos daria "não discrimina"; nos que
+  discriminam, o custo passa do teto aprovado.
+
+**Motivo:** pedido do usuário, teto de 25 milhões de tokens.

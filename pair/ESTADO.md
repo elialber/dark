@@ -81,29 +81,27 @@ Fase 3 em andamento; laço de par disponível
 | [056 — Documentos do 052, do 054 e do 055](goals/056-docs-052-054-055.md) | Aceito na [revisão 4 da rodada 005](rodadas/005/revisao-4.md) e incorporado à `main` |
 | [057 — `applied_module` no formato `nome:versão`](goals/057-applied-module-format.md) | Aceito na [revisão 4 da rodada 005](rodadas/005/revisao-4.md) e incorporado à `main`; documentos no goal 058 |
 | [058 — Documentos do 057 e `pattern` sem quebra de linha no fim](goals/058-docs-057-pattern-end.md) | Aceito na [revisão 5 da rodada 005](rodadas/005/revisao-5.md) e incorporado à `main`; `validate_record` usa `re.fullmatch`; teste de âncora não pega alternância no topo (guardado para depois) |
+| [059 — Medições reais com credencial](goals/059-real-measurements.md) | Concluído fora do laço, a pedido do usuário; segunda calibração (`bare` 2/5, `project` 1/5, quatro falhas só do teto de tokens) e Graphify sem ganho; aguarda revisão ([diário](diario/059.md)) |
 
 ## Decisões pendentes
 
-- Casos de eval que o agente às vezes falhe: os cinco casos novos do
-  goal 029 ainda não foram rodados (falta credencial no laço).
+- Medições reais (goal 059): teto por execução dos casos difíceis
+  (quatro falhas foram só do teto de 1 milhão de tokens, com aceite em
+  código 0), ablação (casos e orçamento) e se o "sem ganho" do Graphify
+  nos casos pequenos basta. Opções e recomendação no
+  [diário 059](diario/059.md).
+- Escopo agnóstico de agente (Codex e Claude Code), em
+  [DIRECAO.md](DIRECAO.md): a próxima rodada começa pelo desenho.
 - Padrões a confirmar da ablação (diário 034): mínimo de 15 execuções
   válidas por condição, tolerância proporcional acima de 15, erro fora da
   conta, peças suportadas (skill, subagente, instrução inteira).
 
 ## Pedidos ao usuário
 
-- Rodar a ablação real de uma peça (comando no diário 034) junto com a
-  calibração dos casos novos, com o token no ambiente (comando
-  em `evals/README.md`, "Segunda rodada"; estimativa de 6 a 8 milhões de
-  tokens, US$ 4 a 6), e a sessão real do plugin (diário 028).
+- A sessão real do plugin (diário 028).
 - Escolher a licença do repositório (o manifesto do plugin não a traz).
 - Etiqueta `v0.1.0` na `main`, se quiser a instalação fixada que o
   README cita.
-- Apagar a branch `goal-040` (local, em `origin` e o worktree): o goal
-  045 a substituiu e ela não tem mais uso (D1 da revisão 2 da rodada 004).
-- Apagar a branch `goal-054` (local, em `origin` e o worktree): o
-  conteúdo dela entrou na `main` pelo goal 055, por `cherry-pick` (D2 da
-  rodada 005).
 - Revogar o token dedicado às evals quando a rodada completa acabar
   (os comandos do agente podem lê-lo).
 
@@ -113,6 +111,8 @@ Lista de funcionalidades com situação de cada item: [FUNCIONALIDADES.md](../FU
 
 Rodada 005 fechada no ciclo 5 ([revisão 5](rodadas/005/revisao-5.md),
 [relatório](rodadas/005.md)): goal 058 juntado; 1585 testes. A fila que
-não depende do usuário está vazia. Próximo: medição real dos módulos e
-da ablação e calibração dos casos novos (credencial); teste com uma
-pessoa de fora (item 7); piloto (item 9).
+não depende do usuário está vazia. Depois, fora do laço, o goal 059 fez a segunda
+calibração e a medição real do Graphify (sem ganho). Próximo: desenho
+agnóstico de agente (direção do usuário), decisões do diário 059, teste
+com uma pessoa de fora (item 7) e piloto (item 9, com `AIStoteles` e
+`mrvr`).

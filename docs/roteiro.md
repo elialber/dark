@@ -210,8 +210,10 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
   por execução, 10 milhões por rodada. Falta um conjunto de casos que o
   agente às vezes falhe; sem ele, a linha de base é só "100%" e os itens 4
   e a medição dos módulos do item 6 não têm o que medir.
-  O goal 029 acrescentou cinco casos mais difíceis (16 no total), ainda
-  sem rodada: precisa de credencial (pedido ao usuário). O goal 030
+  O goal 029 acrescentou cinco casos mais difíceis (16 no total). O
+  [goal 059](../pair/goals/059-real-measurements.md) os calibrou: `bare`
+  2/5, `project` 1/5; quatro falhas foram só do teto de 1 milhão de
+  tokens (aceite em código 0). Teto e ablação esperam o usuário. O goal 030
   fechou a lacuna do aceite por configuração do pytest (o 033 fecha os
   nomes que restaram).
 - **Entrega:** roda o agente, em modo não interativo, sobre um caso de
@@ -289,6 +291,9 @@ valendo; o item 1 (portabilidade) foi concluído pelo goal 019.
   usuário: Langfuse auto-hospedado, embarcado como Docker Compose; origem,
   a edição community oficial de cada projeto; versão, a mais recente
   publicada quando o goal for feito, fixada.
+- **Medição real (goal 059):** Graphify 0.9.112 sem ganho nos cinco
+  casos da primeira rodada (tokens em 99,5% da média sem ele, turnos
+  subiram, 15/15 nas duas condições); casos pequenos, não de exploração.
 - **Próximo:** Langfuse (goal 043) e Graphify (goal 044) estão na
   `main`, documentados (goals 046 e 047), com ida e volta byte a byte
   nos testes, também os dois juntos e com o `.env` ou o grafo do usuário

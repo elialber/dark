@@ -27,7 +27,7 @@ Situação em 2026-11-18 (rodada 005 do laço, goal 056), versão `0.1.0` mais a
 | 2. Coleta e histórico | 4 | 5 |
 | 3. Evals | 7 | 8 |
 | 4. Recomendações | 8 | 8 |
-| 5. Scaffold e módulos | 5 | 6 |
+| 5. Scaffold e módulos | 6 | 6 |
 | 6. Distribuição | 6 | 8 |
 | 7. Método e documentação | 3 | 4 |
 | 8. Piloto | 0 | 1 |
@@ -63,7 +63,7 @@ Lê o harness e as transcrições; não escreve nada no repositório.
 - ✅ Ablação de uma peça (skill, subagente ou instrução): `pode remover`, `mantenha`, `inconclusivo`, `não discrimina`
 - ✅ Guardar resultados de evals no banco: `python -m dark.evals guardar` e `dark coletar --evals`, inclusive a condição `with_module` (esquema 4, goal 054)
 - ✅ Medir o ganho de um módulo (`python -m dark.evals modulo`, condição `with_module`, regra de ganho em custo e passos): goals 050 e 052, guardado no banco desde o goal 054, testado com agente falso
-- ⏸️ Medição real: ablação real, calibração dos casos difíceis e ganho real do Graphify (pedem credencial e orçamento de tokens)
+- 🟡 Medição real: calibração dos casos difíceis e ganho real do Graphify feitos (goal 059); falta a ablação real (decisão de orçamento do usuário)
 
 ## 4. Recomendações
 
@@ -87,7 +87,7 @@ Aplicar e desfazer estrutura no repositório, sem sobrescrever nada.
 - ✅ `dark iniciar` e `dark remover` com o módulo `base` (sem terceiros)
 - ✅ `dark adicionar <módulo>` (com `--listar`) e `dark verificar`
 - ✅ Módulo Langfuse (rastros de sessão; opcional; nunca grava chaves): goal 043, documentado no goal 046
-- 🟡 Módulo Graphify (grafo do repositório; opcional; precisa provar ganho): goal 044, documentado no goal 047; comando de medição nos goals 050 e 052, documentado nos goals 051 e 056; falta a medição real (pede credencial)
+- ✅ Módulo Graphify (grafo do repositório; opcional; precisa provar ganho): goal 044, documentado no goal 047; comando de medição nos goals 050 e 052, documentado nos goals 051 e 056; medido no goal 059: sem ganho nos casos pequenos
 - ✅ Instalar e desinstalar deixam o repositório idêntico ao inicial, medido em módulo de terceiro: goals 043, 044 e 048 (testes de ida e volta)
 
 ## 6. Distribuição
